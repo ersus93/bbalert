@@ -5,7 +5,7 @@ from core.config import CMC_API_KEY_ALERTA, CMC_API_KEY_CONTROL
 from datetime import datetime, timedelta
 # No se necesitan imports de file_manager aquí
 
-# === LÓGICA DE ALERTA (HBD) ===
+# === LÓGICA DE ALERTA (HBD) === 
 
 def generar_alerta(precios_actuales, precio_anterior_hbd):
     """

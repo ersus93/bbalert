@@ -1,0 +1,12 @@
+{
+    "123456789": {
+        "monedas": ["BTC", "HIVE", "HBD", "TON"],
+        "hbd_alerts": true,
+        "intervalo_alerta_h": 1.0
+    },
+    "987654321": {
+        "monedas": ["BTC", "ETH", "HIVE"],
+        "hbd_alerts": false,
+        "intervalo_alerta_h": 2.0
+    }
+}
