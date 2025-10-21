@@ -194,7 +194,8 @@ ms_conversation_handler = ConversationHandler(
         ],
     },
     fallbacks=[CommandHandler("cancelar", cancel_ms)],
-    conversation_timeout=600 # Se cancela automáticamente después de 10 minutos de inactividad
+    conversation_timeout=600, # Se cancela automáticamente después de 10 minutos de inactividad
+    per_message=True  # <--- ¡AÑADE ESTA LÍNEA!
 )
 
 # Referencias para inyección de funciones
