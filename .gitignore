@@ -1,0 +1,19 @@
+# Archivos de entorno - ¡MUY IMPORTANTE!
+apit.env
+.env
+
+# Archivos de datos JSON
+# Ignoramos todos los .json dentro de la carpeta data/
+data/*.json
+
+# Caché de Python y archivos compilados
+__pycache__/
+*.pyc
+
+# Carpetas de entorno virtual
+venv/
+.venv/
+env/
+
+# Configuraciones específicas de VS Code
+.vscode/
