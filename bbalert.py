@@ -1,4 +1,4 @@
-# bbalert.py - Punto de Entrada Principal del Bot de Telegram para BitBread Alert 
+# bbalert.py - Punto de Entrada Principal del Bot de Telegram para BitBread.
 
 import asyncio
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler
