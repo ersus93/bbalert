@@ -23,6 +23,7 @@ Este es un **bot de Telegram** diseñado para la **monitorización de precios de
 * `/misalertas`: Muestra las alertas activas.
 * `/graf`: Genera un gráfico histórico del precio.
 * `/mismonedas`: Gestiona las monedas a seguir.
+* `/monedas`: Edita y actualiza las monedas a seguir.
 * `/parar`: Detiene las notificaciones o alertas.
 
 ### Para Administración
