@@ -1,0 +1,27 @@
+{
+    "123456789": [
+        {
+            "alert_id": "abc123de",
+            "coin": "HBD",
+            "target_price": 1.05,
+            "condition": "ABOVE",
+            "status": "ACTIVE"
+        },
+        {
+            "alert_id": "def456gh",
+            "coin": "HIVE",
+            "target_price": 0.45,
+            "condition": "BELOW",
+            "status": "TRIGGERED"
+        }
+    ],
+    "987654321": [
+        {
+            "alert_id": "ijk789lm",
+            "coin": "BTC",
+            "target_price": 35000.00,
+            "condition": "ABOVE",
+            "status": "ACTIVE"
+        }
+    ]
+}
