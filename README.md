@@ -1,180 +1,111 @@
-\# 🤖 bbalert: Bot de Alertas de Precios (BitBreadAlert)
+# 🤖 bbalert: Bot de Alertas de Precios (BitBreadAlert)
 
+Este es un **bot de Telegram** diseñado para la **monitorización de precios de criptomonedas** (como HBD) y el envío de **alertas personalizadas** a los usuarios. Incluye comandos de administración, consultas de precio en tiempo real y almacenamiento de historial en formato JSON.
 
+---
 
-Este es un \*\*bot de Telegram\*\* diseñado para la \*\*monitorización de precios de criptomonedas\*\* (como HBD) y el envío de \*\*alertas personalizadas\*\* a los usuarios. Incluye comandos de administración, consultas de precio en tiempo real y almacenamiento de historial en formato JSON.
+## ✨ Características Principales
 
+* **Alertas de Precio:** Los usuarios pueden configurar alertas personalizadas para recibir notificaciones cuando un activo alcanza un precio objetivo.
+* **Consultas y Gráficas:** Comandos para verificar precios actuales y visualizar gráficos históricos.
+* **Gestión de Usuario:** Funcionalidades para que los usuarios gestionen sus preferencias y alertas.
+* **Funciones de Administración:** Comandos protegidos para que el administrador gestione el bot, revise logs y la base de usuarios.
+* **Historial de Precios:** Almacenamiento persistente del historial de precios en la carpeta `data/`.
 
+---
 
-\## ✨ Características Principales
+## ⌨️ Comandos
 
+### Para Usuarios
+* `/start`: Inicia el bot y muestra la ayuda.
+* `/p`: Consulta el precio actual de las monedas configuradas.
+* `/alerta`: Configura una nueva alerta de precio.
+* `/misalertas`: Muestra las alertas activas.
+* `/graf`: Genera un gráfico histórico del precio.
+* `/mismonedas`: Gestiona las monedas a seguir.
+* `/parar`: Detiene las notificaciones o alertas.
 
+### Para Administración
+* `/users`: Muestra la lista de usuarios.
+* `/logs`: Revisa los logs del bot.
+* `/ms`: Envía un mensaje masivo a todos los usuarios.
 
-\* \*\*Alertas de Precio:\*\* Los usuarios pueden configurar alertas personalizadas mediante los comandos `/alerta` y `/misalertas` para recibir notificaciones cuando un activo alcanza un precio objetivo.
+---
 
-\* \*\*Consultas y Gráficas:\*\* Comandos para verificar precios actuales (`/p`) y visualizar gráficos históricos (`/graf`).
-
-\* \*\*Gestión de Usuario:\*\* Funcionalidades para que los usuarios gestionen sus preferencias y alertas (`/mismonedas`, `/parar`).
-
-\* \*\*Funciones de Administración:\*\* Comandos protegidos para que el administrador gestione el bot, revise logs y la base de usuarios (`/users`, `/logs`, `/ms`).
-
-\* \*\*Historial de Precios:\*\* Almacenamiento persistente del historial de precios en la carpeta `data/`.
-
-
-
-\## 📊 Estructura de Datos
-
-
+## 📊 Estructura de Datos
 
 La carpeta `data.example/` contiene ejemplos documentados de los archivos JSON utilizados por el bot:
 
+* `users.json`: Configuración y preferencias de los usuarios.
+* `price_alerts.json`: Alertas de precio configuradas.
+* `custom_alert_history.json`: Último precio conocido por moneda para el control de alertas.
+* `hbd_price_history.json`: Historial de precios de HBD y otras criptomonedas.
 
+**Referencia:** Consulte `data.example/README.md` para obtener detalles completos sobre la estructura de cada archivo.
 
-\* `users.json`: Configuración y preferencias de los usuarios.
+---
 
-\* `price\_alerts.json`: Alertas de precio configuradas.
+## ⚙️ Instalación y Configuración
 
-\* `custom\_alert\_history.json`: Último precio conocido por moneda para el control de alertas.
+### Requisitos
 
-\* `hbd\_price\_history.json`: Historial de precios de HBD y otras criptomonedas.
+* Python 3.8+ instalado.
+* Dependencias listadas en `requirements.txt`.
 
+### 1. Instalación
 
+1.  **Clonar el repositorio:**
+    ```bash
+    git clone [https://github.com/ersus93/bbalert.git](https://github.com/ersus93/bbalert.git)
+    cd bbalert
+    ```
 
-\*\*Referencia:\*\* Consulte `data.example/README.md` para obtener detalles completos sobre la estructura de cada archivo.
+2.  **Crear y activar un entorno virtual:**
+    | Plataforma | Creación | Activación |
+    | :--- | :--- | :--- |
+    | **UNIX/Linux/macOS** | `python3 -m venv venv` | `source venv/bin/activate` |
+    | **Windows (PowerShell)** | `python -m venv venv` | `.\venv\Scripts\Activate.ps1` |
+    | **Windows (CMD)** | `python -m venv venv` | `.\venv\Scripts\activate` |
 
+3.  **Instalar dependencias:**
+    ```bash
+    pip install -r requirements.txt
+    ```
 
+### 2. Configuración
 
-\*\*\*
+1.  **Configurar variables de entorno:**
+    * Renombre `apit.env.example` a **`.env`** (o `apit.env` si lo prefiere).
+    * Edite el archivo `.env` con sus tokens y claves.
 
+    **Ejemplo de `.env`:**
+    ```ini
+    # Token del bot (obtenido de @BotFather)
+    TOKEN_TELEGRAM="TU_TOKEN_DE_TELEGRAM_AQUI"
 
+    # IDs de administrador (separados por comas)
+    ADMIN_CHAT_IDS=123456789,987654321
 
-\## ⚙️ Instalación y Puesta en Marcha
+    # Claves de CoinMarketCap (o tu proveedor de precios)
+    CMC_API_KEY_ALERTA="TU_CMC_API_KEY_ALERTA"
+    CMC_API_KEY_CONTROL="TU_CMC_API_KEY_CONTROL"
 
+    # (Opcional) API key para screenshots
+    SCREENSHOT_API_KEY="TU_SCREENSHOT_API_KEY"
+    ```
+    *Nota: Los nombres de las variables deben coincidir con los definidos en `core/config.py`.*
 
+2.  **Crear la carpeta de datos (si no existe):**
+    ```bash
+    mkdir data
+    ```
+    El bot creará los archivos JSON necesarios automáticamente al iniciarse si no existen.
 
-\### Requisitos
+---
 
-
-
-\* Python 3.8+ instalado.
-
-\* Dependencias listadas en `requirements.txt`.
-
-
-
-\### Pasos de Instalación
-
-
-
-1\.  \*\*Clonar el repositorio:\*\*
-
-
-
-&nbsp;   ```bash
-
-&nbsp;   git clone \[https://github.com/ersus93/bbalert.git](https://github.com/ersus93/bbalert.git)
-
-&nbsp;   cd bbalert
-
-&nbsp;   ```
-
-
-
-2\.  \*\*Crear y activar un entorno virtual:\*\*
-
-
-
-&nbsp;   | Plataforma | Creación | Activación |
-
-&nbsp;   | :--- | :--- | :--- |
-
-&nbsp;   | \*\*UNIX/Linux/macOS\*\* | `python3 -m venv venv` | `source venv/bin/activate` |
-
-&nbsp;   | \*\*Windows (PowerShell)\*\* | `python -m venv venv` | `.\\venv\\Scripts\\Activate.ps1` |
-
-&nbsp;   | \*\*Windows (CMD)\*\* | `python -m venv venv` | `.\\venv\\Scripts\\activate` |
-
-
-
-3\.  \*\*Instalar dependencias:\*\*
-
-
-
-&nbsp;   ```bash
-
-&nbsp;   pip install -r requirements.txt
-
-&nbsp;   ```
-
-
-
-4\.  \*\*Configurar variables de entorno:\*\*
-
-
-
-&nbsp;   \* Renombre `apit.env.example` a \*\*`apit.env`\*\*.
-
-&nbsp;   \* Edite `apit.env` con sus tokens y claves.
-
-
-
-&nbsp;   \*\*Ejemplo de `apit.env`:\*\*
-
-&nbsp;   ```ini
-
-&nbsp;   # Token del bot (obtenido de @BotFather)
-
-&nbsp;   TOKEN\_TELEGRAM="TU\_TOKEN\_DE\_TELEGRAM\_AQUI"
-
-
-
-&nbsp;   # IDs de administrador (separados por comas)
-
-&nbsp;   ADMIN\_CHAT\_IDS=123456789,987654321
-
-
-
-&nbsp;   # Claves de CoinMarketCap (o tu proveedor de precios)
-
-&nbsp;   CMC\_API\_KEY\_ALERTA="TU\_CMC\_API\_KEY\_ALERTA"
-
-&nbsp;   CMC\_API\_KEY\_CONTROL="TU\_CMC\_API\_KEY\_CONTROL"
-
-
-
-&nbsp;   # (Opcional) API key para screenshots
-
-&nbsp;   SCREENSHOT\_API\_KEY="TU\_SCREENSHOT\_API\_KEY"
-
-&nbsp;   ```
-
-&nbsp;   \*Nota: Los nombres de las variables deben coincidir con los definidos en `core/config.py`.\*
-
-
-
-5\.  \*\*Crear la carpeta de datos (si no existe):\*\*
-
-
-
-&nbsp;   ```bash
-
-&nbsp;   mkdir data
-
-&nbsp;   ```
-
-&nbsp;   El bot creará los archivos JSON necesarios automáticamente al iniciarse si no existen.
-
-
-
-\## ▶️ Uso
-
-
+## ▶️ Ejecución
 
 Para iniciar el bot y que comience a escuchar las actualizaciones de Telegram, ejecute:
 
-
-
 ```bash
-
-python bbalert.py
-
+python3 bbalert.py
