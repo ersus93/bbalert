@@ -18,12 +18,16 @@ from core.loops import (
 # --- Importación de Handlers y Utilidades ---
 from handlers.general import start, myid, ver
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler
-from handlers.user_settings import mismonedas, parar, cmd_temp, actualizar_monedas_texto, set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command
+from handlers.user_settings import (
+    mismonedas, parar, cmd_temp, set_monedas_command, # <-- CAMBIADO
+    set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command
+)
 from handlers.alerts import (
     alerta_command,
     misalertas, 
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
+
 )
 from handlers.trading import graf_command, p_command # <-- NUEVA IMPORTACIÓN
 
@@ -138,10 +142,11 @@ def main():
     app.add_handler(CommandHandler("misalertas", misalertas))
     app.add_handler(CommandHandler("graf", graf_command)) # <-- NUEVO HANDLER
     app.add_handler(CommandHandler("p", p_command))       # <-- NUEVO HANDLER
+    app.add_handler(CommandHandler("monedas", set_monedas_command))
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
     app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
     app.add_handler(CallbackQueryHandler(borrar_todas_alertas_callback, pattern="^delete_all_alerts$"))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, actualizar_monedas_texto))
+    # app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, actualizar_monedas_texto))
     
     # 4. Asignar la función post_init
     app.post_init = post_init

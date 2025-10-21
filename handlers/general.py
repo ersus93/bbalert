@@ -22,11 +22,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     mensaje = (
         f"*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n\n"
-        "Para recibir alertas cada hora con los precios de tu lista de monedas solo, "
-        "envíame un mensaje con los sombolos separados por comas. "
+        "Para recibir alertas periódicas con los precios de tu lista de monedas, "
+        "usa el comando `/monedas` seguido de los símbolos separados por comas. "
         "Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n\n"
-        "`BTC, ETH, TRX, HIVE, ADA, DOGE, SHIB`\n\n"
-        "Pudes modificar la temporalidad en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
+        "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
+        "Pudes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
         "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n"
     )
 

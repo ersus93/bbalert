@@ -124,38 +124,38 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text("⚠️ Debes especificar el número de horas. Ejemplo: `/temp 2.5`", parse_mode=ParseMode.MARKDOWN) # 💡 Comando actualizado a /temp
 
 # === LÓGICA DE JOBQUEUE PARA ALERTAS DE TEMPORALIDAD ===
-async def actualizar_monedas_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Procesa un mensaje de texto plano (nuevo o editado) para actualizar 
-    la lista de monedas del usuario.
+    Comando /monedas. Permite al usuario establecer su lista de monedas.
+    Ejemplo: /monedas BTC, ETH, HIVE
     """
-    # --- INICIO DE LA CORRECCIÓN ---
-    # 1. Determinar el origen del mensaje (nuevo o editado)
-    message = update.message or update.edited_message
+    chat_id = update.effective_chat.id
     
-    # Si por alguna razón no hay mensaje, salir de forma segura.
-    if not message:
+    if not context.args:
+        # Si el usuario solo envía /monedas, le mostramos cómo usarlo
+        monedas_actuales = obtener_monedas_usuario(chat_id)
+        lista_str = '`' + ', '.join(monedas_actuales) + '`' if monedas_actuales else "ninguna"
+        mensaje = (
+            "⚠️ *Formato incorrecto*.\n\n"
+            "Para establecer tu lista de monedas, envía el comando seguido de los símbolos. Ejemplo:\n\n"
+            "`/monedas BTC, ETH, HIVE, SOL`\n\n"
+            f"Tu lista actual es: {lista_str}"
+        )
+        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
-    chat_id = message.chat_id
-    texto_recibido = message.text
-    # --- FIN DE LA CORRECCIÓN ---
-
+    # 1. Unir todos los argumentos en un solo string
+    # (Permite formatos como: /monedas BTC,ETH,HIVE o /monedas BTC, ETH, HIVE)
+    texto_recibido = ' '.join(context.args)
+    
     # 2. Limpiar y procesar la entrada del usuario
-    # Convierte el texto en una lista de tickers, eliminando espacios y convirtiendo a mayúsculas.
     monedas = [m.strip().upper() for m in texto_recibido.split(',') if m.strip()]
 
-    # 👇 ESTA ES LA CONDICIÓN CON EL MENSAJE MEJORADO
     if not monedas:
-        mensaje_error = (
-            "⚠️ *Formato incorrecto.*\n\n"
-            "Por favor, envía los símbolos de las monedas que quieres seguir, separados por comas. Ejemplo:\n\n"
-            "`BTC, ETH, HIVE, SOL`"
-        )
-        await message.reply_text(mensaje_error, parse_mode=ParseMode.MARKDOWN) # Usar message.reply_text
+        await update.message.reply_text("⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo.", parse_mode=ParseMode.MARKDOWN)
         return
 
-    # 3. Guardar la nueva lista de monedas en el archivo del usuario
+    # 3. Guardar la nueva lista de monedas
     actualizar_monedas(chat_id, monedas)
     
     # 4. Obtener los precios de la nueva lista para dar una respuesta inmediata
@@ -173,7 +173,7 @@ async def actualizar_monedas_texto(update: Update, context: ContextTypes.DEFAULT
     else:
         mensaje_respuesta = "✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en este momento."
 
-    await message.reply_text(mensaje_respuesta, parse_mode=ParseMode.MARKDOWN) # Usar message.reply_text
+    await update.message.reply_text(mensaje_respuesta, parse_mode=ParseMode.MARKDOWN)
 
 # COMANDO /hbdalerts para activar/desactivar alertas de HBD
 async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
