@@ -23,19 +23,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # ENVUELVE TODO EL MENSAJE CON _() y usa el chat_id
     mensaje = _(
-        "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n\n"
-        "Para recibir alertas periódicas con los precios de tu lista de monedas, "
-        "usa el comando `/monedas` seguido de los símbolos separados por comas. "
-        "Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n\n"
-        "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
-        "Pudes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
-        "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n",
-        chat_id # <-- PASA EL chat_id
-    ).format(nombre_usuario=nombre_usuario) # Usa .format() con la cadena traducida
-                                            # Esto es clave si necesitas interpolar variables
-    
+    "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n\n"
+    "Para recibir alertas periódicas con los precios de tu lista de monedas, "
+    "usa el comando `/monedas` seguido de los símbolos separados por comas. "
+    "Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n\n"
+    "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
+    "Puedes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
+    "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n",
+    chat_id # <-- PASA EL chat_id
+).format(nombre_usuario=nombre_usuario) 
+
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
-# ============================================================
 
 # COMANDO /ver para ver la última lectura de precios
 from utils.file_manager import load_hbd_history # Nueva importación
