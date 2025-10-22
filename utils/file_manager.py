@@ -304,16 +304,28 @@ def guardar_usuarios(usuarios):
     except Exception as e:
         add_log_line(f"Error al guardar usuarios: {e}")
 
-def registrar_usuario(chat_id):
+def registrar_usuario(chat_id, user_lang_code: str = 'es'):
     """Registra un nuevo usuario si no existe."""
     usuarios = cargar_usuarios()
-    if str(chat_id) not in usuarios:
-        usuarios[str(chat_id)] = {
+    chat_id_str = str(chat_id)
+    
+    if chat_id_str not in usuarios: # <--- Usar chat_id_str
+
+        lang_to_save = 'es' # Por defecto
+        if user_lang_code and user_lang_code.startswith('en'):
+            lang_to_save = 'en'
+
+        # --- INICIO DE LA CORRECCIÓN ---
+        usuarios[chat_id_str] = {
             "monedas": ["BTC", "HIVE", "HBD", "TON"], # Monedas por defecto
-            "hbd_alerts": True  # Activar alertas de HBD por defecto
+            "hbd_alerts": True,  # Activar alertas de HBD por defecto
+            "language": lang_to_save, # <-- ¡ESTA LÍNEA ES LA SOLUCIÓN!
+            "intervalo_alerta_h": 1.0 # <-- Añadir esto también es buena idea
         }
+        # --- FIN DE LA CORRECCIÓN ---
+
         guardar_usuarios(usuarios)
-        add_log_line(f"Nuevo usuario registrado: {chat_id}")
+        add_log_line(f"Nuevo usuario registrado: {chat_id} con idioma: {lang_to_save}") # Log mejorado
 
 def actualizar_monedas(chat_id, lista_monedas):
     """Actualiza la lista de monedas de un usuario sin borrar otras configuraciones."""

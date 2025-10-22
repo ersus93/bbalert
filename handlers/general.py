@@ -16,8 +16,13 @@ from core.i18n import _
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start. Registra al usuario."""
-    chat_id = update.effective_chat.id # Obtener el chat_id
-    registrar_usuario(chat_id)
+
+    user = update.effective_user # Obtén el objeto de usuario completo
+    user_id = user.id # Obtener el chat_id
+    user_lang = user.language_code # Obtener el idioma del cliente (ej. 'en', 'es')
+    
+    # Pasa el idioma del usuario al registrarlo
+    registrar_usuario(user_id, user_lang) # <--- ÚNICA LLAMADA (Correcta)
     
     nombre_usuario = update.effective_user.first_name
     
@@ -30,7 +35,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
     "Puedes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
     "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n",
-    chat_id # <-- PASA EL chat_id
+    user_id # <-- PASA EL chat_id
 ).format(nombre_usuario=nombre_usuario) 
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
@@ -41,11 +46,11 @@ from utils.file_manager import load_hbd_history # Nueva importación
 async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra la última lectura de precios desde el historial JSON."""
     history = load_hbd_history()
-    chat_id = update.effective_chat.id # <-- Obtener chat_id
+    user_id = update.effective_user.id # <-- Obtener chat_id
 
     if not history:
         # --- MENSAJE ENVUELTO ---
-        await update.message.reply_text(_("⚠️ No hay registros de precios aún.", chat_id))
+        await update.message.reply_text(_("⚠️ No hay registros de precios aún.", user_id))
         return
 
     # El último registro es el más reciente
@@ -66,7 +71,7 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
 💰 *HBD/USD*: ${hbd_val:,.4f}
 
 _Actualizado: {fecha}_""",
-        chat_id # Pasar el chat_id para obtener la traducción
+        user_id # Pasar el chat_id para obtener la traducción
     )
     
     # Rellenar la plantilla con los valores reales
@@ -84,7 +89,7 @@ _Actualizado: {fecha}_""",
 # COMANDO /myid para ver datos del usuario
 async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /myid. Muestra el ID de chat del usuario."""
-    chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
     user = update.effective_user
     
     # 1. Preparacion de las variables
@@ -98,14 +103,14 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Nombre: {nombre}\n"
         "Usuario: {usuario}\n"
         "ID: `{id_chat}`",
-        chat_id # <-- PASAR EL CHAT_ID
+        user_id # <-- PASAR EL CHAT_ID
     )
 
     # 3. Formatea el resultado de la traducción con los valores de las variables
     mensaje = mensaje_template.format(
         nombre=nombre_completo,
         usuario=username_str,
-        id_chat=chat_id
+        id_chat=user_id
     )
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)

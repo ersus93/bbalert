@@ -1,6 +1,7 @@
 # cmc_api.py
 
 import requests
+from telegram import Update
 from core.config import CMC_API_KEY_ALERTA, CMC_API_KEY_CONTROL
 from datetime import datetime, timedelta
 from core.i18n import _ 
@@ -14,6 +15,7 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, chat_id=None):
     Determina si se debe enviar una alerta de HBD e incluye los precios de BTC, HIVE y HBD.
     precios_actuales es el diccionario completo: {'BTC': float, 'HIVE': float, 'HBD': float}
     """
+        
     if precio_anterior_hbd is None:
         return None, None
     

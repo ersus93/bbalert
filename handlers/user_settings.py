@@ -46,7 +46,8 @@ async def manejar_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el texto plano (lista de monedas) para actualizar la configuración."""
     texto = update.message.text.upper().strip()
     chat_id = update.effective_chat.id # Obtener el ID para la traducción
-    
+    user_id = update.effective_user.id
+
     # Intenta parsear la lista de monedas
     monedas_limpias = [m.strip() for m in texto.split(',') if m.strip()]
     
@@ -58,14 +59,14 @@ async def manejar_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "✅ ¡Lista de monedas actualizada!\n"
             "Ahora recibirás alertas de para: `{monedas_limpias_str}`\n\n"
             "Puedes cambiar esta lista en cualquier momento enviando una nueva lista de símbolos separados por comas.",
-            chat_id
+             user_id
         )
         mensaje = mensaje_base.format(monedas_limpias_str=', '.join(monedas_limpias))
     else:
         # Mensaje 2 (Advertencia/Error)
         mensaje = _(
             "⚠️ Por favor, envía una lista de símbolos de monedas separados por comas. Ejemplo: `BTC, ETH, HIVE`",
-            chat_id
+            user_id
         )
         
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
@@ -74,20 +75,21 @@ async def manejar_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def mismonedas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /mismonedas. Muestra las monedas que sigue el usuario."""
     chat_id = update.effective_chat.id
+    user_id = update.effective_user.id
     monedas = obtener_monedas_usuario(chat_id)
     
     if monedas:
         # Mensaje 1: Éxito (requiere formateo)
         mensaje_base = _(
             "✅ Listo! recibirás alertas para las siguientes monedas:\n`{monedas_str}`.",
-            chat_id
+            user_id
         )
         mensaje = mensaje_base.format(monedas_str=', '.join(monedas))
     else:
         # Mensaje 2: Advertencia
         mensaje = _(
             "⚠️ No tienes monedas configuradas para la alerta de tempralidad.",
-            chat_id
+            user_id
         )
         
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
@@ -109,6 +111,7 @@ async def parar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # 💡 COMANDO /temp ajustes de temporalidad de notificacion de lista
 async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Permite al usuario configurar la temporalidad de sus alertas."""
+    user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     user_input = context.args[0] if context.args else None
     
@@ -123,7 +126,7 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n\n"
             "Para cambiarlo, envía el comando con las horas deseadas (desde 1h hasta 12h).\n"
             "Ejemplo: `/temp 2.5` (para 2 horas y 30 minutos).",
-            chat_id
+            user_id
         )
         mensaje = mensaje_base.format(intervalo_actual=intervalo_actual)
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
@@ -153,7 +156,7 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             mensaje_base_final = _(
                 "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
                 "La alerta con tus monedas ha sido *reprogramada* para ejecutarse cada {interval_h} horas.",
-                chat_id
+                user_id
             )
             mensaje_final = mensaje_base_final.format(interval_h=interval_h)
         else:
@@ -161,7 +164,7 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             mensaje_base_final = _(
                 "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
                 "⚠️ Pero hubo un error al reprogramar la alerta. Intenta enviar /temp nuevamente.",
-                chat_id
+                user_id
             )
             mensaje_final = mensaje_base_final.format(interval_h=interval_h)
 
@@ -169,11 +172,11 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     except ValueError:
         # Mensaje 6: Formato de hora inválido
-        mensaje_error_valor = _("⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo 0.5)(máximo 24.0).", chat_id)
+        mensaje_error_valor = _("⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo 0.5)(máximo 24.0).", user_id)
         await update.message.reply_text(mensaje_error_valor, parse_mode=ParseMode.MARKDOWN)
     except IndexError:
         # Mensaje 7: Falta el argumento
-        mensaje_error_indice = _("⚠️ Debes especificar el número de horas. Ejemplo: `/temp 2.5`", chat_id)
+        mensaje_error_indice = _("⚠️ Debes especificar el número de horas. Ejemplo: `/temp 2.5`", user_id)
         await update.message.reply_text(mensaje_error_indice, parse_mode=ParseMode.MARKDOWN)
 
 # === LÓGICA DE JOBQUEUE PARA ALERTAS DE TEMPORALIDAD ===
@@ -182,12 +185,12 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     Comando /monedas. Permite al usuario establecer su lista de monedas.
     Ejemplo: /monedas BTC, ETH, HIVE
     """
+    user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    
     if not context.args:
         # Si el usuario solo envía /monedas, le mostramos cómo usarlo
-        monedas_actuales = obtener_monedas_usuario(chat_id)
-        lista_str = '`' + ', '.join(monedas_actuales) + '`' if monedas_actuales else _("ninguna", chat_id)
+        monedas_actuales = obtener_monedas_usuario(user_id)
+        lista_str = '`' + ', '.join(monedas_actuales) + '`' if monedas_actuales else _("ninguna", user_id)
         
         # Mensaje 1: Formato incorrecto (requiere formateo para la lista actual)
         mensaje_base = _(
@@ -195,7 +198,7 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             "Para establecer tu lista de monedas, envía el comando seguido de los símbolos. Ejemplo:\n\n"
             "`/monedas BTC, ETH, HIVE, SOL`\n\n"
             "Tu lista actual es: {lista_str}",
-            chat_id
+            user_id
         )
         mensaje = mensaje_base.format(lista_str=lista_str)
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
@@ -209,7 +212,7 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if not monedas:
         # Mensaje 2: No se encontraron monedas
-        mensaje_error_vacio = _("⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo.", chat_id)
+        mensaje_error_vacio = _("⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo.", user_id)
         await update.message.reply_text(mensaje_error_vacio, parse_mode=ParseMode.MARKDOWN)
         return
 
@@ -222,11 +225,11 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     # 5. Construir y enviar el mensaje de confirmación
     if precios:
         # Mensaje 3a: Éxito con precios disponibles
-        encabezado_base = _("✅ *Tu lista de monedas ha sido guardada.*\n\nPrecios actuales:\n", chat_id)
+        encabezado_base = _("✅ *Tu lista de monedas ha sido guardada.*\n\nPrecios actuales:\n", user_id)
         mensaje_respuesta = encabezado_base
         
         # Etiqueta 4: 'No encontrado'
-        etiqueta_no_encontrado = _("No encontrado", chat_id)
+        etiqueta_no_encontrado = _("No encontrado", user_id)
         
         for moneda in monedas:
             precio_actual = precios.get(moneda)
@@ -236,7 +239,7 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
                 mensaje_respuesta += f"*{moneda}/USD*: {etiqueta_no_encontrado}\n"
     else:
         # Mensaje 3b: Éxito sin precios disponibles
-        mensaje_respuesta = _("✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en este momento.", chat_id)
+        mensaje_respuesta = _("✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en este momento.", user_id)
 
     await update.message.reply_text(mensaje_respuesta, parse_mode=ParseMode.MARKDOWN)
 
@@ -325,14 +328,15 @@ async def toggle_hbd_alerts_callback(update: Update, context: ContextTypes.DEFAU
 async def lang_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el menú para cambiar el idioma."""
     chat_id = update.effective_chat.id
-    current_lang = get_user_language(chat_id)
+    user_id = update.effective_user.id
+    current_lang = get_user_language(user_id)
 
     # Usamos la traducción para el texto de introducción
     # Mensaje 1: Introducción al menú de idiomas
     text = _(
         "🌐 *Selecciona tu idioma:*\n\n"
         "El idioma actual es: {current_lang_name}",
-        chat_id
+        user_id
     ).format(current_lang_name=SUPPORTED_LANGUAGES.get(current_lang, 'N/A'))
 
     keyboard = []

@@ -64,7 +64,8 @@ async def post_init(app: Application):
             "🤖 `BitBread Alert v{version}`\n"
             "🪪 `PID: {pid}`\n"
             "🐍 `Python: v{python_version}`\n\n"
-            "✅ Ejecutado y funcionando perfectamente."
+            "✅ Ejecutado y funcionando perfectamente.",
+            user_id 
         )
         startup_message = startup_message_template.format(
             version=VERSION,
