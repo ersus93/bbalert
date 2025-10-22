@@ -36,74 +36,74 @@ def generar_alerta(precios_actuales, precio_anterior_hbd):
 
     # 1. Alerta: HBD sube por encima de $1.10
     if precio_actual_hbd >= 1.10 and precio_anterior_hbd < 1.10:
-        msg = f"🤯 *HBD TOCÓ $1.10 (O MÁS)*\n¡Aprovecha tanke que esto es un milagro 👑, ahora si milloneta 🤑!{detalle_precios}"
+        msg = f"🤯 *HBD TOCÓ $1.10 (O MÁS)*\n{detalle_precios}"
         log = "🤯 Alerta MÁXIMA: HBD ≥ $1.10"
         return msg, log
     
     # 2. Alerta: HBD cae por debajo de $1.10
     elif precio_actual_hbd < 1.10 and precio_anterior_hbd >= 1.10:
-        msg = f"📉 *HBD acaba de caer de $1.10*\nSe acabó el pump 🥲. Aunque algo se puede hacer aún 🙃.{detalle_precios}"
+        msg = f"📉 *HBD acaba de caer de $1.10*\n{detalle_precios}"
         log = "📉 Alerta: HBD bajó de $1.10"
         return msg, log
 
     
     elif precio_actual_hbd > 1.05 and precio_anterior_hbd <= 1.05:
-        msg = f"📈 *HBD acaba de superar $1.05.*\nEsto se esta poniendo mas rico 😂{detalle_precios}"
+        msg = f"📈 *HBD acaba de superar $1.05.*\n{detalle_precios}"
         log = "📈 Alerta: HBD superó $1.05"
         return msg, log
     
     elif precio_actual_hbd <= 1.05 and precio_anterior_hbd > 1.05:
-        msg = f"📉 *HBD acaba de caer de $1.05.*\nSe acabó la ricura 😄{detalle_precios}"
+        msg = f"📉 *HBD acaba de caer de $1.05.*\n{detalle_precios}"
         log = "📉 Alerta: HBD cayó de $1.05"
         return msg, log
     
     elif precio_actual_hbd >= 1.005 and precio_anterior_hbd < 1.005:
-        msg = f"⚠️ *HBD superó $1.005.*\n¡Atención! que ya esto es más que el fee de quien tu sabe 😏{detalle_precios}"
+        msg = f"⚠️ *HBD superó $1.005.*\n{detalle_precios}"
         log = "⚠️ Alerta: HBD superó $1.005"
         return msg, log
 
     elif precio_actual_hbd < 1.005 and precio_anterior_hbd >= 1.005:
-        msg = f"📉 *HBD cayó de $1.005.*\nOjito 👀 con el salchichón que ya no sale gratis 😅{detalle_precios}"
+        msg = f"📉 *HBD cayó de $1.005.*\n{detalle_precios}"
         log = "📉 Alerta: HBD cayó de $1.005"
         return msg, log
     
     elif precio_actual_hbd >= 1.00 and precio_anterior_hbd < 1.00:
-        msg = f"⚠️ *HBD superó $1.00.*\n¡Atención! que vamos pa'riba 😏{detalle_precios}"
+        msg = f"⚠️ *HBD superó $1.00.*\n{detalle_precios}"
         log = "⚠️ Alerta: HBD superó $1.00"
         return msg, log
 
     elif precio_actual_hbd < 1.00 and precio_anterior_hbd >= 1.00:
-        msg = f"📉 *HBD cayó de $1.00.*\nCandela, se puso malo esto, nos fuimos pa'bajo. {detalle_precios}"
+        msg = f"📉 *HBD cayó de $1.00.*\n{detalle_precios}"
         log = "📉 Alerta: HBD cayó de $1.00"
         return msg, log
 
     elif precio_actual_hbd < 0.995 and precio_anterior_hbd >= 0.995:
-        msg = f"🚨 *HBD cayó por debajo de $0.995.* ¡Alerta! esto se despin3.14 a llorar a la lloreria 😫{detalle_precios}"
+        msg = f"🚨 *HBD cayó por debajo de $0.995.\n{detalle_precios}"
         log = "🚨 Alerta: 😣 HBD cayó por debajo de $0.995"
         return msg, log
     
     elif precio_actual_hbd >= 0.995 and precio_anterior_hbd < 0.995:
-        msg = f"🚨 *HBD subió por encima de $0.995.* ¡Alerta! parce que se recupera, vamos a comprarle vitaminas a ver 😞{detalle_precios}"
+        msg = f"🚨 *HBD subió por encima de $0.995.*\n{detalle_precios}"
         log = "🚨 Alerta: 😃 HBD subió por encima de $0.995"
         return msg, log
       
     elif precio_actual_hbd >= 0.98 and precio_anterior_hbd < 0.98:
-        msg = f"🚨 *HBD subió por encima de $0.98.* ¡Alerta! parce que se intenta recuper, vamos a rezarle a la santa colmena 🙏🍯{detalle_precios}"
+        msg = f"🚨 *HBD subió por encima de $0.98.*\n{detalle_precios}"
         log = "🚨 Alerta: 😃 HBD subió por encima de $0.98"
         return msg, log
     
     elif precio_actual_hbd < 0.98 and precio_anterior_hbd >= 0.98:
-        msg = f"🚨 *HBD cayó por debajo de $0.98.* ¡Alerta! ahora si se despin3.14 ya ni la lloreria esta abierta 😫{detalle_precios}"
+        msg = f"🚨 *HBD cayó por debajo de $0.98.*\n{detalle_precios}"
         log = "🚨 Alerta: 😣 HBD cayó por debajo de $0.98"
         return msg, log
 
     elif precio_actual_hbd >= 0.95 and precio_anterior_hbd < 0.95:
-        msg = f"🚨 *HBD subió por encima de $0.95.* ¡Alerta! parce que se intenta recuper, vamos a rezarle a la santa colmena 🙏🍯{detalle_precios}"
+        msg = f"🚨 *HBD subió por encima de $0.95.*\n{detalle_precios}"
         log = "🚨 Alerta: 😃 HBD subió por encima de $0.95"
         return msg, log
     
     elif precio_actual_hbd < 0.95 and precio_anterior_hbd >= 0.95:
-        msg = f"🚨 *HBD cayó por debajo de $0.95.* ¡Alerta! ahora si se despin3.14 ya ni la lloreria esta abierta 😫{detalle_precios}"
+        msg = f"🚨 *HBD cayó por debajo de $0.95.*\n{detalle_precios}"
         log = "🚨 Alerta: 😣 HBD cayó por debajo de $0.95"
         return msg, log
         
