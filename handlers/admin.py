@@ -21,6 +21,7 @@ from utils.file_manager import cargar_usuarios
 from utils.file_manager import get_user_alerts
 from utils.file_manager import load_hbd_history
 from core.config import VERSION, PID, PYTHON_VERSION, STATE, ADMIN_CHAT_IDS
+from core.i18n import _
 
 # Definimos los estados para nuestra conversación de mensaje masivo
 AWAITING_CONTENT, AWAITING_CONFIRMATION, AWAITING_ADDITIONAL_TEXT, AWAITING_ADDITIONAL_PHOTO = range(4)
@@ -29,36 +30,60 @@ AWAITING_CONTENT, AWAITING_CONFIRMATION, AWAITING_ADDITIONAL_TEXT, AWAITING_ADDI
 # --- INICIO: NUEVA LÓGICA PARA /ms INTERACTIVO ---
 async def ms_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Inicia la conversación para el mensaje masivo."""
-    chat_id_str = str(update.effective_chat.id)
+    chat_id = update.effective_chat.id
+    chat_id_str = str(chat_id)
+    
     if chat_id_str not in ADMIN_CHAT_IDS:
-        await update.message.reply_text("🚫 Comando no autorizado.")
+        # Mensaje 1: No autorizado
+        await update.message.reply_text(
+            _("🚫 Comando no autorizado.", chat_id),
+            parse_mode=ParseMode.MARKDOWN
+        )
         return ConversationHandler.END
 
     # Limpiamos datos de conversaciones anteriores
     context.user_data.pop('ms_text', None)
     context.user_data.pop('ms_photo_id', None)
 
-    await update.message.reply_text(
+    # Mensaje 2: Instrucciones
+    mensaje_instrucciones = _(
         "✍️ *Creación de Mensaje Masivo*\n\n"
         "Por favor, envía el contenido principal del mensaje.\n"
         "Puedes enviar una imagen, un texto, o una imagen con texto.",
+        chat_id
+    )
+    
+    await update.message.reply_text(
+        mensaje_instrucciones,
         parse_mode=ParseMode.MARKDOWN
     )
     return AWAITING_CONTENT
-
 async def handle_initial_content(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Captura el primer contenido enviado (texto o foto)."""
     message = update.message
+    chat_id = update.effective_chat.id
+    
+    # Textos de los botones
+    btn_add_photo = _("🖼️ Añadir Imagen", chat_id)
+    btn_send_only_text = _("➡️ Enviar Solo Texto", chat_id)
+    btn_cancel = _("❌ Cancelar", chat_id)
+    btn_add_edit_text = _("✍️ Añadir/Editar Texto", chat_id)
+    btn_send_only_photo = _("➡️ Enviar Solo Imagen", chat_id)
     
     if message.text:
         context.user_data['ms_text'] = message.text
         keyboard = [
-            [InlineKeyboardButton("🖼️ Añadir Imagen", callback_data="ms_add_photo")],
-            [InlineKeyboardButton("➡️ Enviar Solo Texto", callback_data="ms_send_final")],
-            [InlineKeyboardButton("❌ Cancelar", callback_data="ms_cancel")]
+            [InlineKeyboardButton(btn_add_photo, callback_data="ms_add_photo")],
+            [InlineKeyboardButton(btn_send_only_text, callback_data="ms_send_final")],
+            [InlineKeyboardButton(btn_cancel, callback_data="ms_cancel")]
         ]
+        # Mensaje 1: Texto recibido, ¿añadir imagen?
+        mensaje_texto_recibido = _(
+            "✅ Texto recibido. ¿Deseas añadir una imagen o enviar el mensaje?", 
+            chat_id
+        )
         await message.reply_text(
-            "✅ Texto recibido. ¿Deseas añadir una imagen o enviar el mensaje?",
+            mensaje_texto_recibido,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     elif message.photo:
@@ -68,16 +93,23 @@ async def handle_initial_content(update: Update, context: ContextTypes.DEFAULT_T
             context.user_data['ms_text'] = message.caption
 
         keyboard = [
-            [InlineKeyboardButton("✍️ Añadir/Editar Texto", callback_data="ms_add_text")],
-            [InlineKeyboardButton("➡️ Enviar Solo Imagen", callback_data="ms_send_final")],
-            [InlineKeyboardButton("❌ Cancelar", callback_data="ms_cancel")]
+            [InlineKeyboardButton(btn_add_edit_text, callback_data="ms_add_text")],
+            [InlineKeyboardButton(btn_send_only_photo, callback_data="ms_send_final")],
+            [InlineKeyboardButton(btn_cancel, callback_data="ms_cancel")]
         ]
-        await message.reply_text(
+        # Mensaje 2: Imagen recibida, ¿añadir/editar texto?
+        mensaje_foto_recibida = _(
             "✅ Imagen recibida. ¿Deseas añadir o editar el texto del pie de foto?",
+            chat_id
+        )
+        await message.reply_text(
+            mensaje_foto_recibida,
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     else:
-        await message.reply_text("⚠️ Por favor, envía un texto o una imagen.")
+        # Mensaje 3: Error de contenido
+        mensaje_error_contenido = _("⚠️ Por favor, envía un texto o una imagen.", chat_id)
+        await message.reply_text(mensaje_error_contenido)
         return AWAITING_CONTENT
 
     return AWAITING_CONFIRMATION
@@ -87,52 +119,100 @@ async def handle_confirmation_choice(update: Update, context: ContextTypes.DEFAU
     query = update.callback_query
     await query.answer()
     choice = query.data
+    user_id = query.from_user.id
 
     if choice == "ms_add_text":
-        await query.edit_message_text("✍️ De acuerdo, por favor envía el texto que quieres usar como pie de foto.")
+        mensaje_add_text = _(
+            "✍️ De acuerdo, por favor envía el texto que quieres usar como pie de foto.",
+            user_id
+        )
+        await query.edit_message_text(mensaje_add_text)
         return AWAITING_ADDITIONAL_TEXT
     elif choice == "ms_add_photo":
-        await query.edit_message_text("🖼️ Entendido, por favor envía la imagen que quieres adjuntar.")
+        mensaje_add_photo = _(
+            "🖼️ Entendido, por favor envía la imagen que quieres adjuntar.",
+            user_id
+        )
+        await query.edit_message_text(mensaje_add_photo)
         return AWAITING_ADDITIONAL_PHOTO
     elif choice == "ms_send_final":
         return await send_broadcast(query, context)
     elif choice == "ms_cancel":
-        await query.edit_message_text("🚫 Operación cancelada.")
+        mensaje_cancelar = _(
+            "🚫 Operación cancelada.",
+            user_id
+        )
+        await query.edit_message_text(mensaje_cancelar)
         return ConversationHandler.END
 
 async def receive_additional_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Recibe el texto adicional para una imagen."""
+    chat_id = update.effective_chat.id
     context.user_data['ms_text'] = update.message.text
+    
+    # Textos de los botones
+    btn_send = _("🚀 Enviar a todos los usuarios", chat_id)
+    btn_cancel = _("❌ Cancelar", chat_id)
+    
     keyboard = [
-        [InlineKeyboardButton("🚀 Enviar a todos los usuarios", callback_data="ms_send_final")],
-        [InlineKeyboardButton("❌ Cancelar", callback_data="ms_cancel")]
+        [InlineKeyboardButton(btn_send, callback_data="ms_send_final")],
+        [InlineKeyboardButton(btn_cancel, callback_data="ms_cancel")]
     ]
-    await update.message.reply_text(
+    
+    # Mensaje de confirmación
+    mensaje_confirmacion = _(
         "✅ Texto añadido. El mensaje está listo para ser enviado.",
+        chat_id
+    )
+    
+    await update.message.reply_text(
+        mensaje_confirmacion,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return AWAITING_CONFIRMATION
     
 async def receive_additional_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Recibe la imagen adicional para un texto."""
+    chat_id = update.effective_chat.id
     context.user_data['ms_photo_id'] = update.message.photo[-1].file_id
+    
+    # TextOS de los botones
+    btn_send = _("🚀 Enviar a todos los usuarios", chat_id)
+    btn_cancel = _("❌ Cancelar", chat_id)
+    
     keyboard = [
-        [InlineKeyboardButton("🚀 Enviar a todos los usuarios", callback_data="ms_send_final")],
-        [InlineKeyboardButton("❌ Cancelar", callback_data="ms_cancel")]
+        [InlineKeyboardButton(btn_send, callback_data="ms_send_final")],
+        [InlineKeyboardButton(btn_cancel, callback_data="ms_cancel")]
     ]
-    await update.message.reply_text(
+    
+    # Mensaje de confirmación
+    mensaje_confirmacion = _(
         "✅ Imagen añadida. El mensaje está listo para ser enviado.",
+        chat_id
+    )
+    
+    await update.message.reply_text(
+        mensaje_confirmacion,
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return AWAITING_CONFIRMATION
 
 async def send_broadcast(query, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Función final que envía el mensaje a todos los usuarios."""
-    await query.edit_message_text("⏳ *Enviando mensaje a todos los usuarios...*\nEsto puede tardar un momento.", parse_mode=ParseMode.MARKDOWN)
+    chat_id = query.from_user.id
+    
+    # Mensaje 1: Iniciando envío
+    mensaje_iniciando = _(
+        "⏳ *Enviando mensaje a todos los usuarios...*\nEsto puede tardar un momento.",
+        chat_id
+    )
+    await query.edit_message_text(mensaje_iniciando, parse_mode=ParseMode.MARKDOWN)
 
     global _enviar_mensaje_telegram_async_ref
     if not _enviar_mensaje_telegram_async_ref:
-        await query.message.reply_text("❌ Error interno: La función de envío masivo no ha sido inicializada.")
+        # Mensaje 2: Error interno
+        mensaje_error_interno = _("❌ Error interno: La función de envío masivo no ha sido inicializada.", chat_id)
+        await query.message.reply_text(mensaje_error_interno)
         return ConversationHandler.END
 
     text_to_send = context.user_data.get('ms_text', "")
@@ -149,15 +229,29 @@ async def send_broadcast(query, context: ContextTypes.DEFAULT_TYPE) -> int:
 
     total_enviados = len(chat_ids) - len(fallidos)
     if fallidos:
-        fallidos_reporte = [f"  - `{chat_id}`: _{error}_" for chat_id, error in fallidos.items()]
+        # Mensaje 3a: Reporte de fallos
+        fallidos_reporte = [f"  - `{chat_id}`: _{error}_" for chat_id, error in fallidos.items()]
         fallidos_str = "\n".join(fallidos_reporte)
-        mensaje_admin = (
-            f"✅ Envío completado.\n\n"
-            f"Enviado a *{total_enviados}* de {len(chat_ids)} usuarios.\n\n"
-            f"❌ Fallos ({len(fallidos)}):\n{fallidos_str}"
+        
+        mensaje_admin_base = _(
+            "✅ Envío completado.\n\n"
+            "Enviado a *{total_enviados}* de {total_usuarios} usuarios.\n\n"
+            "❌ Fallos ({num_fallos}):\n{fallidos_str}",
+            chat_id
+        )
+        mensaje_admin = mensaje_admin_base.format(
+            total_enviados=total_enviados,
+            total_usuarios=len(chat_ids),
+            num_fallos=len(fallidos),
+            fallidos_str=fallidos_str
         )
     else:
-        mensaje_admin = f"✅ ¡Éxito! Mensaje enviado a todos los *{len(chat_ids)}* usuarios."
+        # Mensaje 3b: Éxito total
+        mensaje_admin_base = _(
+            "✅ ¡Éxito! Mensaje enviado a todos los *{total_usuarios}* usuarios.",
+            chat_id
+        )
+        mensaje_admin = mensaje_admin_base.format(total_usuarios=len(chat_ids))
 
     await query.message.reply_text(mensaje_admin, parse_mode=ParseMode.MARKDOWN)
 
@@ -169,10 +263,19 @@ async def send_broadcast(query, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def cancel_ms(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Función para cancelar la conversación."""
-    await update.message.reply_text("🚫 Operación cancelada.")
+    chat_id = update.effective_chat.id
+    
+    mensaje_cancelado = _(
+        "🚫 Operación cancelada.",
+        chat_id
+    )
+    
+    await update.message.reply_text(mensaje_cancelado)
+    
     # Limpiar datos al cancelar
     context.user_data.pop('ms_text', None)
     context.user_data.pop('ms_photo_id', None)
+    
     return ConversationHandler.END
 
 # Definición del ConversationHandler para el comando /ms
@@ -218,14 +321,16 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Si el usuario no es admin, solo ve sus propios datos.
     """
 
-    current_chat_id_str = str(update.effective_chat.id)
+    current_chat_id = update.effective_chat.id # <-- Obtener chat_id
+    current_chat_id_str = str(current_chat_id)
     usuarios = cargar_usuarios()
 
     # Si el usuario NO es administrador, mostrar solo sus propios datos
     if current_chat_id_str not in ADMIN_CHAT_IDS:
         data = usuarios.get(current_chat_id_str)
         if not data:
-            await update.message.reply_text("😕 No estás registrado en el sistema.")
+            # --- MENSAJE ENVUELTO ---
+            await update.message.reply_text(_("😕 No estás registrado en el sistema.", current_chat_id))
             return
 
         monedas_str = ', '.join(data.get('monedas', []))
@@ -242,18 +347,28 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             username_str = f"@{data.get('username', 'N/A')}"
             if 'Bot blocked' in str(e):
                 nombre_completo += " (Bloqueado)"
-
-        mensaje = (
-            f"👤 *Tu Perfil Registrado*\n"
-            f"————————————————————\n"
-            f"  - Nombre: {nombre_completo}\n"
-            f"  - 🪪 ID: `{user_id}`\n"
-            f"  - 👤 Usuario: {username_str}\n"
-            f"  - 🪙 Monedas: `{monedas_str}`\n"
-            f"  - ⏰ Alerta cada: {intervalo_h}h\n"
-            f"  - 🔔 Alertas activas: {alertas_activas}\n"
-            f"————————————————————\n"
-            f"_Solo puedes ver tu propia información 🙂_"
+        
+        # --- PLANTILLA ENVUELTA ---
+        mensaje_template = _(
+            "👤 *Tu Perfil Registrado*\n"
+            "————————————————————\n"
+            "  - Nombre: {nombre_completo}\n"
+            "  - 🪪 ID: `{user_id}`\n"
+            "  - 👤 Usuario: {username_str}\n"
+            "  - 🪙 Monedas: `{monedas_str}`\n"
+            "  - ⏰ Alerta cada: {intervalo_h}h\n"
+            "  - 🔔 Alertas activas: {alertas_activas}\n"
+            "————————————————————\n"
+            "_Solo puedes ver tu propia información 🙂_",
+            current_chat_id
+        )
+        mensaje = mensaje_template.format(
+            nombre_completo=nombre_completo,
+            user_id=user_id,
+            username_str=username_str,
+            monedas_str=monedas_str,
+            intervalo_h=intervalo_h,
+            alertas_activas=alertas_activas
         )
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
@@ -286,19 +401,27 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"  - ⏰ Alerta cada: {intervalo_h}h\n"
             f"  - 🔔 Alertas activas: {alertas_activas}\n"
         )
-
-    mensaje = (
-        f"👥 *Usuarios Registrados*: {num_usuarios}\n"
-        f"————————————————————\n"
-        f"```{chr(10).join(detalles)}```"
+    
+    # --- PLANTILLA ENVUELTA ---
+    mensaje_template = _(
+        "👥 *Usuarios Registrados*: {num_usuarios}\n"
+        "————————————————————\n"
+        "```{detalles_str}```",
+        current_chat_id
+    )
+    mensaje = mensaje_template.format(
+        num_usuarios=num_usuarios,
+        detalles_str=chr(10).join(detalles)
     )
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
 
 # COMANDO /logs para ver las últimas líneas del log
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    current_chat_id = update.effective_chat.id # <-- Obtener chat_id
+    
     # Comprobar si el ID está en la lista de administradores
-    if str(update.effective_chat.id) not in ADMIN_CHAT_IDS:
+    if str(current_chat_id) not in ADMIN_CHAT_IDS:
         # Obtener la última actualización desde el log si es posible
         global _get_logs_data_ref
         ultima_actualizacion = "N/A"
@@ -312,22 +435,29 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     pass
 
-        # Mensaje limitado para usuarios no administradores
-        mensaje = f"""🤖 *Estado de BitBread Alert*
-
-————————————————————
-• Versión: {VERSION} 🤖
-• Estado: {STATE} 👌
-• Última Actualización: {ultima_actualizacion} 🕒 
-————————————————————
-
-_Ya, eso es todo lo que puedes ver 🙂👍_"""
+        # --- PLANTILLA ENVUELTA ---
+        mensaje_template = _(
+            "🤖 *Estado de BitBread Alert*\n\n"
+            "————————————————————\n"
+            "• Versión: {version} 🤖\n"
+            "• Estado: {estado} 👌\n"
+            "• Última Actualización: {ultima_actualizacion} 🕒 \n"
+            "————————————————————\n\n"
+            "_Ya, eso es todo lo que puedes ver 🙂👍_",
+            current_chat_id
+        )
+        mensaje = mensaje_template.format(
+            version=VERSION,
+            estado=STATE,
+            ultima_actualizacion=ultima_actualizacion
+        )
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
     # Verificar que la función de logs ha sido inyectada correctamente
     if not _get_logs_data_ref:
-        await update.message.reply_text("❌ Error interno: La función de logs no ha sido inicializada.")
+        # --- MENSAJE ENVUELTO ---
+        await update.message.reply_text(_("❌ Error interno: La función de logs no ha sido inicializada.", current_chat_id))
         return
 
     # Obtener todas las líneas del log
@@ -339,7 +469,8 @@ _Ya, eso es todo lo que puedes ver 🙂👍_"""
         n_lineas = int(context.args[0]) if context.args and context.args[0].isdigit() else n_lineas_default
         n_lineas = max(1, min(n_lineas, 100))
     except ValueError:
-        await update.message.reply_text("⚠️ El argumento debe ser un número entero.")
+        # --- MENSAJE ENVUELTO ---
+        await update.message.reply_text(_("⚠️ El argumento debe ser un número entero.", current_chat_id))
         return
 
     # 2. Extraer las últimas N líneas
@@ -357,16 +488,30 @@ _Ya, eso es todo lo que puedes ver 🙂👍_"""
             pass
 
     # 3. Mensaje de respuesta completo para administradores
-    mensaje = f"""🤖 *Estado de BitBread Alert*
-————————————————————
-• Versión: {VERSION} 🤖
-• PID: {PID} 🪪
-• Python: {PYTHON_VERSION} 🐍
-• Usuarios: {len(cargar_usuarios())} 👥
-• Estado: {STATE} 👌
-• Última Actualización: {ultima_actualizacion} 🕒 
-————————————————————
-•📜 *Últimas {len(log_data_n_lines)} líneas de {len(log_data_full)} *\n ```{log_str}```\n"""
+    # --- PLANTILLA ENVUELTA ---
+    mensaje_template = _(
+        "🤖 *Estado de BitBread Alert*\n"
+        "————————————————————\n"
+        "• Versión: {version} 🤖\n"
+        "• PID: {pid} 🪪\n"
+        "• Python: {python_version} 🐍\n"
+        "• Usuarios: {num_usuarios} 👥\n"
+        "• Estado: {estado} 👌\n"
+        "• Última Actualización: {ultima_actualizacion} 🕒 \n"
+        "————————————————————\n"
+        "•📜 *Últimas {num_lineas} líneas de {total_lineas} *\n ```{log_str}```\n",
+        current_chat_id
+    )
+    mensaje = mensaje_template.format(
+        version=VERSION,
+        pid=PID,
+        python_version=PYTHON_VERSION,
+        num_usuarios=len(cargar_usuarios()),
+        estado=STATE,
+        ultima_actualizacion=ultima_actualizacion,
+        num_lineas=len(log_data_n_lines),
+        total_lineas=len(log_data_full),
+        log_str=log_str
+    )
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
-

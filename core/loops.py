@@ -15,6 +15,7 @@ from utils.file_manager import (
     load_price_alerts, update_alert_status, 
     cargar_custom_alert_history, guardar_custom_alert_history, get_hbd_alert_recipients
 )
+from core.i18n import _ # <-- Importar _
 
 # Variable global para guardar la función de envío de mensajes y la app
 _enviar_mensaje_telegram_async_ref = None
@@ -106,7 +107,8 @@ async def check_custom_price_alerts(bot: Bot):
                 await asyncio.sleep(INTERVALO_CONTROL)
                 continue
 
-            for user_id, user_alerts in active_alerts.items():
+            for user_id_str, user_alerts in active_alerts.items():
+                user_id = int(user_id_str) # <-- Obtener user_id como int
                 for alert in user_alerts:
                     if alert['status'] != 'ACTIVE':
                         continue
@@ -125,14 +127,39 @@ async def check_custom_price_alerts(bot: Bot):
 
                     if condition == 'ABOVE' and previous_price < target_price and current_price >= target_price:
                         triggered = True
-                        message = f"📈 ¡Alerta de Precio! 📈\n\n*{coin}* ha *SUPERADO* tu objetivo de *${target_price:,.4f}*.\n\nPrecio actual: *${current_price:,.4f}*"
+                        # --- PLANTILLA ENVUELTA ---
+                        message_template = _(
+                            "📈 ¡Alerta de Precio! 📈\n\n"
+                            "*{coin}* ha *SUPERADO* tu objetivo de *${target_price:,.4f}*.\n\n"
+                            "Precio actual: *${current_price:,.4f}*",
+                            user_id
+                        )
+                        message = message_template.format(
+                            coin=coin,
+                            target_price=target_price,
+                            current_price=current_price
+                        )
                     elif condition == 'BELOW' and previous_price > target_price and current_price <= target_price:
                         triggered = True
-                        message = f"📉 ¡Alerta de Precio! 📉\n\n*{coin}* ha *CAÍDO POR DEBAJO* de tu objetivo de *${target_price:,.4f}*.\n\nPrecio actual: *${current_price:,.4f}*"
+                        # --- PLANTILLA ENVUELTA ---
+                        message_template = _(
+                            "📉 ¡Alerta de Precio! 📉\n\n"
+                            "*{coin}* ha *CAÍDO POR DEBAJO* de tu objetivo de *${target_price:,.4f}*.\n\n"
+                            "Precio actual: *${current_price:,.4f}*",
+                            user_id
+                        )
+                        message = message_template.format(
+                            coin=coin,
+                            target_price=target_price,
+                            current_price=current_price
+                        )
 
                     if triggered:
-                        keyboard = [[InlineKeyboardButton("🗑️ Borrar esta alerta", callback_data=f"delete_alert_{alert['alert_id']}")]]
+                        # --- TEXTO DE BOTÓN ENVUELTO ---
+                        button_text = _("🗑️ Borrar esta alerta", user_id)
+                        keyboard = [[InlineKeyboardButton(button_text, callback_data=f"delete_alert_{alert['alert_id']}")]]
                         reply_markup = InlineKeyboardMarkup(keyboard)
+                        
                         await _enviar_mensaje_telegram_async_ref(message, [user_id], reply_markup=reply_markup)
                         
                         add_log_line(
@@ -174,8 +201,11 @@ async def alerta_loop(bot: Bot):
                             continue # Salta el resto del bucle si no hay nadie a quien notificar
 
                         # 2. Crear el botón interactivo
+                        # --- TEXTO DE BOTÓN ENVUELTO ---
+                        # (Sin chat_id, usa el idioma por defecto)
+                        button_text = _("🔕 Desactivar estas alertas")
                         keyboard = [[
-                            InlineKeyboardButton("🔕 Desactivar estas alertas", callback_data="toggle_hbd_alerts")
+                            InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
                         ]]
                         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -196,7 +226,8 @@ async def alerta_loop(bot: Bot):
 # === Función de callback para JobQueue de usuarios ===
 async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     """Función de callback del JobQueue para enviar la alerta de precios periódica."""
-    chat_id_str = str(context.job.chat_id) 
+    chat_id = int(context.job.chat_id) # <-- Obtener chat_id como int
+    chat_id_str = str(chat_id) 
     enviar_mensaje_ref = context.job.data.get('enviar_mensaje_ref')
     
     usuarios = cargar_usuarios()
@@ -219,7 +250,10 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
         add_log_line(f"❌ Falló obtención de precios para usuario {chat_id_str}.")
         return
 
-    mensaje = f"📊 *Alerta de tus monedas ({intervalo_h}h):*\n\n"
+    # --- PLANTILLA ENVUELTA ---
+    mensaje_template = _("📊 *Alerta de tus monedas ({intervalo_h}h):*\n\n", chat_id)
+    mensaje = mensaje_template.format(intervalo_h=intervalo_h)
+    
     precios_anteriores_usuario = PRECIOS_CONTROL_ANTERIORES.get(chat_id_str, {})
     precios_para_guardar = {} 
     
@@ -232,9 +266,16 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
             mensaje += f"*{m}/USD*: ${p_actual:.4f}{indicador}\n"
             precios_para_guardar[m] = p_actual
     
-    mensaje += (
-        f"\n📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-        f"_🔰 Alerta configurada cada {intervalo_h} horas._"
+    # --- PLANTILLA ENVUELTA ---
+    current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    mensaje_footer_template = _(
+        "\n📅 Fecha: {fecha}\n\n"
+        "_🔰 Alerta configurada cada {intervalo_h} horas._",
+        chat_id
+    )
+    mensaje += mensaje_footer_template.format(
+        fecha=current_time_str,
+        intervalo_h=intervalo_h
     )
     
     if enviar_mensaje_ref:

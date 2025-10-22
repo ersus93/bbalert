@@ -43,12 +43,13 @@ from utils.file_manager import load_hbd_history # Nueva importación
 async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra la última lectura de precios desde el historial JSON."""
     history = load_hbd_history()
+    chat_id = update.effective_chat.id # <-- Obtener chat_id
 
     if not history:
-        await update.message.reply_text("⚠️ No hay registros de precios aún.")
+        # --- MENSAJE ENVUELTO ---
+        await update.message.reply_text(_("⚠️ No hay registros de precios aún.", chat_id))
         return
 
-    chat_id = update.effective_chat.id
     # El último registro es el más reciente
     ultimo_registro = history[-1]
     

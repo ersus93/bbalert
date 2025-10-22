@@ -20,7 +20,7 @@ from utils.file_manager import(\
         delete_price_alert, cargar_usuarios, guardar_usuarios, registrar_usuario,\
             actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, add_log_line, load_price_alerts, update_alert_status\
 )
-
+from core.i18n import _
 # ------------------------------------------------------------------
 #  HISTORIAL EN MEMORIA DE PRECIOS (para comparar cruces)
 # ------------------------------------------------------------------
@@ -42,14 +42,18 @@ async def alerta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Crea una alerta de precio.
     Uso exclusivo: /alerta <MONEDA> <PRECIO>
     """
-    user_id = update.effective_user.id
+    user_id = update.effective_user.id # user_id es igual a chat_id
 
     # 1. Validar que se hayan proporcionado exactamente dos argumentos
     if not context.args or len(context.args) != 2:
-        await update.message.reply_text(
-            "⚠️ *Formato incorrecto*.\n\n El uso correcto es:\n"
+        mensaje_error = _(
+            "⚠️ *Formato incorrecto*.\n\nEl uso correcto es:\n"
             "/alerta *MONEDA PRECIO*\n\n"
             "Ejemplo: `/alerta HIVE 0.35`",
+            user_id # Pasa el user_id para obtener la traducción
+        )
+        await update.message.reply_text(
+            mensaje_error,
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -63,8 +67,12 @@ async def alerta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if target_price <= 0:
             raise ValueError("El precio debe ser positivo.")
     except ValueError:
-        await update.message.reply_text(
+        mensaje_error_precio = _(
             "⚠️ El precio que ingresaste no es válido. Debe ser un número positivo.",
+            user_id # Pasa el user_id para obtener la traducción
+        )
+        await update.message.reply_text(
+            mensaje_error_precio,
             parse_mode=ParseMode.MARKDOWN,
         )
         return
@@ -80,12 +88,31 @@ async def alerta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Aunque no se pudo obtener el precio, la alerta se crea de todas formas
         add_log_line(f"❌ Falló consulta de precio inicial de {coin} al crear alerta.")
 
-    # 4. Crear la alerta y enviar mensaje de confirmación
-    confirmation_message = add_price_alert(user_id, coin, target_price)
+    # 4. Crear la alerta
+    # --- MODIFICACIÓN ---
+    # Ya no capturamos el mensaje de add_price_alert, solo la ejecutamos.
+    add_price_alert(user_id, coin, target_price)
 
-    # Añadir el precio actual al mensaje si se obtuvo
+    # Creamos el mensaje de confirmación aquí para poder traducirlo.
+    confirmation_message_template = _(
+        "✅ ¡Alertas creadas! Te avisaré cuando *{coin}* cruce por encima o por debajo de *${target_price:,.4f}*.",
+        user_id
+    )
+    confirmation_message = confirmation_message_template.format(
+        coin=coin.upper(),
+        target_price=target_price
+    )
+    # --- FIN DE LA MODIFICACIÓN ---
+
+    # Traducir la plantilla del precio actual
     if initial_price:
-        confirmation_message += f"\n📊 Precio actual: `${initial_price:,.4f}`"
+        plantilla_precio_actual = _(
+            "\n📊 Precio actual: `{initial_price:,.4f}`",
+            user_id
+        )
+        
+        # Usamos .format() para inyectar el valor numérico *después* de la traducción
+        confirmation_message += plantilla_precio_actual.format(initial_price=initial_price)
 
     await update.message.reply_text(
         confirmation_message,
@@ -98,22 +125,43 @@ async def misalertas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_alerts = get_user_alerts(user_id)
 
     if not user_alerts:
-        await update.message.reply_text("No tienes ninguna alerta de precio activa. Crea una con el comando /alerta.")
+        # Mensaje 1: No hay alertas
+        await update.message.reply_text(
+            _(
+                "No tienes ninguna alerta de precio activa. Crea una con el comando /alerta.",
+                user_id
+            )
+        )
         return
 
-    message = "🔔 *Tus Alertas de Precio Activas:*\n\n"
+    # Mensaje 2: Encabezado de la lista de alertas
+    message = _(
+        "🔔 *Tus Alertas de Precio Activas:*\n\n",
+        user_id
+    )
+    
     keyboard = []
 
     for alert in user_alerts:
+        # Los símbolos y números son universales, no necesitan traducción.
         condicion = "📈 >" if alert['condition'] == 'ABOVE' else "📉 <"
         precio = f"{alert['target_price']:,.4f}"
+        
+        # El formato del mensaje principal usa variables
         message += f"- *{alert['coin']}* {condicion} `${precio}`\n"
+        
+        # El texto del botón usa variables
         keyboard.append([InlineKeyboardButton(
             f"🗑️ {alert['coin']} {condicion} {precio}",
             callback_data=f"delete_alert_{alert['alert_id']}"
-    )])
+        )])
 
-    keyboard.append([InlineKeyboardButton("🧹 Borrar Todas", callback_data="delete_all_alerts")])
+    # Mensaje 3: Texto del botón "Borrar Todas"
+    texto_borrar_todas = _(
+        "🧹 Borrar Todas",
+        user_id
+    )
+    keyboard.append([InlineKeyboardButton(texto_borrar_todas, callback_data="delete_all_alerts")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await update.message.reply_text(message, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
@@ -130,10 +178,18 @@ async def borrar_alerta_callback(update: Update, context: ContextTypes.DEFAULT_T
     user_alerts = get_user_alerts(user_id)
 
     if not user_alerts:
-        await query.edit_message_text("✅ Alerta borrada. Ya no tienes alertas activas.")
+        await query.edit_message_text(
+            _(
+                "✅ Alerta borrada. Ya no tienes alertas activas.",
+                user_id
+            )
+        )
         return
 
-    message = "🔔 *Tus Alertas de Precio Activas:*\n\n"
+    message = _(
+        "🔔 *Tus Alertas de Precio Activas:*\n\n",
+        user_id
+    )
     keyboard = []
 
     for alert in user_alerts:
@@ -143,11 +199,14 @@ async def borrar_alerta_callback(update: Update, context: ContextTypes.DEFAULT_T
         keyboard.append([InlineKeyboardButton(
             f"🗑️ {alert['coin']} {condicion} {precio}",
             callback_data=f"delete_alert_{alert['alert_id']}"
-    )])
+        )])
 
 
-
-    keyboard.append([InlineKeyboardButton("🧹 Borrar Todas", callback_data="delete_all_alerts")])
+    texto_borrar_todas = _(
+        "🧹 Borrar Todas",
+        user_id
+    )
+    keyboard.append([InlineKeyboardButton(texto_borrar_todas, callback_data="delete_all_alerts")])
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     await query.edit_message_text(message, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
@@ -160,5 +219,10 @@ async def borrar_todas_alertas_callback(update: Update, context: ContextTypes.DE
     user_id = query.from_user.id
     delete_all_alerts(user_id)
 
-    await query.edit_message_text("✅ Todas tus alertas han sido eliminadas.")
+    await query.edit_message_text(
+        _(
+            "✅ Todas tus alertas han sido eliminadas.",
+            user_id
+        )
+    )
 # ============================================================

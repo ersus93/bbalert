@@ -13,6 +13,7 @@ from core.loops import (
     get_logs_data, 
     set_enviar_mensaje_telegram_async
 )
+from core.i18n import _ # <-- Importar _
 
 
 # --- Importación de Handlers y Utilidades ---
@@ -56,8 +57,20 @@ async def post_init(app: Application):
     add_log_line("✅ Todas las tareas de fondo han sido iniciadas.")
 
     try:
-        # Preparamos un mensaje creativo y útil
-        startup_message = f"🚀 *¡Bot en línea!* 🚀\n\n🤖 `BitBread Alert v{VERSION}`\n🪪 `PID: {PID}`\n🐍 `Pyithon: v{PYTHON_VERSION}`\n\n✅ Ejecutado y funcionando perfectamente."
+        # --- PLANTILLA ENVUELTA ---
+        # (Se usa _() sin chat_id para que envíe en el idioma por defecto, español)
+        startup_message_template = _(
+            "🚀 *¡Bot en línea!* 🚀\n\n"
+            "🤖 `BitBread Alert v{version}`\n"
+            "🪪 `PID: {pid}`\n"
+            "🐍 `Python: v{python_version}`\n\n"
+            "✅ Ejecutado y funcionando perfectamente."
+        )
+        startup_message = startup_message_template.format(
+            version=VERSION,
+            pid=PID,
+            python_version=PYTHON_VERSION
+        )
 
         # Enviamos el mensaje a cada admin
         for admin_id in ADMIN_CHAT_IDS:

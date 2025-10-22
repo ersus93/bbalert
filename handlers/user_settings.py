@@ -45,38 +45,65 @@ def set_reprogramar_alerta_util(func):
 async def manejar_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el texto plano (lista de monedas) para actualizar la configuración."""
     texto = update.message.text.upper().strip()
+    chat_id = update.effective_chat.id # Obtener el ID para la traducción
     
     # Intenta parsear la lista de monedas
     monedas_limpias = [m.strip() for m in texto.split(',') if m.strip()]
     
     if monedas_limpias:
-        actualizar_monedas(update.effective_chat.id, monedas_limpias)
-        mensaje = (
-            f"✅ ¡Lista de monedas actualizada!\n"
-            f"Ahora recibirás alertas de para: `{', '.join(monedas_limpias)}`\n\n"
-            f"Puedes cambiar esta lista en cualquier momento enviando una nueva lista de símbolos separados por comas."
+        actualizar_monedas(chat_id, monedas_limpias)
+        
+        # Mensaje 1 (Éxito) - Requiere formateo
+        mensaje_base = _(
+            "✅ ¡Lista de monedas actualizada!\n"
+            "Ahora recibirás alertas de para: `{monedas_limpias_str}`\n\n"
+            "Puedes cambiar esta lista en cualquier momento enviando una nueva lista de símbolos separados por comas.",
+            chat_id
         )
+        mensaje = mensaje_base.format(monedas_limpias_str=', '.join(monedas_limpias))
     else:
-        mensaje = "⚠️ Por favor, envía una lista de símbolos de monedas separados por comas. Ejemplo: `BTC, ETH, HIVE`"
+        # Mensaje 2 (Advertencia/Error)
+        mensaje = _(
+            "⚠️ Por favor, envía una lista de símbolos de monedas separados por comas. Ejemplo: `BTC, ETH, HIVE`",
+            chat_id
+        )
         
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
 
 async def mismonedas(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /mismonedas. Muestra las monedas que sigue el usuario."""
-    monedas = obtener_monedas_usuario(update.effective_chat.id)
+    chat_id = update.effective_chat.id
+    monedas = obtener_monedas_usuario(chat_id)
+    
     if monedas:
-        mensaje = f"✅ Listo! recibirás alertas para las siguientes monedas:\n`{', '.join(monedas)}`."
+        # Mensaje 1: Éxito (requiere formateo)
+        mensaje_base = _(
+            "✅ Listo! recibirás alertas para las siguientes monedas:\n`{monedas_str}`.",
+            chat_id
+        )
+        mensaje = mensaje_base.format(monedas_str=', '.join(monedas))
     else:
-        mensaje = "⚠️ No tienes monedas configuradas para la alerta de tempralidad."
+        # Mensaje 2: Advertencia
+        mensaje = _(
+            "⚠️ No tienes monedas configuradas para la alerta de tempralidad.",
+            chat_id
+        )
         
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
 
 async def parar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /parar. Elimina las monedas del usuario para detener alertas de control."""
-    actualizar_monedas(update.effective_chat.id, [])
-    await update.message.reply_text("🛑 Alertas  detenidas. Ya no recibirás mensajes cada hora (a menos que vuelvas a configurar tu lista o ajustes la temporalidad).", parse_mode=ParseMode.MARKDOWN)
+    chat_id = update.effective_chat.id
+    actualizar_monedas(chat_id, [])
+    
+    mensaje = _(
+        "🛑 Alertas detenidas. Ya no recibirás mensajes cada hora (a menos que vuelvas a configurar tu lista o ajustes la temporalidad).",
+        chat_id
+    )
+    
+    await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
 
 # 💡 COMANDO /temp ajustes de temporalidad de notificacion de lista
@@ -90,12 +117,15 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         usuarios = cargar_usuarios()
         intervalo_actual = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 1.0)
         
-        mensaje = (
+        # Mensaje 1: Configuración actual (requiere formateo)
+        mensaje_base = _(
             "⚙️ *Configuración de Temporalidad*\n"
-            f"Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n\n"
+            "Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n\n"
             "Para cambiarlo, envía el comando con las horas deseadas (desde 1h hasta 12h).\n"
-            "Ejemplo: `/temp 2.5` (para 2 horas y 30 minutos)." # 💡 Comando actualizado a /temp
+            "Ejemplo: `/temp 2.5` (para 2 horas y 30 minutos).",
+            chat_id
         )
+        mensaje = mensaje_base.format(intervalo_actual=intervalo_actual)
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
@@ -104,35 +134,47 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         
         # Validar el rango de horas (0.5h a 24.0h)
         if not (0.02 <= interval_h <= 24.0):
-            await update.message.reply_text("⚠️ El valor debe ser un número entre *0.5* (30min) y *24.0* horas. Ejemplo: `2.5`", parse_mode=ParseMode.MARKDOWN)
+            # Mensaje 2: Rango inválido
+            mensaje_rango_invalido = _("⚠️ El valor debe ser un número entre *0.5* (30min) y *24.0* horas. Ejemplo: `2.5`", chat_id)
+            await update.message.reply_text(mensaje_rango_invalido, parse_mode=ParseMode.MARKDOWN)
             return
 
         # 1. Guardar el nuevo intervalo
         if not actualizar_intervalo_alerta(chat_id, interval_h):
-             await update.message.reply_text("❌ No se pudo guardar tu configuración. ¿Estás registrado con /start?", parse_mode=ParseMode.MARKDOWN)
-             return
-             
+            # Mensaje 3: Error al guardar
+            mensaje_error_guardar = _("❌ No se pudo guardar tu configuración. ¿Estás registrado con /start?", chat_id)
+            await update.message.reply_text(mensaje_error_guardar, parse_mode=ParseMode.MARKDOWN)
+            return
+            
         # 2. Reprogramar la alerta (usando la función inyectada)
         if _reprogramar_alerta_ref:
-            # Llama a la función programar_alerta_usuario de bbalert.py
+            # Mensaje 4: Éxito con reprogramación (requiere formateo)
             _reprogramar_alerta_ref(chat_id, interval_h)
-            mensaje_final = (
-                f"✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
-                f"La alerta con tus monedas ha sido *reprogramada* para ejecutarse cada {interval_h} horas."
+            mensaje_base_final = _(
+                "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
+                "La alerta con tus monedas ha sido *reprogramada* para ejecutarse cada {interval_h} horas.",
+                chat_id
             )
+            mensaje_final = mensaje_base_final.format(interval_h=interval_h)
         else:
-            # Fallback en caso de que la inyección falle
-            mensaje_final = (
-                f"✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
-                "⚠️ Pero hubo un error al reprogramar la alerta. Intenta enviar /temp nuevamente."
+            # Mensaje 5: Éxito sin reprogramación (requiere formateo)
+            mensaje_base_final = _(
+                "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
+                "⚠️ Pero hubo un error al reprogramar la alerta. Intenta enviar /temp nuevamente.",
+                chat_id
             )
+            mensaje_final = mensaje_base_final.format(interval_h=interval_h)
 
         await update.message.reply_text(mensaje_final, parse_mode=ParseMode.MARKDOWN)
 
     except ValueError:
-        await update.message.reply_text("⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo 0.5)(máximo 24.0).", parse_mode=ParseMode.MARKDOWN)
+        # Mensaje 6: Formato de hora inválido
+        mensaje_error_valor = _("⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo 0.5)(máximo 24.0).", chat_id)
+        await update.message.reply_text(mensaje_error_valor, parse_mode=ParseMode.MARKDOWN)
     except IndexError:
-        await update.message.reply_text("⚠️ Debes especificar el número de horas. Ejemplo: `/temp 2.5`", parse_mode=ParseMode.MARKDOWN) # 💡 Comando actualizado a /temp
+        # Mensaje 7: Falta el argumento
+        mensaje_error_indice = _("⚠️ Debes especificar el número de horas. Ejemplo: `/temp 2.5`", chat_id)
+        await update.message.reply_text(mensaje_error_indice, parse_mode=ParseMode.MARKDOWN)
 
 # === LÓGICA DE JOBQUEUE PARA ALERTAS DE TEMPORALIDAD ===
 async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -145,25 +187,30 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not context.args:
         # Si el usuario solo envía /monedas, le mostramos cómo usarlo
         monedas_actuales = obtener_monedas_usuario(chat_id)
-        lista_str = '`' + ', '.join(monedas_actuales) + '`' if monedas_actuales else "ninguna"
-        mensaje = (
+        lista_str = '`' + ', '.join(monedas_actuales) + '`' if monedas_actuales else _("ninguna", chat_id)
+        
+        # Mensaje 1: Formato incorrecto (requiere formateo para la lista actual)
+        mensaje_base = _(
             "⚠️ *Formato incorrecto*.\n\n"
             "Para establecer tu lista de monedas, envía el comando seguido de los símbolos. Ejemplo:\n\n"
             "`/monedas BTC, ETH, HIVE, SOL`\n\n"
-            f"Tu lista actual es: {lista_str}"
+            "Tu lista actual es: {lista_str}",
+            chat_id
         )
+        mensaje = mensaje_base.format(lista_str=lista_str)
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
     # 1. Unir todos los argumentos en un solo string
-    # (Permite formatos como: /monedas BTC,ETH,HIVE o /monedas BTC, ETH, HIVE)
     texto_recibido = ' '.join(context.args)
     
     # 2. Limpiar y procesar la entrada del usuario
     monedas = [m.strip().upper() for m in texto_recibido.split(',') if m.strip()]
 
     if not monedas:
-        await update.message.reply_text("⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo.", parse_mode=ParseMode.MARKDOWN)
+        # Mensaje 2: No se encontraron monedas
+        mensaje_error_vacio = _("⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo.", chat_id)
+        await update.message.reply_text(mensaje_error_vacio, parse_mode=ParseMode.MARKDOWN)
         return
 
     # 3. Guardar la nueva lista de monedas
@@ -174,15 +221,22 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # 5. Construir y enviar el mensaje de confirmación
     if precios:
-        mensaje_respuesta = "✅ *Tu lista de monedas ha sido guardada.*\n\nPrecios actuales:\n"
+        # Mensaje 3a: Éxito con precios disponibles
+        encabezado_base = _("✅ *Tu lista de monedas ha sido guardada.*\n\nPrecios actuales:\n", chat_id)
+        mensaje_respuesta = encabezado_base
+        
+        # Etiqueta 4: 'No encontrado'
+        etiqueta_no_encontrado = _("No encontrado", chat_id)
+        
         for moneda in monedas:
             precio_actual = precios.get(moneda)
             if precio_actual:
                 mensaje_respuesta += f"*{moneda}/USD*: ${precio_actual:,.4f}\n"
             else:
-                mensaje_respuesta += f"*{moneda}/USD*: No encontrado\n"
+                mensaje_respuesta += f"*{moneda}/USD*: {etiqueta_no_encontrado}\n"
     else:
-        mensaje_respuesta = "✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en este momento."
+        # Mensaje 3b: Éxito sin precios disponibles
+        mensaje_respuesta = _("✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en este momento.", chat_id)
 
     await update.message.reply_text(mensaje_respuesta, parse_mode=ParseMode.MARKDOWN)
 
@@ -197,11 +251,27 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     is_enabled = user_data.get('hbd_alerts', True)
 
     if is_enabled:
-        text = "✅ Tus alertas predefinidas de HBD están *ACTIVADAS*."
-        button_text = "🔕 Desactivar alertas"
+        # Mensaje 1: Alertas activadas
+        text = _(
+            "✅ Tus alertas predefinidas de HBD están *ACTIVADAS*.",
+            user_id
+        )
+        # Botón 1: Desactivar
+        button_text = _(
+            "🔕 Desactivar alertas",
+            user_id
+        )
     else:
-        text = "☑️ Tus alertas predefinidas de HBD están *DESACTIVADAS*."
-        button_text = "🔔 Activar alertas"
+        # Mensaje 2: Alertas desactivadas
+        text = _(
+            "☑️ Tus alertas predefinidas de HBD están *DESACTIVADAS*.",
+            user_id
+        )
+        # Botón 2: Activar
+        button_text = _(
+            "🔔 Activar alertas",
+            user_id
+        )
 
     # Reutilizamos el mismo callback_data para no tener que crear un nuevo handler
     keyboard = [[
@@ -215,19 +285,33 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
 async def toggle_hbd_alerts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Maneja el callback del botón para activar/desactivar las alertas de HBD."""
     query = update.callback_query
-    await query.answer()  # Responde al callback para que el cliente de Telegram no se quede esperando
+    await query.answer() 
 
     user_id = query.from_user.id
     new_status = toggle_hbd_alert_status(user_id) # Cambia el estado y obtiene el nuevo
 
     if new_status:
-        # Si el nuevo estado es TRUE (activado)
-        text = "✅ ¡Alertas de HBD *activadas*! Volverás a recibir notificaciones."
-        button_text = "🔕 Desactivar estas alertas"
+        # Mensaje 1: Activado
+        text = _(
+            "✅ ¡Alertas de HBD *activadas*! Volverás a recibir notificaciones.",
+            user_id
+        )
+        # Botón 1: Desactivar
+        button_text = _(
+            "🔕 Desactivar estas alertas",
+            user_id
+        )
     else:
-        # Si el nuevo estado es FALSE (desactivado)
-        text = "☑️ Alertas de HBD *desactivadas*. Ya no recibirás estos mensajes."
-        button_text = "🔔 Activar alertas de HBD"
+        # Mensaje 2: Desactivado
+        text = _(
+            "☑️ Alertas de HBD *desactivadas*. Ya no recibirás estos mensajes.",
+            user_id
+        )
+        # Botón 2: Activar
+        button_text = _(
+            "🔔 Activar alertas de HBD",
+            user_id
+        )
 
     # Actualiza el mensaje original con el nuevo texto y el nuevo botón
     keyboard = [[
@@ -244,6 +328,7 @@ async def lang_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_lang = get_user_language(chat_id)
 
     # Usamos la traducción para el texto de introducción
+    # Mensaje 1: Introducción al menú de idiomas
     text = _(
         "🌐 *Selecciona tu idioma:*\n\n"
         "El idioma actual es: {current_lang_name}",
@@ -273,13 +358,20 @@ async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
         # Recarga el traductor para el nuevo idioma ANTES de generar el mensaje
 
-        # Usamos el traductor para el mensaje de confirmación
+        # Mensaje 1: Éxito (requiere formateo)
         new_text = _(
-            "✅ ¡Idioma cambiado a **{new_lang_name}**!\\n"
+            "✅ ¡Idioma cambiado a **{new_lang_name}**!\n"
             "Usa el comando /lang si deseas cambiarlo de nuevo.",
             user_id
         ).format(new_lang_name=SUPPORTED_LANGUAGES[lang_code])
 
         await query.edit_message_text(new_text, parse_mode=ParseMode.MARKDOWN)
     else:
-         await query.edit_message_text(_("⚠️ Idioma no soportado.", user_id), parse_mode=ParseMode.MARKDOWN)
+        # Mensaje 2: Error
+        await query.edit_message_text(
+            _(
+                "⚠️ Idioma no soportado.", 
+                user_id
+            ), 
+            parse_mode=ParseMode.MARKDOWN
+        )
