@@ -23,7 +23,6 @@ def inicializar_archivos():
 
 # utils/file_manager.py
 
-# --- NUEVAS FUNCIONES PARA REEMPLAZAR EL EXCEL ---
 MAX_HISTORY_ENTRIES = 500 # Limita el archivo para que no crezca indefinidamente
 
 def load_hbd_history():
