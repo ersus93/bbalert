@@ -10,26 +10,30 @@ from telegram.constants import ParseMode
 from telegram.ext import ConversationHandler, ContextTypes
 from utils.file_manager import load_hbd_history, registrar_usuario
 from core.config import ADMIN_CHAT_IDS
-
+from core.i18n import _
 
 #  Telegram comando /satart 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start. Registra al usuario."""
-    registrar_usuario(update.effective_chat.id)
+    chat_id = update.effective_chat.id # Obtener el chat_id
+    registrar_usuario(chat_id)
     
     nombre_usuario = update.effective_user.first_name
     
-    mensaje = (
-        f"*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n\n"
+    # ENVUELVE TODO EL MENSAJE CON _() y usa el chat_id
+    mensaje = _(
+        "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\\n\\n"
         "Para recibir alertas periódicas con los precios de tu lista de monedas, "
         "usa el comando `/monedas` seguido de los símbolos separados por comas. "
-        "Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n\n"
-        "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
-        "Pudes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
-        "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n"
-    )
-
+        "Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\\n\\n"
+        "`/monedas BTC, ETH, TRX, HIVE, ADA`\\n\\n"
+        "Pudes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\\n"
+        "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\\n\\n",
+        chat_id # <-- PASA EL chat_id
+    ).format(nombre_usuario=nombre_usuario) # Usa .format() con la cadena traducida
+                                            # Esto es clave si necesitas interpolar variables
+    
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 # ============================================================
 
@@ -44,6 +48,7 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ No hay registros de precios aún.")
         return
 
+    chat_id = update.effective_chat.id
     # El último registro es el más reciente
     ultimo_registro = history[-1]
     
@@ -53,14 +58,26 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     hbd = ultimo_registro.get('hbd', 0)
     ton = ultimo_registro.get('ton', 0)
 
-    mensaje = f"""📊 *Última lectura (máx. 5 min atrás):*
+    mensaje_template = _(
+        """📊 *Última lectura (máx. 5 min atrás):*
 
-🟠 *BTC/USD*: ${btc:,.2f}
-🔷 *TON/USD*: ${ton:,.4f}
-🐝 *HIVE/USD*: ${hive:,.4f}
-💰 *HBD/USD*: ${hbd:,.4f}
+🟠 *BTC/USD*: ${btc_val:,.2f}
+🔷 *TON/USD*: ${ton_val:,.4f}
+🐝 *HIVE/USD*: ${hive_val:,.4f}
+💰 *HBD/USD*: ${hbd_val:,.4f}
 
-_Actualizado: {fecha_str}_"""
+_Actualizado: {fecha}_""",
+        chat_id # Pasar el chat_id para obtener la traducción
+    )
+    
+    # Rellenar la plantilla con los valores reales
+    mensaje = mensaje_template.format(
+        btc_val=btc,
+        ton_val=ton,
+        hive_val=hive,
+        hbd_val=hbd,
+        fecha=fecha_str
+    )
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 # ============================================================
@@ -70,14 +87,26 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /myid. Muestra el ID de chat del usuario."""
     chat_id = update.effective_chat.id
     user = update.effective_user
+    
+    # 1. Preparacion de las variables
     nombre_completo = user.first_name or 'N/A'
     username_str = f"@{user.username}" if user.username else 'N/A'
 
-    mensaje = (
-        "Estos son tus datos de Telegram\n\n"
-        f"Nombre: {nombre_completo}\n"
-        f"Usuario: {username_str}\n"
-        f"ID: `{chat_id}`"
+    # 2. Traduce la plantilla de mensaje, usando marcadores de posición.
+    #    NOTA: La plantilla debe ser una sola cadena literal (sin f-string dentro de _()).
+    mensaje_template = _(
+        "Estos son tus datos de Telegram:\n\n"
+        "Nombre: {nombre}\n"
+        "Usuario: {usuario}\n"
+        "ID: `{id_chat}`",
+        chat_id # <-- PASAR EL CHAT_ID
+    )
+
+    # 3. Formatea el resultado de la traducción con los valores de las variables
+    mensaje = mensaje_template.format(
+        nombre=nombre_completo,
+        usuario=username_str,
+        id_chat=chat_id
     )
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)

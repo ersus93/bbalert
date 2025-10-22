@@ -1,0 +1,51 @@
+# Translations template for PROJECT.
+# Copyright (C) 2025 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2025-10-21 21:05-0400\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: handlers/general.py:26
+#, python-brace-format
+msgid ""
+"*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\\n\\nPara recibir "
+"alertas periódicas con los precios de tu lista de monedas, usa el comando"
+" `/monedas` seguido de los símbolos separados por comas. Puedes usar "
+"*cualquier* símbolo de criptomoneda listado en CoinMarketCap. "
+"Ejemplo:\\n\\n`/monedas BTC, ETH, TRX, HIVE, ADA`\\n\\nPudes modificar la"
+" temporalidad de esta alerta en cualquier momento con el comando /temp "
+"seguido de las horas (entre 0.5 y 24.0).\\nEjemplo: /temp 2.5 (para 2 "
+"horas y 30 minutos)\\n\\n"
+msgstr ""
+
+#: handlers/user_settings.py:248
+#, python-brace-format
+msgid ""
+"🌐 *Selecciona tu idioma:*\n"
+"\n"
+"El idioma actual es: {current_lang_name}"
+msgstr ""
+
+#: handlers/user_settings.py:278
+#, python-brace-format
+msgid ""
+"✅ ¡Idioma cambiado a **{new_lang_name}**!\\nUsa el comando /lang si "
+"deseas cambiarlo de nuevo."
+msgstr ""
+
+#: handlers/user_settings.py:285
+msgid "⚠️ Idioma no soportado."
+msgstr ""
+

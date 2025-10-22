@@ -162,6 +162,21 @@ def cargar_usuarios():
         return {}
 
 
+def set_user_language(chat_id: int, lang_code: str):
+    """Guarda el código de idioma para un usuario."""
+    usuarios = cargar_usuarios()
+    chat_id_str = str(chat_id)
+    if chat_id_str in usuarios:
+        usuarios[chat_id_str]['language'] = lang_code
+        guardar_usuarios(usuarios)
+        add_log_line(f"Idioma de usuario {chat_id_str} cambiado a: {lang_code}")
+
+def get_user_language(chat_id: int) -> str:
+    """Obtiene el código de idioma de un usuario, por defecto 'es' (español)."""
+    usuarios = cargar_usuarios()
+    return usuarios.get(str(chat_id), {}).get('language', 'es') # 'es' como valor predeterminado
+
+
 # === Funciones de Gestión de Alertas de Precio ===
 
 def load_price_alerts():

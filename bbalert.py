@@ -20,7 +20,7 @@ from handlers.general import start, myid, ver
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command, # <-- CAMBIADO
-    set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command
+    set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
 )
 from handlers.alerts import (
     alerta_command,
@@ -138,6 +138,7 @@ def main():
     app.add_handler(CommandHandler("parar", parar))
     app.add_handler(CommandHandler("temp", cmd_temp))
     app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
+    app.add_handler(CommandHandler("lang", lang_command))
     app.add_handler(CommandHandler("alerta", alerta_command))
     app.add_handler(CommandHandler("misalertas", misalertas))
     app.add_handler(CommandHandler("graf", graf_command)) # <-- NUEVO HANDLER
@@ -145,6 +146,7 @@ def main():
     app.add_handler(CommandHandler("monedas", set_monedas_command))
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
     app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
+    app.add_handler(CallbackQueryHandler(set_language_callback, pattern="^set_lang_"))
     app.add_handler(CallbackQueryHandler(borrar_todas_alertas_callback, pattern="^delete_all_alerts$"))
     # app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, actualizar_monedas_texto))
     
