@@ -10,12 +10,12 @@ from core.i18n import _
 # === LÓGICA DE ALERTA (HBD) ===
 
 # Se añade chat_id=None a la firma de la función
-def generar_alerta(precios_actuales, precio_anterior_hbd, chat_id=None):
+def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
     """
     Determina si se debe enviar una alerta de HBD e incluye los precios de BTC, HIVE y HBD.
     precios_actuales es el diccionario completo: {'BTC': float, 'HIVE': float, 'HBD': float}
     """
-        
+    
     if precio_anterior_hbd is None:
         return None, None
     
@@ -29,7 +29,7 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, chat_id=None):
          
     # --- Estructura del mensaje adicional (que se adjuntará a la alerta) ---
     detalle_precios = (
-        _("\n\n**Precios Actuales:**\n", chat_id) + # <-- chat_id para msg
+        _("\n\n**Precios Actuales:**\n", user_id) + # <-- chat_id para msg
         f"🟠 *BTC/USD*: ${btc:.2f}\n"
         f"🔷 *TON/USD*: ${ton:.4f}\n"
         f"🐝 *HIVE/USD*: ${hive:.4f}\n"
@@ -40,74 +40,74 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, chat_id=None):
 
     # 1. Alerta: HBD sube por encima de $1.10
     if precio_actual_hbd >= 1.10 and precio_anterior_hbd < 1.10:
-        msg = _("🤯 *HBD TOCÓ $1.10 (O MÁS)*", chat_id) + detalle_precios # <-- chat_id para msg
+        msg = _("🤯 *HBD TOCÓ $1.10 (O MÁS)*", user_id) + detalle_precios # <-- chat_id para msg
         log = _("🤯 Alerta MÁXIMA: HBD ≥ $1.10", None) # <-- None para log
         return msg, log
     
     # 2. Alerta: HBD cae por debajo de $1.10
     elif precio_actual_hbd < 1.10 and precio_anterior_hbd >= 1.10:
-        msg = _("📉 *HBD acaba de caer de $1.10*", chat_id) + detalle_precios
+        msg = _("📉 *HBD acaba de caer de $1.10*", user_id) + detalle_precios
         log = _("📉 Alerta: HBD bajó de $1.10", None)
         return msg, log
 
     
     elif precio_actual_hbd > 1.05 and precio_anterior_hbd <= 1.05:
-        msg = _("📈 *HBD acaba de superar $1.05.*", chat_id) + detalle_precios
+        msg = _("📈 *HBD acaba de superar $1.05.*", user_id) + detalle_precios
         log = _("📈 Alerta: HBD superó $1.05", None)
         return msg, log
     
     elif precio_actual_hbd <= 1.05 and precio_anterior_hbd > 1.05:
-        msg = _("📉 *HBD acaba de caer de $1.05.*", chat_id) + detalle_precios
+        msg = _("📉 *HBD acaba de caer de $1.05.*", user_id) + detalle_precios
         log = _("📉 Alerta: HBD cayó de $1.05", None)
         return msg, log
     
     elif precio_actual_hbd >= 1.005 and precio_anterior_hbd < 1.005:
-        msg = _("⚠️ *HBD superó $1.005.*", chat_id) + detalle_precios
+        msg = _("⚠️ *HBD superó $1.005.*", user_id) + detalle_precios
         log = _("⚠️ Alerta: HBD superó $1.005", None)
         return msg, log
 
     elif precio_actual_hbd < 1.005 and precio_anterior_hbd >= 1.005:
-        msg = _("📉 *HBD cayó de $1.005.*", chat_id) + detalle_precios
+        msg = _("📉 *HBD cayó de $1.005.*", user_id) + detalle_precios
         log = _("📉 Alerta: HBD cayó de $1.005", None)
         return msg, log
     
     elif precio_actual_hbd >= 1.00 and precio_anterior_hbd < 1.00:
-        msg = _("⚠️ *HBD superó $1.00.*", chat_id) + detalle_precios
+        msg = _("⚠️ *HBD superó $1.00.*", user_id) + detalle_precios
         log = _("⚠️ Alerta: HBD superó $1.00", None)
         return msg, log
 
     elif precio_actual_hbd < 1.00 and precio_anterior_hbd >= 1.00:
-        msg = _("📉 *HBD cayó de $1.00.*", chat_id) + detalle_precios
+        msg = _("📉 *HBD cayó de $1.00.*", user_id) + detalle_precios
         log = _("📉 Alerta: HBD cayó de $1.00", None)
         return msg, log
 
     elif precio_actual_hbd < 0.995 and precio_anterior_hbd >= 0.995:
-        msg = _("🚨 *HBD cayó por debajo de $0.995.", chat_id) + detalle_precios
+        msg = _("🚨 *HBD cayó por debajo de $0.995.", user_id) + detalle_precios
         log = _("🚨 Alerta: 😣 HBD cayó por debajo de $0.995", None)
         return msg, log
     
     elif precio_actual_hbd >= 0.995 and precio_anterior_hbd < 0.995:
-        msg = _("🚨 *HBD subió por encima de $0.995.*", chat_id) + detalle_precios
+        msg = _("🚨 *HBD subió por encima de $0.995.*", user_id) + detalle_precios
         log = _("🚨 Alerta: 😃 HBD subió por encima de $0.995", None)
         return msg, log
       
     elif precio_actual_hbd >= 0.98 and precio_anterior_hbd < 0.98:
-        msg = _("🚨 *HBD subió por encima de $0.98.*", chat_id) + detalle_precios
+        msg = _("🚨 *HBD subió por encima de $0.98.*", user_id) + detalle_precios
         log = _("🚨 Alerta: 😃 HBD subió por encima de $0.98", None)
         return msg, log
     
     elif precio_actual_hbd < 0.98 and precio_anterior_hbd >= 0.98:
-        msg = _("🚨 *HBD cayó por debajo de $0.98.*", chat_id) + detalle_precios
+        msg = _("🚨 *HBD cayó por debajo de $0.98.*", user_id) + detalle_precios
         log = _("🚨 Alerta: 😣 HBD cayó por debajo de $0.98", None)
         return msg, log
 
     elif precio_actual_hbd >= 0.95 and precio_anterior_hbd < 0.95:
-        msg = _("🚨 *HBD subió por encima de $0.95.*", chat_id) + detalle_precios
+        msg = _("🚨 *HBD subió por encima de $0.95.*", user_id) + detalle_precios
         log = _("🚨 Alerta: 😃 HBD subió por encima de $0.95", None)
         return msg, log
     
     elif precio_actual_hbd < 0.95 and precio_anterior_hbd >= 0.95:
-        msg = _("🚨 *HBD cayó por debajo de $0.95.*", chat_id) + detalle_precios
+        msg = _("🚨 *HBD cayó por debajo de $0.95.*", user_id) + detalle_precios
         log = _("🚨 Alerta: 😣 HBD cayó por debajo de $0.95", None)
         return msg, log
         

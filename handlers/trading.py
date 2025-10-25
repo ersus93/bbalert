@@ -11,37 +11,36 @@ from core.i18n import _
 
 def _take_screenshot_sync(url: str) -> BytesIO | None:
     """
-    Función síncrona que toma la captura de pantalla usando screenshotapi.net.
+    Captura de pantalla usando ScreenshotOne.
     """
     if not SCREENSHOT_API_KEY:
         print("❌ Error: La SCREENSHOT_API_KEY no está configurada en config.py.")
         return None
 
-    # Parámetros para la API de captura de pantalla
-    api_url = "https://shot.screenshotapi.net/screenshot"
+    api_url = "https://api.screenshotone.com/take"
     params = {
-        "token": SCREENSHOT_API_KEY,
+        "access_key": SCREENSHOT_API_KEY,
         "url": url,
-        "width": 1280,
-        "height": 720,
-        "output": "image",
-        "file_type": "png",
-        "wait_for_event": "load",
-        # Este selector ayuda a la API a esperar a que el gráfico cargue
-        "selector": "div.chart-widget"
+        "format": "png",  # Puedes usar 'png' si prefieres
+        "block_ads": "true",
+        "block_cookie_banners": "true",
+        "block_banners_by_heuristics": "false",
+        "block_trackers": "true",
+        "delay": "0",
+        "timeout": "60",
+        "response_type": "by_format",
+        "image_quality": "100"
     }
 
     try:
-        # Hacemos la petición a la API
-        response = requests.get(api_url, params=params, timeout=30) # Aumentamos el timeout
-        response.raise_for_status() # Lanza un error si la petición falló (ej. 4xx, 5xx)
-
-        # La respuesta de la API es la imagen directamente
+        response = requests.get(api_url, params=params, timeout=30)
+        response.raise_for_status()
         return BytesIO(response.content)
 
     except requests.exceptions.RequestException as e:
-        print(f"Error al llamar a la API de capturas de pantalla: {e}")
+        print(f"❌ Error al llamar a ScreenshotOne: {e}")
         return None
+    
 
 async def take_chart_screenshot(url: str) -> BytesIO | None:
     """Ejecuta la función de captura de pantalla en un executor para no bloquear el bucle de asyncio."""

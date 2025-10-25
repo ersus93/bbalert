@@ -190,31 +190,51 @@ async def alerta_loop(bot: Bot):
                 guardar_precios_alerta(precios_actuales)
 
                 if precio_anterior_hbd:
-                    alerta_msg, log_msg = generar_alerta(precios_actuales, precio_anterior_hbd)
-                    if alerta_msg:
-                       
-                        # 1. Obtener solo los usuarios que quieren la alerta
-                        recipients = get_hbd_alert_recipients()
-
-                        if not recipients:
-                            if log_msg: add_log_line(f"{log_msg} (No se envió a nadie)")
-                            continue # Salta el resto del bucle si no hay nadie a quien notificar
-
-                        # 2. Crear el botón interactivo
-                        # --- TEXTO DE BOTÓN ENVUELTO ---
-                        # (Sin chat_id, usa el idioma por defecto)
-                        button_text = _("🔕 Desactivar estas alertas")
-                        keyboard = [[
-                            InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
-                        ]]
-                        reply_markup = InlineKeyboardMarkup(keyboard)
-
-                        # 3. Enviar el mensaje a los destinatarios con el botón
-                        await _enviar_mensaje_telegram_async_ref(alerta_msg, recipients, reply_markup=reply_markup)
-
                     
-                    if log_msg:
-                         add_log_line(log_msg)
+                    # --- INICIO DE LA MODIFICACIÓN (I18N) ---
+                    
+                    # 1. Obtener solo los usuarios que quieren la alerta
+                    recipients = get_hbd_alert_recipients()
+                    if not recipients:
+                        # Si no hay destinatarios, no hacemos nada
+                        continue 
+
+                    # 2. Variables para registrar el log SÓLO UNA VEZ
+                    log_msg_to_send = None
+                    trigger_detected = False
+
+                    # 3. Iterar sobre cada destinatario
+                    for user_id_str in recipients:
+                        user_id = int(user_id_str)
+
+                        # 4. Generar el mensaje traducido PARA ESTE USUARIO
+                        alerta_msg, log_msg = generar_alerta(precios_actuales, precio_anterior_hbd, user_id)
+
+                        if alerta_msg:
+                            # 5. Si hay alerta, la marcamos y guardamos el log
+                            trigger_detected = True
+                            if not log_msg_to_send:
+                                log_msg_to_send = log_msg
+
+                            # 6. Crear el botón (también traducido)
+                            button_text = _("🔕 Desactivar estas alertas", user_id)
+                            keyboard = [[
+                                InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
+                            ]]
+                            reply_markup = InlineKeyboardMarkup(keyboard)
+
+                            # 7. Enviar el mensaje individualmente (usando la función de envío)
+                            await _enviar_mensaje_telegram_async_ref(
+                                alerta_msg, 
+                                [user_id_str], # Enviamos solo a este ID
+                                reply_markup=reply_markup
+                            )
+
+                    # 8. Registrar el log SÓLO UNA VEZ después de que el bucle termine
+                    if trigger_detected and log_msg_to_send:
+                        add_log_line(log_msg_to_send)
+                        
+                    # --- FIN DE LA MODIFICACIÓN ---
             else:
                 add_log_line("❌ Falló la obtención o validación del precio de HBD.")
 
