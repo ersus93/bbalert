@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-10-22 15:59-0400\n"
-"PO-Revision-Date: 2025-10-24 17:09-0400\n"
+"POT-Creation-Date: 2025-10-24 21:51-0400\n"
+"PO-Revision-Date: 2025-10-24 22:01-0400\n"
 "Last-Translator: \n"
 "Language-Team: en <LL@li.org>\n"
 "Language: en\n"
@@ -194,11 +194,11 @@ msgstr ""
 msgid "🗑️ Borrar esta alerta"
 msgstr "🗑️ Delete this alert"
 
-#: core/loops.py:206 handlers/user_settings.py:304
+#: core/loops.py:220 handlers/user_settings.py:304
 msgid "🔕 Desactivar estas alertas"
 msgstr "🔕 Deactivate these alerts"
 
-#: core/loops.py:254
+#: core/loops.py:274
 #, python-brace-format
 msgid ""
 "📊 *Alerta de tus monedas ({intervalo_h}h):*\n"
@@ -207,7 +207,7 @@ msgstr ""
 "📊 *Your Coins Alert ({intervalo_h}h):*\n"
 "\n"
 
-#: core/loops.py:272
+#: core/loops.py:292
 #, python-brace-format
 msgid ""
 "\n"
@@ -345,14 +345,14 @@ msgid ""
 "_Solo puedes ver tu propia información 🙂_"
 msgstr ""
 "👤 *Your Registered Profile*\n"
-"————————————————————\n"
-"  - Name: {nombre_completo}\n"
-"  - 🪪 ID: `{user_id}`\n"
-"  - 👤 Username: {username_str}\n"
+"--------------------\n"
+"  - Name: `{nombre_completo}\n"
+"  - 👤 ID: `{user_id}`\n"
+"  - 👤 User: {username_str}\n"
 "  - 🪙 Coins: `{monedas_str}`\n"
-"  - ⏰ Alert every: {intervalo_h}h\n"
-"  - 🔔 Active alerts: {alertas_activas}\n"
-"————————————————————\n"
+"  - ⏰ Alert every: `{intervalo_h}h\n"
+"  - 🔔 Active alerts: `{alertas_activas}\n"
+"--------------------\n"
 "_You can only see your own information 🙂_"
 
 #: handlers/admin.py:407
@@ -391,7 +391,7 @@ msgstr ""
 
 #: handlers/admin.py:460
 msgid "❌ Error interno: La función de logs no ha sido inicializada."
-msgstr "❌ Internal error: The logs function has not been initialized."
+msgstr "❌ Internal error: The log function has not been initialized."
 
 #: handlers/admin.py:473
 msgid "⚠️ El argumento debe ser un número entero."
@@ -507,13 +507,13 @@ msgstr ""
 "*Hello👋 {nombre_usuario}!* Welcome to BitBreadAlert.\n"
 "\n"
 "To receive periodic alerts with the prices of your coin list, use the command `/"
-"monedas` followed by the symbols separated by commas. You can use *any* "
-"cryptocurrency symbol listed on CoinMarketCap. Example:\n"
+"coins` followed by the symbols separated by commas. You can use *any* "
+"cryptocurrency token listed in CoinMarketCap. Example:\n"
 "\n"
-"`/monedas BTC, ETH, TRX, HIVE, ADA`\n"
+"`/coins BTC, ETH, TRX, HIVE, ADA`\n"
 "\n"
-"You can modify the alert interval at any time with the /temp command followed "
-"by the hours (between 0.5 and 24.0).\n"
+"You can change the temporality of this alert at any time with the command /temp "
+"followed by the hours (between 0.5 and 24.0).\n"
 "Example: /temp 2.5 (for 2 hours and 30 minutes)\n"
 "\n"
 
@@ -557,45 +557,49 @@ msgstr ""
 "Username: {usuario}\n"
 "ID: `{id_chat}`"
 
-#: handlers/trading.py:69
+#: handlers/trading.py:67
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
-"Uso: `/graf <MONEDA> <TEMPORALIDAD>`\n"
-"Ejemplo: `/graf BTC 15m`"
+"Uso: `/graf <MONEDA> [MONEDA_PAR] <TEMPORALIDAD>`\n"
+"Ejemplos:\n"
+"`/graf BTC 15m`\n"
+"`/graf BTC USDT 1h`"
 msgstr ""
 "⚠️ *Incorrect format*.\n"
 "\n"
-"Usage: `/graf <MONEDA> <TEMPORALIDAD>`\n"
-"Example: `/graf BTC 15m`"
+"Usage: `/graf <COIN> [COIN_PAIR] <TEMPORALITY>`\n"
+"Examples:\n"
+"`/graf BTC 15m`\n"
+"`/graf BTC USDT 1h`"
 
-#: handlers/trading.py:91
+#: handlers/trading.py:95
 msgid ""
 "⚠️ *Temporalidad no válida*.\n"
 "\n"
 "Usa: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 msgstr ""
-"⚠️ *Invalid timeframe*.\n"
+"⚠️ *Temporality not valid*.\n"
 "\n"
-"Use: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
+"Uses: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 
-#: handlers/trading.py:105
+#: handlers/trading.py:109
 #, python-brace-format
-msgid "⏳ Generando gráfico para *{moneda}* ({temporalidad})..."
-msgstr "⏳ Generating chart for *{moneda}* ({temporalidad})..."
+msgid "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})..."
+msgstr "⏳ Generating graph for *{base}/{quote}* ({temporalidad})...."
 
-#: handlers/trading.py:118
+#: handlers/trading.py:121
 #, python-brace-format
 msgid ""
-"📈 *Gráfico de {moneda}/USDT ({temporalidad})*\n"
+"📈 *Gráfico de {base}/{quote} ({temporalidad})*\n"
 "\n"
 "[Ver en TradingView]({url})"
 msgstr ""
-"📈 *Chart of {moneda}/USDT ({temporalidad})*\n"
+"📈 *Chart of {base}/{quote} ({temporalidad})*\n"
 "\n"
-"[View on TradingView]({url})"
+"[View in TradingView]({url})"
 
-#: handlers/trading.py:130
+#: handlers/trading.py:133
 msgid ""
 "❌ Lo siento, no pude generar la captura del gráfico en este momento. Inténtalo "
 "de nuevo más tarde."
@@ -603,7 +607,7 @@ msgstr ""
 "❌ Sorry, I couldn't generate the chart screenshot at this time. Please try "
 "again later."
 
-#: handlers/trading.py:152
+#: handlers/trading.py:155
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -615,24 +619,24 @@ msgstr ""
 "Usage: `/p <COIN>`\n"
 "Example: `/p BTC`"
 
-#: handlers/trading.py:167
+#: handlers/trading.py:170
 #, python-brace-format
 msgid "😕 No se pudieron obtener los datos para *{moneda}*."
 msgstr "😕 Could not fetch data for *{moneda}*."
 
-#: handlers/trading.py:185
+#: handlers/trading.py:187
 msgid "Ξ:"
 msgstr "Ξ:"
 
-#: handlers/trading.py:186
+#: handlers/trading.py:188
 msgid "H|L:"
 msgstr "H|L:"
 
-#: handlers/trading.py:187
+#: handlers/trading.py:189
 msgid "Cap:"
 msgstr "Cap:"
 
-#: handlers/trading.py:188
+#: handlers/trading.py:190
 msgid "Vol:"
 msgstr "Vol:"
 
@@ -837,3 +841,10 @@ msgstr ""
 #: handlers/user_settings.py:377
 msgid "⚠️ Idioma no soportado."
 msgstr "⚠️ Language not supported."
+
+#~ msgid ""
+#~ "✅ ¡Idioma cambiado a **{new_lang_name}**!\\nUsa el comando /lang si deseas "
+#~ "cambiarlo de nuevo."
+#~ msgstr ""
+#~ "✅ Language changed to **{new_lang_name}**!\n"
+#~ "Use the /lang command if you wish to change it again."

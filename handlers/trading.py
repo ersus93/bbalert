@@ -46,7 +46,7 @@ async def take_chart_screenshot(url: str) -> BytesIO | None:
     """Ejecuta la función de captura de pantalla en un executor para no bloquear el bucle de asyncio."""
     loop = asyncio.get_running_loop()
     try:
-        # to_thread es la forma moderna de hacerlo en Python 3.9+
+        # Usamos asyncio.to_thread para ejecutar la función síncrona en un hilo separado
         return await asyncio.to_thread(_take_screenshot_sync, url)
     except Exception as e:
         print(f"Error al ejecutar el hilo de la captura de pantalla: {e}")
@@ -55,18 +55,17 @@ async def take_chart_screenshot(url: str) -> BytesIO | None:
 async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Genera una captura de pantalla de un gráfico de TradingView.
-    Uso: /graf <MONEDA> <TEMPORALIDAD>
-    Ejemplo: /graf BTC 1h
+    Uso: /graf <MONEDA> [MONEDA_PAR] <TEMPORALIDAD>
+    Ejemplos:
+        /graf BTC 1h
+        /graf BTC USDT 1h
     """
     user_id = update.effective_user.id
-    
-    # --- CORRECCIÓN ---
-    # La importación de 'obtener_datos_moneda' se eliminó de aquí.
-    
-    if len(context.args) != 2:
+
+    if len(context.args) not in [2, 3]:
         mensaje_error_formato = _(
-            "⚠️ *Formato incorrecto*.\n\nUso: `/graf <MONEDA> <TEMPORALIDAD>`\n"
-            "Ejemplo: `/graf BTC 15m`",
+            "⚠️ *Formato incorrecto*.\n\nUso: `/graf <MONEDA> [MONEDA_PAR] <TEMPORALIDAD>`\n"
+            "Ejemplos:\n`/graf BTC 15m`\n`/graf BTC USDT 1h`",
             user_id
         )
         await update.message.reply_text(
@@ -75,8 +74,14 @@ async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    moneda = context.args[0].upper()
-    temporalidad = context.args[1].lower()
+    if len(context.args) == 2:
+        base = context.args[0].upper()
+        quote = "USD"
+        temporalidad = context.args[1].lower()
+    else:
+        base = context.args[0].upper()
+        quote = context.args[1].upper()
+        temporalidad = context.args[2].lower()
 
     map_temporalidad = {
         "1m": "1", "3m": "3", "5m": "5", "15m": "15", "30m": "30",
@@ -97,28 +102,27 @@ async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{moneda}USDT&interval={intervalo}"
-    
-    # Mensaje de proceso (debe formatearse después de la traducción)
+    par = f"{base}{quote}"
+    url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{par}&interval={intervalo}"
+
     mensaje_proceso_base = _(
-        "⏳ Generando gráfico para *{moneda}* ({temporalidad})...",
+        "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})...",
         user_id
     )
     await update.message.reply_text(
-        mensaje_proceso_base.format(moneda=moneda, temporalidad=temporalidad),
+        mensaje_proceso_base.format(base=base, quote=quote, temporalidad=temporalidad),
         parse_mode=ParseMode.MARKDOWN
     )
 
     screenshot_bytes = await take_chart_screenshot(url)
-    
+
     if screenshot_bytes:
-        # Mensaje del pie de foto (debe formatearse después de la traducción)
         mensaje_base = _(
-            "📈 *Gráfico de {moneda}/USDT ({temporalidad})*\n\n[Ver en TradingView]({url})",
+            "📈 *Gráfico de {base}/{quote} ({temporalidad})*\n\n[Ver en TradingView]({url})",
             user_id
         )
-        mensaje = mensaje_base.format(moneda=moneda, temporalidad=temporalidad, url=url)
-        
+        mensaje = mensaje_base.format(base=base, quote=quote, temporalidad=temporalidad, url=url)
+
         await update.message.reply_photo(
             photo=screenshot_bytes,
             caption=mensaje,
@@ -134,6 +138,7 @@ async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode=ParseMode.MARKDOWN
         )
 
+
 async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Muestra el precio y otros datos de una criptomoneda.
@@ -142,8 +147,7 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     user_id = update.effective_user.id
     
-    # --- CORRECCIÓN ---
-    # La importación se movió aquí para evitar la dependencia circular.
+    
     from core.api_client import obtener_datos_moneda
     
     if not context.args:
@@ -179,8 +183,7 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             return f"{change:.2f}%   😢"
             
-    # --- TRADUCCIÓN DE ETIQUETAS DE DATOS ---
-    # Traducimos las etiquetas para que el usuario las vea en su idioma.
+
     etiqueta_eth = _("Ξ:", user_id)
     etiqueta_hl = _("H|L:", user_id)
     etiqueta_cap = _("Cap:", user_id)
