@@ -7,8 +7,7 @@ from datetime import datetime, timedelta
 from core.i18n import _ 
 # No se necesitan imports de file_manager aquí
 
-# === LÓGICA DE ALERTA (HBD) ===
-
+# === FUNCIONES DE ALERTA DE HBD ===
 # Se añade chat_id=None a la firma de la función
 def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
     """
@@ -36,20 +35,16 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
         f"💰 *HBD/USD*: ${precio_actual_hbd:.4f}"
     )
 
-    # Lógica de alerta
-
-    # 1. Alerta: HBD sube por encima de $1.10
+    # Lógica de alerta de HBD
     if precio_actual_hbd >= 1.10 and precio_anterior_hbd < 1.10:
         msg = _("🤯 *HBD TOCÓ $1.10 (O MÁS)*", user_id) + detalle_precios # <-- chat_id para msg
         log = _("🤯 Alerta MÁXIMA: HBD ≥ $1.10", None) # <-- None para log
-        return msg, log
+        return msg, log   
     
-    # 2. Alerta: HBD cae por debajo de $1.10
     elif precio_actual_hbd < 1.10 and precio_anterior_hbd >= 1.10:
         msg = _("📉 *HBD acaba de caer de $1.10*", user_id) + detalle_precios
         log = _("📉 Alerta: HBD bajó de $1.10", None)
         return msg, log
-
     
     elif precio_actual_hbd > 1.05 and precio_anterior_hbd <= 1.05:
         msg = _("📈 *HBD acaba de superar $1.05.*", user_id) + detalle_precios
@@ -112,10 +107,8 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
         return msg, log
         
     return None, None
-# ... (el resto del archivo sin cambios)
 
-# === OBTENCIÓN DE PRECIOS CMC (Función genérica y wrappers) ===
-
+# === FUNCIONES DE API DE COINMARKETCAP ===
 def _obtener_precios(monedas, api_key):
     """Función genérica y síncrona para obtener precios de CMC."""
     headers = {
@@ -142,7 +135,7 @@ def _obtener_precios(monedas, api_key):
         return precios
         
     except requests.exceptions.RequestException as e:
-        # Se retorna None si es la alerta principal (BTC, HIVE, HBD)
+        
         return None if len(monedas) == 3 else {}
 
 def obtener_precios_alerta():
@@ -191,7 +184,7 @@ def obtener_datos_moneda(moneda):
         "X-CMC_PRO_API_KEY": CMC_API_KEY_CONTROL,
         "Accept": "application/json"
     }
-    # Solicitamos la moneda deseada Y ETH, ambas convertidas a USD
+    
     params = {
         "symbol": f"{moneda},ETH",
         "convert": "USD" 

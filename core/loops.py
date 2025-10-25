@@ -192,21 +192,17 @@ async def alerta_loop(bot: Bot):
                 if precio_anterior_hbd:
                     
                     # --- INICIO DE LA MODIFICACIÓN (I18N) ---
-                    
                     # 1. Obtener solo los usuarios que quieren la alerta
                     recipients = get_hbd_alert_recipients()
                     if not recipients:
                         # Si no hay destinatarios, no hacemos nada
                         continue 
-
                     # 2. Variables para registrar el log SÓLO UNA VEZ
                     log_msg_to_send = None
                     trigger_detected = False
-
                     # 3. Iterar sobre cada destinatario
                     for user_id_str in recipients:
                         user_id = int(user_id_str)
-
                         # 4. Generar el mensaje traducido PARA ESTE USUARIO
                         alerta_msg, log_msg = generar_alerta(precios_actuales, precio_anterior_hbd, user_id)
 
@@ -215,26 +211,22 @@ async def alerta_loop(bot: Bot):
                             trigger_detected = True
                             if not log_msg_to_send:
                                 log_msg_to_send = log_msg
-
                             # 6. Crear el botón (también traducido)
                             button_text = _("🔕 Desactivar estas alertas", user_id)
                             keyboard = [[
                                 InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
                             ]]
                             reply_markup = InlineKeyboardMarkup(keyboard)
-
                             # 7. Enviar el mensaje individualmente (usando la función de envío)
                             await _enviar_mensaje_telegram_async_ref(
                                 alerta_msg, 
                                 [user_id_str], # Enviamos solo a este ID
                                 reply_markup=reply_markup
                             )
-
                     # 8. Registrar el log SÓLO UNA VEZ después de que el bucle termine
                     if trigger_detected and log_msg_to_send:
                         add_log_line(log_msg_to_send)
                         
-                    # --- FIN DE LA MODIFICACIÓN ---
             else:
                 add_log_line("❌ Falló la obtención o validación del precio de HBD.")
 
@@ -270,7 +262,6 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
         add_log_line(f"❌ Falló obtención de precios para usuario {chat_id_str}.")
         return
 
-    # --- PLANTILLA ENVUELTA ---
     mensaje_template = _("📊 *Alerta de tus monedas ({intervalo_h}h):*\n\n", chat_id)
     mensaje = mensaje_template.format(intervalo_h=intervalo_h)
     
@@ -286,7 +277,6 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
             mensaje += f"*{m}/USD*: ${p_actual:.4f}{indicador}\n"
             precios_para_guardar[m] = p_actual
     
-    # --- PLANTILLA ENVUELTA ---
     current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     mensaje_footer_template = _(
         "\n📅 Fecha: {fecha}\n\n"
@@ -306,9 +296,6 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     if chat_id_str not in fallidos:
         PRECIOS_CONTROL_ANTERIORES[chat_id_str] = precios_para_guardar
         add_log_line(f"✅ Alerta de control enviada a {chat_id_str} con intervalo {intervalo_h}h.")
-    # Si falló, el log de error ya fue registrado por la función 'enviar_mensajes',
-    # así que no necesitamos hacer nada más aquí.
 
-    # --- FIN DE LA MODIFICACIÓN ---
     else:
         add_log_line(f"❌ ERROR: Referencia de envío no disponible para {chat_id_str}.")
