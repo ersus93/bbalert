@@ -29,8 +29,8 @@ from core.i18n import _ # <-- AGREGAR LA FUNCIÓN DE TRADUCCIÓN
 SUPPORTED_LANGUAGES = {
     'es': '🇪🇸 Español',
     'en': '🇬🇧 English',
+    'pt': '🇧🇷 Português',
     # Agrega más aquí cuando tengas los archivos .po/.mo
-    # 'pt': '🇧🇷 Português', 
 }
 
 # ... (set_admin_util y set_logs_util) ...
