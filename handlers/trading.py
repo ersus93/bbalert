@@ -16,7 +16,7 @@ def _take_screenshot_sync(url: str) -> BytesIO | None:
     if not SCREENSHOT_API_KEY:
         print("❌ Error: La SCREENSHOT_API_KEY no está configurada en config.py.")
         return None
-
+    # nueva integracion con ScreenshotOne
     api_url = "https://api.screenshotone.com/take"
     params = {
         "access_key": SCREENSHOT_API_KEY,
