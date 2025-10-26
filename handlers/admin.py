@@ -456,7 +456,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Verificar que la función de logs ha sido inyectada correctamente
     if not _get_logs_data_ref:
-        # --- MENSAJE ENVUELTO ---
+       
         await update.message.reply_text(_("❌ Error interno: La función de logs no ha sido inicializada.", current_chat_id))
         return
 
