@@ -18,13 +18,16 @@ Este es un **bot de Telegram** diseñado para la **monitorización de precios de
 
 ### Para Usuarios
 * `/start`: Inicia el bot y muestra la ayuda.
-* `/p`: Consulta el precio actual de las monedas configuradas.
+* `/p`: Datos sobre el precio de la moneda que elijas 
+*`/hbdalerts`: Activa o desactiva alertas fijas de HBD
 * `/alerta`: Configura una nueva alerta de precio.
 * `/misalertas`: Muestra las alertas activas.
-* `/graf`: Genera un gráfico histórico del precio.
-* `/mismonedas`: Gestiona las monedas a seguir.
+* `/graf`: Genera un gráfico del precio.
 * `/monedas`: Edita y actualiza las monedas a seguir.
+* `/temp`: Establese la temporalidad para la alerta de monedas
 * `/parar`: Detiene las notificaciones o alertas.
+* `/lang`: Selecciona el idioma
+*`/myid`: Muestra tus datos en telegram
 
 ### Para Administración
 * `/users`: Muestra la lista de usuarios.
