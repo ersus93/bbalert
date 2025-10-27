@@ -27,7 +27,7 @@ Este es un **bot de Telegram** diseñado para la **monitorización de precios de
 * `/temp`: Establese la temporalidad para la alerta de monedas
 * `/parar`: Detiene las notificaciones o alertas.
 * `/lang`: Selecciona el idioma
-*`/myid`: Muestra tus datos en telegram
+* `/myid`: Muestra tus datos en telegram
 
 ### Para Administración
 * `/users`: Muestra la lista de usuarios.
