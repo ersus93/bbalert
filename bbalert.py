@@ -49,7 +49,7 @@ async def post_init(app: Application):
     if usuarios:
         add_log_line(f"👥 Encontrados {len(usuarios)} usuarios. Programando sus alertas periódicas...")
         for user_id, data in usuarios.items():
-            intervalo_h = data.get('intervalo_alerta_h', 1.0)
+            intervalo_h = data.get('intervalo_alerta_h', 2.5) # Valor por defecto si no está establecido
             programar_alerta_usuario(int(user_id), intervalo_h)
     else:
         add_log_line("👥 No hay usuarios registrados. Esperando a que se unan.")

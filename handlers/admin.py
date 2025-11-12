@@ -348,7 +348,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if 'Bot blocked' in str(e):
                 nombre_completo += " (Bloqueado)"
         
-        # --- PLANTILLA ENVUELTA ---
+       
         mensaje_template = _(
             "👤 *Tu Perfil Registrado*\n"
             "————————————————————\n"

@@ -191,9 +191,9 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     mensaje = (
         f"*{datos['symbol']}*\n"
-        f"${datos['price']:,.2f}\n"
+        f"${datos['price']:,.4f}\n"
         f"{etiqueta_eth} {datos['price_eth']:.8f}\n"
-        f"{etiqueta_hl} {datos['high_24h']:,.2f}|{datos['low_24h']:,.2f}\n"
+        f"{etiqueta_hl} {datos['high_24h']:,.4f}|{datos['low_24h']:,.4f}\n"
         f"1h {format_change(datos['percent_change_1h'])}\n"
         f"24h {format_change(datos['percent_change_24h'])}\n"
         f"7d {format_change(datos['percent_change_7d'])}\n"
