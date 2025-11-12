@@ -204,8 +204,12 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     # 🔘 Botón para relanzar el comando
-    keyboard = InlineKeyboardMarkup = _([
-        [InlineKeyboardButton(f"🔄 Actualizar /p {datos['symbol']}", callback_data=f"refresh_{datos['symbol']}")], user_id
+    button_text_template = _("🔄 Actualizar /p {symbol}", user_id)
+    
+    button_text = button_text_template.format(symbol=datos['symbol'])
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(button_text, callback_data=f"refresh_{datos['symbol']}")]
     ])
 
     message = update.message or update.callback_query.message
