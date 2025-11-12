@@ -25,7 +25,7 @@ HBD_HISTORY_PATH = os.path.join(DATA_DIR, "hbd_price_history.json")
 CUSTOM_ALERT_HISTORY_PATH = os.path.join(DATA_DIR, "custom_alert_history.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "1.0.02_Stable"
+VERSION = "1.0.04_Stable"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---

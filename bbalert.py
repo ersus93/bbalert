@@ -1,7 +1,8 @@
 # bbalert.py - Punto de Entrada Principal del Bot de Telegram para BitBread.
 
 import asyncio
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler
+from telegram import Update
+from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
 from telegram.constants import ParseMode
 from utils.file_manager import add_log_line, cargar_usuarios
 from utils.file_manager import guardar_usuarios
@@ -31,6 +32,14 @@ from handlers.alerts import (
 
 )
 from handlers.trading import graf_command, p_command # <-- NUEVA IMPORTACIÓN
+
+async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    moneda = query.data.replace("refresh_", "").upper()
+    context.args = [moneda]
+    await p_command(update, context)
 
 async def post_init(app: Application):
     """
@@ -157,6 +166,7 @@ def main():
     app.add_handler(CommandHandler("misalertas", misalertas))
     app.add_handler(CommandHandler("graf", graf_command)) # <-- NUEVO HANDLER
     app.add_handler(CommandHandler("p", p_command))       # <-- NUEVO HANDLER
+    app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(CommandHandler("monedas", set_monedas_command))
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
     app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))

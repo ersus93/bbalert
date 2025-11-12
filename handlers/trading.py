@@ -3,7 +3,7 @@
 import asyncio
 import requests # Usaremos requests en lugar de Selenium
 from io import BytesIO
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from core.config import SCREENSHOT_API_KEY # Importamos nuestra nueva API Key
@@ -185,7 +185,8 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
 
     etiqueta_eth = _("Ξ:", user_id)
-    etiqueta_hl = _("H|L:", user_id)
+    etiqueta_btc = _("₿:", user_id)
+    # etiqueta_hl = _("H|L:", user_id)
     etiqueta_cap = _("Cap:", user_id)
     etiqueta_vol = _("Vol:", user_id)
 
@@ -193,12 +194,28 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"*{datos['symbol']}*\n"
         f"${datos['price']:,.4f}\n"
         f"{etiqueta_eth} {datos['price_eth']:.8f}\n"
+        f"{etiqueta_btc} {datos['price_btc']:.8f}\n"
         # f"{etiqueta_hl} {datos['high_24h']:,.4f}|{datos['low_24h']:,.4f}\n"
         f"1h {format_change(datos['percent_change_1h'])}\n"
         f"24h {format_change(datos['percent_change_24h'])}\n"
         f"7d {format_change(datos['percent_change_7d'])}\n"
         f"{etiqueta_cap} {datos['market_cap_rank']}st | ${datos['market_cap']:,.0f}\n"
-        f"{etiqueta_vol} ${datos['volume_24h']:,.0f}"
+        f"{etiqueta_vol} ${datos['volume_24h']:,.0f}\n"
     )
 
-    await update.message.reply_text(f"{mensaje}", parse_mode=ParseMode.MARKDOWN)
+    # 🔘 Botón para relanzar el comando
+    keyboard = InlineKeyboardMarkup = _([
+        [InlineKeyboardButton(f"🔄 Actualizar /p {datos['symbol']}", callback_data=f"refresh_{datos['symbol']}")], user_id
+    ])
+
+    message = update.message or update.callback_query.message
+    await message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+
+async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    moneda = query.data.replace("refresh_", "").upper()
+    context.args = [moneda]
+    await p_command(update, context)
+

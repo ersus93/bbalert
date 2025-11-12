@@ -185,8 +185,9 @@ def obtener_datos_moneda(moneda):
         "Accept": "application/json"
     }
     
+    # Solicitamos la moneda, ETH y BTC
     params = {
-        "symbol": f"{moneda},ETH",
+        "symbol": f"{moneda},ETH,BTC", 
         "convert": "USD" 
     }
     try:
@@ -195,24 +196,28 @@ def obtener_datos_moneda(moneda):
         
         full_data = response.json()['data']
         
-        # Verificar que ambas monedas estén en la respuesta
-        if moneda not in full_data or 'ETH' not in full_data:
-            print(f"Error: La respuesta de la API no contiene datos para {moneda} o ETH.")
+        # Verificar que las tres monedas estén en la respuesta
+        if moneda not in full_data or 'ETH' not in full_data or 'BTC' not in full_data:
+            print(f"Error: La respuesta de la API no contiene datos para {moneda}, ETH o BTC.")
             return None
 
         data_moneda = full_data[moneda]
         data_eth = full_data['ETH']
+        data_btc = full_data['BTC'] # <-- Obtenemos datos de BTC
         
         quote_usd_moneda = data_moneda['quote']['USD']
         price_usd_eth = data_eth['quote']['USD']['price']
+        price_usd_btc = data_btc['quote']['USD']['price'] # <-- Obtenemos precio de BTC en USD
 
-        # Calcular el precio en ETH manualmente
+        # Calcular el precio en ETH y BTC manualmente
         price_in_eth = quote_usd_moneda['price'] / price_usd_eth if price_usd_eth != 0 else 0
+        price_in_btc = quote_usd_moneda['price'] / price_usd_btc if price_usd_btc != 0 else 0 # <-- Calculamos precio en BTC
 
         return {
             'symbol': data_moneda['symbol'],
             'price': quote_usd_moneda['price'],
             'price_eth': price_in_eth,
+            'price_btc': price_in_btc, # <-- Añadimos al diccionario
             'high_24h': obtener_high_low_24h(moneda)[0],
             'low_24h': obtener_high_low_24h(moneda)[1],
             'percent_change_1h': quote_usd_moneda['percent_change_1h'],
