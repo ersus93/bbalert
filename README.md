@@ -1,115 +1,129 @@
-# 🤖 bbalert: Bot de Alertas de Precios (BitBreadAlert)
+# 🤖 bbalert: Price Alert Bot (BitBreadAlert)
 
-Este es un **bot de Telegram** diseñado para la **monitorización de precios de criptomonedas** (como HBD) y el envío de **alertas personalizadas** a los usuarios. Incluye comandos de administración, consultas de precio en tiempo real y almacenamiento de historial en formato JSON.
+This is a **Telegram bot** designed for **monitoring cryptocurrency prices** (like HBD) and sending **custom alerts** to users. It includes admin commands, real-time price queries, and history storage in JSON format.
 
----
+-----
 
-## ✨ Características Principales
+## ✨ Main Features
 
-* **Alertas de Precio:** Los usuarios pueden configurar alertas personalizadas para recibir notificaciones cuando un activo alcanza un precio objetivo.
-* **Consultas y Gráficas:** Comandos para verificar precios actuales y visualizar gráficos históricos.
-* **Gestión de Usuario:** Funcionalidades para que los usuarios gestionen sus preferencias y alertas.
-* **Funciones de Administración:** Comandos protegidos para que el administrador gestione el bot, revise logs y la base de usuarios.
-* **Historial de Precios:** Almacenamiento persistente del historial de precios en la carpeta `data/`.
+  * **Price Alerts:** Users can set custom alerts to receive notifications when an asset reaches a target price.
+  * **Queries and Charts:** Commands to check current prices and visualize historical charts.
+  * **User Management:** Features for users to manage their preferences and alerts.
+  * **Admin Functions:** Protected commands for the administrator to manage the bot, review logs, and see the user base.
+  * **Price History:** Persistent storage of price history in the `data/` folder.
 
----
+-----
 
-## ⌨️ Comandos
+## ⌨️ Commands
 
-### Para Usuarios
-* `/start`: Inicia el bot y muestra la ayuda.
-* `/p`: Datos sobre el precio de la moneda que elijas 
-* `/hbdalerts`: Activa o desactiva alertas fijas de HBD
-* `/alerta`: Configura una nueva alerta de precio.
-* `/misalertas`: Muestra las alertas activas.
-* `/graf`: Genera un gráfico del precio.
-* `/monedas`: Edita y actualiza las monedas a seguir.
-* `/temp`: Establese la temporalidad para la alerta de monedas
-* `/parar`: Detiene las notificaciones o alertas.
-* `/lang`: Selecciona el idioma
-* `/myid`: Muestra tus datos en telegram
+Here is a list of all available commands. Admin commands offer extended functionality.
 
-### Para Administración
-* `/users`: Muestra la lista de usuarios.
-* `/logs`: Revisa los logs del bot.
-* `/ms`: Envía un mensaje masivo a todos los usuarios.
+| Command | Description | Admin Only |
+| :--- | :--- | :--- |
+| `/start` | Starts interaction with the bot. | |
+| `/ver` | Shows the last recorded price for (BTC, TON, HIVE, HBD). | |
+| `/tasa` | Displays exchange rates from ElToque. | |
+| `/p` | Displays price data for a specific coin. | |
+| `/alerta` | Creates a new price crossover alert. | |
+| `/misalertas` | Shows all your active alerts. | |
+| `/monedas` | Edits your list of coins for periodic reports. | |
+| `/temp` | Adjusts the time frame for your periodic coin reports. | |
+| `/graf` | Displays charts. | |
+| `/hbdalerts` | Enables or disables the default HBD alerts. | |
+| `/parar` | Stops all periodic alerts for your coin list. | |
+| `/myid` | Shows your Telegram user data. | |
+| `/lang` | Changes the bot's language. | |
+| `/users` | Shows your registration data. | **Yes**¹ |
+| `/logs` | Displays general bot information. | **Yes**² |
+| `/ms` | Sends a broadcast message to all users. | **Yes** |
 
----
+¹*Admin view lists all registered users.*<br>
+²*Admin view shows detailed bot logs.*
 
-## 📊 Estructura de Datos
+-----
 
-La carpeta `data.example/` contiene ejemplos documentados de los archivos JSON utilizados por el bot:
+## 📊 Data Structure
 
-* `users.json`: Configuración y preferencias de los usuarios.
-* `price_alerts.json`: Alertas de precio configuradas.
-* `custom_alert_history.json`: Último precio conocido por moneda para el control de alertas.
-* `hbd_price_history.json`: Historial de precios de HBD y otras criptomonedas.
+The `data.example/` folder contains documented examples of the JSON files used by the bot:
 
-**Referencia:** Consulte `data.example/README.md` para obtener detalles completos sobre la estructura de cada archivo.
+  * `users.json`: User configurations and preferences.
+  * `price_alerts.json`: Configured price alerts.
+  * `custom_alert_history.json`: Last known price for each coin (used for alert control).
+  * `hbd_price_history.json`: Price history for HBD and other cryptocurrencies.
 
----
+**Reference:** See `data.example/README.md` for complete details on each file's structure.
 
-## ⚙️ Instalación y Configuración
+-----
 
-### Requisitos
+## ⚙️ Installation and Setup
 
-* Python 3.8+ instalado.
-* Dependencias listadas en `requirements.txt`.
+### Requirements
 
-### 1. Instalación
+  * Python 3.8+ installed.
+  * Dependencies listed in `requirements.txt`.
 
-1.  **Clonar el repositorio:**
+### 1\. Installation
+
+1.  **Clone the repository:**
+
     ```bash
-    git clone [https://github.com/ersus93/bbalert.git](https://github.com/ersus93/bbalert.git)
+    git clone https://github.com/ersus93/bbalert.git
     cd bbalert
     ```
 
-2.  **Crear y activar un entorno virtual:**
-    | Plataforma | Creación | Activación |
+2.  **Create and activate a virtual environment:**
+    | Platform | Creation | Activation |
     | :--- | :--- | :--- |
     | **UNIX/Linux/macOS** | `python3 -m venv venv` | `source venv/bin/activate` |
     | **Windows (PowerShell)** | `python -m venv venv` | `.\venv\Scripts\Activate.ps1` |
     | **Windows (CMD)** | `python -m venv venv` | `.\venv\Scripts\activate` |
 
-3.  **Instalar dependencias:**
+3.  **Install dependencies:**
+
     ```bash
     pip install -r requirements.txt
     ```
 
-### 2. Configuración
+### 2\. Configuration
 
-1.  **Configurar variables de entorno:**
-    * Renombre `apit.env.example` a **`.env`** (o `apit.env` si lo prefiere).
-    * Edite el archivo `.env` con sus tokens y claves.
+1.  **Set up environment variables:**
 
-    **Ejemplo de `.env`:**
+      * Rename `apit.env.example` to **`.env`** (or `apit.env` if you prefer).
+      * Edit the `.env` file with your tokens and keys.
+
+    **Example `.env`:**
+
     ```ini
-    # Token del bot (obtenido de @BotFather)
-    TOKEN_TELEGRAM="TU_TOKEN_DE_TELEGRAM_AQUI"
+    # Bot Token (from @BotFather)
+    TOKEN_TELEGRAM="YOUR_TELEGRAM_TOKEN_HERE"
 
-    # IDs de administrador (separados por comas)
+    # Admin IDs (comma-separated)
     ADMIN_CHAT_IDS=123456789,987654321
 
-    # Claves de CoinMarketCap (o tu proveedor de precios)
-    CMC_API_KEY_ALERTA="TU_CMC_API_KEY_ALERTA"
-    CMC_API_KEY_CONTROL="TU_CMC_API_KEY_CONTROL"
+    # CoinMarketCap Keys (or your price provider)
+    CMC_API_KEY_ALERTA="YOUR_CMC_API_KEY_ALERTA"
+    CMC_API_KEY_CONTROL="YOUR_CMC_API_KEY_CONTROL"
 
-    # (Opcional) API key para screenshots
-    SCREENSHOT_API_KEY="TU_SCREENSHOT_API_KEY"
+    # (Optional) API key for screenshots
+    SCREENSHOT_API_KEY="YOUR_SCREENSHOT_API_KEY"
     ```
-    *Nota: Los nombres de las variables deben coincidir con los definidos en `core/config.py`.*
 
-2.  **Crear la carpeta de datos (si no existe):**
+    *Note: The variable names must match those defined in `core/config.py`.*
+
+2.  **Create the data folder (if it doesn't exist):**
+
     ```bash
     mkdir data
     ```
-    El bot creará los archivos JSON necesarios automáticamente al iniciarse si no existen.
 
----
+    The bot will create the necessary JSON files automatically on first run if they don't exist.
 
-## ▶️ Ejecución
+-----
 
-Para iniciar el bot y que comience a escuchar las actualizaciones de Telegram, ejecute:
+## ▶️ Running the Bot
+
+To start the bot and have it begin listening for Telegram updates, run:
 
 ```bash
 python3 bbalert.py
+```
