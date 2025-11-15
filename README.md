@@ -50,6 +50,7 @@ The `data.example/` folder contains documented examples of the JSON files used b
   * `price_alerts.json`: Configured price alerts.
   * `custom_alert_history.json`: Last known price for each coin (used for alert control).
   * `hbd_price_history.json`: Price history for HBD and other cryptocurrencies.
+  * `eltoque_history.json`: Last known price (used for alert control)..
 
 **Reference:** See `data.example/README.md` for complete details on each file's structure.
 
