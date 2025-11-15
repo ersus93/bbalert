@@ -31,15 +31,7 @@ from handlers.alerts import (
     borrar_todas_alertas_callback,
 
 )
-from handlers.trading import graf_command, p_command # <-- NUEVA IMPORTACIÓN
-
-async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-
-    moneda = query.data.replace("refresh_", "").upper()
-    context.args = [moneda]
-    await p_command(update, context)
+from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback
 
 async def post_init(app: Application):
     """
@@ -156,7 +148,7 @@ def main():
     app.add_handler(CommandHandler("ver", ver))
     app.add_handler(CommandHandler("users", users))
     app.add_handler(CommandHandler("logs", logs_command))
-    app.add_handler(ms_conversation_handler)  # <-- NUEVO HANDLER INTERACTIVO
+    app.add_handler(ms_conversation_handler)  
     app.add_handler(CommandHandler("mismonedas", mismonedas))
     app.add_handler(CommandHandler("parar", parar))
     app.add_handler(CommandHandler("temp", cmd_temp))
@@ -164,8 +156,9 @@ def main():
     app.add_handler(CommandHandler("lang", lang_command))
     app.add_handler(CommandHandler("alerta", alerta_command))
     app.add_handler(CommandHandler("misalertas", misalertas))
-    app.add_handler(CommandHandler("graf", graf_command)) # <-- NUEVO HANDLER
-    app.add_handler(CommandHandler("p", p_command))       # <-- NUEVO HANDLER
+    app.add_handler(CommandHandler("graf", graf_command)) 
+    app.add_handler(CommandHandler("p", p_command))       
+    app.add_handler(CommandHandler("tasa", eltoque_command)) #-- NUEVO COMANDO PARA ELTOQUE
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(CommandHandler("monedas", set_monedas_command))
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))

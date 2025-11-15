@@ -16,6 +16,7 @@ ADMIN_CHAT_IDS = [id.strip() for id in ADMIN_CHAT_IDS_STR.split(',')] if ADMIN_C
 CMC_API_KEY_ALERTA = os.environ.get("CMC_API_KEY_ALERTA")
 CMC_API_KEY_CONTROL = os.environ.get("CMC_API_KEY_CONTROL")
 SCREENSHOT_API_KEY = os.environ.get("SCREENSHOT_API_KEY")
+ELTOQUE_API_KEY = os.environ.get("ELTOQUE_API_KEY")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Construye las rutas a los archivos dentro de la carpeta /data
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -23,6 +24,7 @@ USUARIOS_PATH = os.path.join(DATA_DIR, "users.json")
 PRICE_ALERTS_PATH = os.path.join(DATA_DIR, "price_alerts.json")
 HBD_HISTORY_PATH = os.path.join(DATA_DIR, "hbd_price_history.json")
 CUSTOM_ALERT_HISTORY_PATH = os.path.join(DATA_DIR, "custom_alert_history.json")
+ELTOQUE_HISTORY_PATH = os.path.join(DATA_DIR, "eltoque_history.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
 VERSION = "1.0.04_Stable"

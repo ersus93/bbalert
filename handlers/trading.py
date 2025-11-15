@@ -2,11 +2,14 @@
 
 import asyncio
 import requests # Usaremos requests en lugar de Selenium
+import json
 from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from core.config import SCREENSHOT_API_KEY # Importamos nuestra nueva API Key
+from core.api_client import obtener_datos_moneda, obtener_tasas_eltoque
+from utils.file_manager import add_log_line, load_eltoque_history, save_eltoque_history
 from core.i18n import _
 
 def _take_screenshot_sync(url: str) -> BytesIO | None:
@@ -223,3 +226,113 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
     context.args = [moneda]
     await p_command(update, context)
 
+
+# Nuevo comando para mostrar tasas de ElToque
+async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Muestra las tasas de cambio de eltoque.com.
+    Comando: /tasa
+    """
+    user_id = update.effective_user.id
+
+    # 1. Llamar a la API
+    tasas_data = obtener_tasas_eltoque()
+
+    # 2. Manejar si la API falla
+    if not tasas_data:
+        mensaje_error = _(
+            "❌ *FALLO TOTAL*\n\n"
+            "La API de ElToque no devolvió ningún dato (`None`).\n\n"
+            "**Causas probables:**\n"
+            "1. La `ELTOQUE_API_KEY` en tu archivo `apit.env` es incorrecta o está vacía.\n"
+            "2. La API de ElToque está caída o bloqueó tu solicitud.",
+            user_id
+        )
+        await update.message.reply_text(mensaje_error, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # --- INICIO DE LA LÓGICA CON HISTORIAL ---
+    try:
+        # 3. Cargar tasas actuales y anteriores
+        tasas_actuales = tasas_data.get('tasas')
+        tasas_anteriores = load_eltoque_history() # ¡Cargamos el historial!
+
+        if not tasas_actuales or not isinstance(tasas_actuales, dict):
+            mensaje_error_formato = _(
+                "😕 Se obtuvieron datos de ElToque, pero no se encontró el diccionario 'tasas' esperado.",
+                user_id
+            )
+            await update.message.reply_text(mensaje_error_formato, parse_mode=ParseMode.MARKDOWN)
+            return
+
+        # Extraer la fecha y hora de la actualización
+        fecha = tasas_data.get('date', '')
+        hora = tasas_data.get('hour', 0)
+        minutos = tasas_data.get('minutes', 0)
+        timestamp_str = f"{fecha} {hora:02d}:{minutos:02d}"
+
+        # --- 4. Formateo del mensaje ---
+        mensaje_titulo = _("🏦 *Tasas de Cambio CUP*\n\n", user_id)
+        mensaje_lineas = []
+            
+        # Lista de monedas en el orden deseado por el usuario
+        monedas_ordenadas = [
+              'ECU', 'USD', 'MLC', 'ZELLE', 'CLA', 
+              'CAD', 'MXN', 'BRL', 'BTC', 'TRX', 'USDT_TRC20'
+          ]
+            
+        TOLERANCIA = 0.0001 # Para evitar cambios por ruido
+            
+        for moneda_key in monedas_ordenadas:
+            if moneda_key in tasas_actuales:
+                tasa_actual = tasas_actuales[moneda_key]
+                tasa_anterior = tasas_anteriores.get(moneda_key)
+                    
+                # --- INICIO DE LA MODIFICACIÓN ---
+                # Renombrar 'USDT_TRC20' a 'USDT' y 'ECU' a 'EUR'
+                if moneda_key == 'USDT_TRC20':
+                 moneda_display = 'USDT'
+                elif moneda_key == 'ECU':
+                    moneda_display = 'EUR'
+                else:
+                    moneda_display = moneda_key
+                # --- FIN DE LA MODIFICACIÓN ---
+                    
+                indicador = ""
+                cambio_str = ""
+
+                if tasa_anterior is not None:
+                    diferencia = tasa_actual - tasa_anterior
+                      
+                    if diferencia > TOLERANCIA:
+                        indicador = "🔺"
+                        cambio_str = f" +{diferencia:,.2f}"
+                    elif diferencia < -TOLERANCIA:
+                        indicador = "🔻"
+                        cambio_str = f" {diferencia:,.2f}" # Ya tiene el '-'
+                    
+                # Formato: EUR:   500.00 CUP
+                linea = f"*{moneda_display}*:  `{tasa_actual:,.2f}` CUP  {indicador}{cambio_str}"
+                mensaje_lineas.append(linea)
+
+        if not mensaje_lineas:
+            # ... (Manejo de error si 'tasas' estaba vacío) ...
+            return
+
+        mensaje_final = mensaje_titulo + "\n".join(mensaje_lineas)
+
+        # 5. Añadir pie de página
+        actualizado_label = _("Actualizado:", user_id)
+        fuente_label = _("Fuente: elTOQUE.com", user_id)
+
+        mensaje_final += f"\n\n_{actualizado_label} {timestamp_str}_\n_{fuente_label}_"
+
+        await update.message.reply_text(mensaje_final, parse_mode=ParseMode.MARKDOWN)
+
+        # 6. ¡GUARDAR LAS NUEVAS TASAS!
+        save_eltoque_history(tasas_actuales)
+
+    except Exception as e:
+        add_log_line(f"Error fatal procesando datos de ElToque con historial: {e}. Datos: {tasas_data}")
+        mensaje_error_inesperado = _("❌ Ocurrió un error inesperado procesando los datos de ElToque.", user_id)
+        await update.message.reply_text(mensaje_error_inesperADO, parse_mode=ParseMode.MARKDOWN)

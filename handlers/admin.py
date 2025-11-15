@@ -6,6 +6,7 @@ import os
 import openpyxl 
 from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from io import BytesIO
 from telegram.ext import (
     ContextTypes, 
     ConversationHandler, 
@@ -25,7 +26,7 @@ from core.i18n import _
 
 # Definimos los estados para nuestra conversación de mensaje masivo
 AWAITING_CONTENT, AWAITING_CONFIRMATION, AWAITING_ADDITIONAL_TEXT, AWAITING_ADDITIONAL_PHOTO = range(4)
-# handlers/admin.py
+
 
 # --- INICIO: NUEVA LÓGICA PARA /ms INTERACTIVO ---
 async def ms_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -475,7 +476,14 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 2. Extraer las últimas N líneas
     log_data_n_lines = log_data_full[-n_lineas:] if log_data_full else []
-    log_str = "\n".join(log_data_n_lines)
+    
+    log_lines_cleaned = [
+        line.replace("_", "-").replace("*", "#").replace("`", "'")
+            .replace("[", "(").replace("]", ")")
+        for line in log_data_n_lines
+    ]
+
+    log_str = "\n".join(log_lines_cleaned)
 
     # Extraer la marca de tiempo de la última línea del log
     ultima_actualizacion = "N/A"

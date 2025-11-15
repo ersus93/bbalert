@@ -6,7 +6,7 @@ from datetime import datetime
 import time 
 import uuid # Para generar IDs únicos si es necesario
 import openpyxl
-from core.config import USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH
+from core.config import USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH
 
 
 # === Inicialización de Archivos ===
@@ -373,3 +373,23 @@ def get_hbd_alert_recipients() -> list:
             recipients.append(chat_id)
     return recipients
 
+# === Funciones para manejar el historial de ElToque ===
+
+def load_eltoque_history():
+    """Carga el historial de tasas de ElToque desde el JSON."""
+    if not os.path.exists(ELTOQUE_HISTORY_PATH):
+        return {}
+    try:
+        with open(ELTOQUE_HISTORY_PATH, "r", encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        add_log_line("⚠️ Error cargando el historial de ElToque. Se retorna vacío.")
+        return {}
+
+def save_eltoque_history(tasas_dict: dict):
+    """Guarda el diccionario de tasas actual de ElToque en el JSON."""
+    try:
+        with open(ELTOQUE_HISTORY_PATH, "w", encoding='utf-8') as f:
+            json.dump(tasas_dict, f, indent=4)
+    except Exception as e:
+        add_log_line(f"❌ Error al guardar el historial de ElToque: {e}")

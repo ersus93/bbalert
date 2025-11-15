@@ -1,12 +1,57 @@
 # cmc_api.py
 
 import requests
+import json
 from telegram import Update
-from core.config import CMC_API_KEY_ALERTA, CMC_API_KEY_CONTROL
+from core.config import CMC_API_KEY_ALERTA, CMC_API_KEY_CONTROL, SCREENSHOT_API_KEY, ELTOQUE_API_KEY
 from datetime import datetime, timedelta
 from core.i18n import _ 
 # No se necesitan imports de file_manager aquí
 
+# Funciones para obtener datos de CoinMarketCap y ElToque
+def obtener_tasas_eltoque():
+    """
+    Obtiene las tasas de cambio más recientes de la API de eltoque.com.
+    """
+    
+    # ¡IMPORTANTE! Revisa la URL correcta en la documentación de ElToque.
+    # Esta es una URL de ejemplo.
+    URL_API_ELTOQUE = "https://tasas.eltoque.com/v1/trmi" 
+    
+    if not ELTOQUE_API_KEY:
+        print("❌ Error: La variable ELTOQUE_API_KEY no está configurada en config.py.")
+        return None
+
+    # Revisa la documentación de ElToque para ver cómo quieren la autenticación.
+    # Usualmente es un "Bearer token" o una clave en el header.
+    headers = {
+        "Authorization": f"Bearer {ELTOQUE_API_KEY}",
+        "Accept": "application/json"
+    }
+
+    try:
+        response = requests.get(URL_API_ELTOQUE, headers=headers, timeout=10)
+        # Lanza una excepción si la respuesta es un error (ej. 401, 404, 500)
+        response.raise_for_status() 
+        
+        data = response.json()
+        
+        # --- AJUSTA ESTO ---
+        # Debes explorar la respuesta JSON de ElToque.
+        # Por ejemplo, si la API devuelve:
+        # { "tasas": { "USD": { "venta": 120, "compra": 118 }, ... } }
+        # entonces deberías retornar data.get("tasas", {})
+        
+        # Por ahora, devolveremos los datos crudos para procesar en el handler
+        return data 
+        
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error al contactar la API de ElToque: {e}")
+        return None
+    except (KeyError, json.JSONDecodeError):
+        print("❌ Error al procesar la respuesta JSON de ElToque.")
+        return None
+    
 # === FUNCIONES DE ALERTA DE HBD ===
 # Se añade chat_id=None a la firma de la función
 def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
