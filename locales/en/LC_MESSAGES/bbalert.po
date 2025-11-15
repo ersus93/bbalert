@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-11-12 15:48-0500\n"
-"PO-Revision-Date: 2025-11-12 15:51-0500\n"
+"POT-Creation-Date: 2025-11-15 15:27-0500\n"
+"PO-Revision-Date: 2025-11-15 15:31-0500\n"
 "Last-Translator: \n"
 "Language-Team: en <LL@li.org>\n"
 "Language: en\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 "X-Generator: Poedit 3.8\n"
 
-#: bbalert.py:72
+#: bbalert.py:64
 #, python-brace-format
 msgid ""
 "🚀 *¡Bot en línea!* 🚀\n"
@@ -38,7 +38,7 @@ msgstr ""
 "\n"
 "✅ Up and running perfectly."
 
-#: core/api_client.py:31
+#: core/api_client.py:76
 msgid ""
 "\n"
 "\n"
@@ -48,115 +48,115 @@ msgstr ""
 "\n"
 "**Current Prices:**\n"
 
-#: core/api_client.py:40
+#: core/api_client.py:85
 msgid "🤯 *HBD TOCÓ $1.10 (O MÁS)*"
 msgstr "🤯 *HBD HIT $1.10 (OR MORE)*"
 
-#: core/api_client.py:41
+#: core/api_client.py:86
 msgid "🤯 Alerta MÁXIMA: HBD ≥ $1.10"
 msgstr "🤯 Major Alert: HBD ≥ $1.10"
 
-#: core/api_client.py:45
+#: core/api_client.py:90
 msgid "📉 *HBD acaba de caer de $1.10*"
 msgstr "📉 *HBD just dropped below $1.10*"
 
-#: core/api_client.py:46
+#: core/api_client.py:91
 msgid "📉 Alerta: HBD bajó de $1.10"
 msgstr "📉 Alert: HBD dropped below $1.10"
 
-#: core/api_client.py:50
+#: core/api_client.py:95
 msgid "📈 *HBD acaba de superar $1.05.*"
 msgstr "📈 *HBD just surpassed $1.05.*"
 
-#: core/api_client.py:51
+#: core/api_client.py:96
 msgid "📈 Alerta: HBD superó $1.05"
 msgstr "📈 Alert: HBD surpassed $1.05"
 
-#: core/api_client.py:55
+#: core/api_client.py:100
 msgid "📉 *HBD acaba de caer de $1.05.*"
 msgstr "📉 *HBD just dropped below $1.05.*"
 
-#: core/api_client.py:56
+#: core/api_client.py:101
 msgid "📉 Alerta: HBD cayó de $1.05"
 msgstr "📉 Alert: HBD dropped below $1.05"
 
-#: core/api_client.py:60
+#: core/api_client.py:105
 msgid "⚠️ *HBD superó $1.005.*"
 msgstr "⚠️ *HBD surpassed $1.005.*"
 
-#: core/api_client.py:61
+#: core/api_client.py:106
 msgid "⚠️ Alerta: HBD superó $1.005"
 msgstr "⚠️ Alert: HBD surpassed $1.005"
 
-#: core/api_client.py:65
+#: core/api_client.py:110
 msgid "📉 *HBD cayó de $1.005.*"
 msgstr "📉 *HBD dropped below $1.005.*"
 
-#: core/api_client.py:66
+#: core/api_client.py:111
 msgid "📉 Alerta: HBD cayó de $1.005"
 msgstr "📉 Alert: HBD dropped below $1.005"
 
-#: core/api_client.py:70
+#: core/api_client.py:115
 msgid "⚠️ *HBD superó $1.00.*"
 msgstr "⚠️ *HBD surpassed $1.00.*"
 
-#: core/api_client.py:71
+#: core/api_client.py:116
 msgid "⚠️ Alerta: HBD superó $1.00"
 msgstr "⚠️ Alert: HBD surpassed $1.00"
 
-#: core/api_client.py:75
+#: core/api_client.py:120
 msgid "📉 *HBD cayó de $1.00.*"
 msgstr "📉 *HBD dropped below $1.00.*"
 
-#: core/api_client.py:76
+#: core/api_client.py:121
 msgid "📉 Alerta: HBD cayó de $1.00"
 msgstr "📉 Alert: HBD dropped below $1.00"
 
-#: core/api_client.py:80
+#: core/api_client.py:125
 msgid "🚨 *HBD cayó por debajo de $0.995."
 msgstr "🚨 *HBD dropped below $0.995."
 
-#: core/api_client.py:81
+#: core/api_client.py:126
 msgid "🚨 Alerta: 😣 HBD cayó por debajo de $0.995"
 msgstr "🚨 Alert: 😣 HBD dropped below $0.995"
 
-#: core/api_client.py:85
+#: core/api_client.py:130
 msgid "🚨 *HBD subió por encima de $0.995.*"
 msgstr "🚨 *HBD rose above $0.995.*"
 
-#: core/api_client.py:86
+#: core/api_client.py:131
 msgid "🚨 Alerta: 😃 HBD subió por encima de $0.995"
 msgstr "🚨 Alert: 😃 HBD rose above $0.995"
 
-#: core/api_client.py:90
+#: core/api_client.py:135
 msgid "🚨 *HBD subió por encima de $0.98.*"
 msgstr "🚨 *HBD rose above $0.98.*"
 
-#: core/api_client.py:91
+#: core/api_client.py:136
 msgid "🚨 Alerta: 😃 HBD subió por encima de $0.98"
 msgstr "🚨 Alert: 😃 HBD rose above $0.98"
 
-#: core/api_client.py:95
+#: core/api_client.py:140
 msgid "🚨 *HBD cayó por debajo de $0.98.*"
 msgstr "🚨 *HBD dropped below $0.98.*"
 
-#: core/api_client.py:96
+#: core/api_client.py:141
 msgid "🚨 Alerta: 😣 HBD cayó por debajo de $0.98"
 msgstr "🚨 Alert: 😣 HBD dropped below $0.98"
 
-#: core/api_client.py:100
+#: core/api_client.py:145
 msgid "🚨 *HBD subió por encima de $0.95.*"
 msgstr "🚨 *HBD rose above $0.95.*"
 
-#: core/api_client.py:101
+#: core/api_client.py:146
 msgid "🚨 Alerta: 😃 HBD subió por encima de $0.95"
 msgstr "🚨 Alert: 😃 HBD rose above $0.95"
 
-#: core/api_client.py:105
+#: core/api_client.py:150
 msgid "🚨 *HBD cayó por debajo de $0.95.*"
 msgstr "🚨 *HBD dropped below $0.95.*"
 
-#: core/api_client.py:106
+#: core/api_client.py:151
 msgid "🚨 Alerta: 😣 HBD cayó por debajo de $0.95"
 msgstr "🚨 Alert: 😣 HBD dropped below $0.95"
 
@@ -191,7 +191,6 @@ msgstr ""
 "Current price: *${current_price:,.4f}*"
 
 #: core/loops.py:159
-#, fuzzy
 msgid "🗑️ Borrar esta alerta"
 msgstr "🗑️ Delete this alert"
 
@@ -221,11 +220,11 @@ msgstr ""
 "\n"
 "_🔰 Alert set to run every {intervalo_h} hours._"
 
-#: handlers/admin.py:39
+#: handlers/admin.py:40
 msgid "🚫 Comando no autorizado."
 msgstr "🚫 Sorry, you're not authorized to use this command."
 
-#: handlers/admin.py:50
+#: handlers/admin.py:51
 msgid ""
 "✍️ *Creación de Mensaje Masivo*\n"
 "\n"
@@ -237,63 +236,63 @@ msgstr ""
 "Please send the content for the message.\n"
 "You can send an image, text, or an image with text."
 
-#: handlers/admin.py:67
+#: handlers/admin.py:68
 msgid "🖼️ Añadir Imagen"
 msgstr "🖼️ Add Image"
 
-#: handlers/admin.py:68
+#: handlers/admin.py:69
 msgid "➡️ Enviar Solo Texto"
 msgstr "➡️ Send Text Only"
 
-#: handlers/admin.py:69 handlers/admin.py:155 handlers/admin.py:181
+#: handlers/admin.py:70 handlers/admin.py:156 handlers/admin.py:182
 msgid "❌ Cancelar"
 msgstr "❌ Cancel"
 
-#: handlers/admin.py:70
+#: handlers/admin.py:71
 msgid "✍️ Añadir/Editar Texto"
 msgstr "✍️ Add/Edit Text"
 
-#: handlers/admin.py:71
+#: handlers/admin.py:72
 msgid "➡️ Enviar Solo Imagen"
 msgstr "➡️ Send Image Only"
 
-#: handlers/admin.py:82
+#: handlers/admin.py:83
 msgid "✅ Texto recibido. ¿Deseas añadir una imagen o enviar el mensaje?"
 msgstr "✅ Text received. Would you like to add an image or send the message now?"
 
-#: handlers/admin.py:102
+#: handlers/admin.py:103
 msgid "✅ Imagen recibida. ¿Deseas añadir o editar el texto del pie de foto?"
 msgstr "✅ Image received. Would you like to add or edit the caption?"
 
-#: handlers/admin.py:111
+#: handlers/admin.py:112
 msgid "⚠️ Por favor, envía un texto o una imagen."
 msgstr "⚠️ Please send either text or an image."
 
-#: handlers/admin.py:126
+#: handlers/admin.py:127
 msgid "✍️ De acuerdo, por favor envía el texto que quieres usar como pie de foto."
 msgstr "✍️ Alright, please send the text you want to use as a caption."
 
-#: handlers/admin.py:133
+#: handlers/admin.py:134
 msgid "🖼️ Entendido, por favor envía la imagen que quieres adjuntar."
 msgstr "🖼️ Got it. Please send the image you want to attach."
 
-#: handlers/admin.py:142 handlers/admin.py:269
+#: handlers/admin.py:143 handlers/admin.py:270
 msgid "🚫 Operación cancelada."
 msgstr "🚫 Operation cancelled."
 
-#: handlers/admin.py:154 handlers/admin.py:180
+#: handlers/admin.py:155 handlers/admin.py:181
 msgid "🚀 Enviar a todos los usuarios"
 msgstr "🚀 Broadcast to all users"
 
-#: handlers/admin.py:164
+#: handlers/admin.py:165
 msgid "✅ Texto añadido. El mensaje está listo para ser enviado."
 msgstr "✅ Text added. The message is ready to send."
 
-#: handlers/admin.py:190
+#: handlers/admin.py:191
 msgid "✅ Imagen añadida. El mensaje está listo para ser enviado."
 msgstr "✅ Image added. The message is ready to send."
 
-#: handlers/admin.py:206
+#: handlers/admin.py:207
 msgid ""
 "⏳ *Enviando mensaje a todos los usuarios...*\n"
 "Esto puede tardar un momento."
@@ -301,11 +300,11 @@ msgstr ""
 "⏳ *Broadcasting message to all users...*\n"
 "This might take a moment."
 
-#: handlers/admin.py:214
+#: handlers/admin.py:215
 msgid "❌ Error interno: La función de envío masivo no ha sido inicializada."
 msgstr "❌ Internal error: The broadcast function has not been initialized."
 
-#: handlers/admin.py:237
+#: handlers/admin.py:238
 #, python-brace-format
 msgid ""
 "✅ Envío completado.\n"
@@ -322,17 +321,17 @@ msgstr ""
 "❌ Failures ({num_fallos}):\n"
 "{fallidos_str}"
 
-#: handlers/admin.py:251
+#: handlers/admin.py:252
 #, python-brace-format
 msgid "✅ ¡Éxito! Mensaje enviado a todos los *{total_usuarios}* usuarios."
 msgstr "✅ Success! Message sent to all *{total_usuarios}* users."
 
-#: handlers/admin.py:333
+#: handlers/admin.py:334
 msgid "😕 No estás registrado en el sistema."
 msgstr "😕 It looks like you're not registered in the system yet."
 
-#: handlers/admin.py:353
-#, fuzzy, python-brace-format
+#: handlers/admin.py:354
+#, python-brace-format
 msgid ""
 "👤 *Tu Perfil Registrado*\n"
 "————————————————————\n"
@@ -345,18 +344,18 @@ msgid ""
 "————————————————————\n"
 "_Solo puedes ver tu propia información 🙂_"
 msgstr ""
-"👤 *Your Profile*\n"
+"👤 *Your Registered Profile*\n"
 "--------------------\n"
-"  - Name: {nombre_completo}\n"
-"  - 🪪 ID: `{user_id}`\n"
-"  - 👤 Username: {username_str}\n"
+"  - Name: `{nombre_completo}\n"
+"  - 👤 ID: `{user_id}`\n"
+"  - 👤 User: {username_str}\n"
 "  - 🪙 Coins: `{monedas_str}`\n"
-"  - ⏰ Alert Interval: {intervalo_h}h\n"
-"  - 🔔 HBD Alerts: {alertas_activas}\n"
+"  - ⏰ Alert every: `{intervalo_h}h\n"
+"  - 🔔 Active alerts: `{alertas_activas}\n"
 "--------------------\n"
 "_You can only see your own information 🙂_"
 
-#: handlers/admin.py:407
+#: handlers/admin.py:408
 #, python-brace-format
 msgid ""
 "👥 *Usuarios Registrados*: {num_usuarios}\n"
@@ -367,7 +366,7 @@ msgstr ""
 "--------------------\n"
 "```{detalles_str}```"
 
-#: handlers/admin.py:440
+#: handlers/admin.py:442
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -390,16 +389,15 @@ msgstr ""
 "\n"
 "_Yup, that's all you can see 🙂👍_"
 
-#: handlers/admin.py:460
-#, fuzzy
+#: handlers/admin.py:470
 msgid "❌ Error interno: La función de logs no ha sido inicializada."
 msgstr "❌ Internal error: The log function has not been initialized."
 
-#: handlers/admin.py:473
+#: handlers/admin.py:483
 msgid "⚠️ El argumento debe ser un número entero."
 msgstr "⚠️ The argument must be an integer."
 
-#: handlers/admin.py:493
+#: handlers/admin.py:511
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -489,7 +487,7 @@ msgid "✅ Todas tus alertas han sido eliminadas."
 msgstr "✅ All your alerts have been deleted."
 
 #: handlers/general.py:31
-#, fuzzy, python-brace-format
+#, python-brace-format
 msgid ""
 "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n"
 "\n"
@@ -557,8 +555,7 @@ msgstr ""
 "Username: {usuario}\n"
 "ID: `{id_chat}`"
 
-#: handlers/trading.py:67
-#, fuzzy
+#: handlers/trading.py:70
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -574,7 +571,7 @@ msgstr ""
 "`/graf BTC 15m`\n"
 "`/graf BTC USDT 1h`"
 
-#: handlers/trading.py:95
+#: handlers/trading.py:98
 msgid ""
 "⚠️ *Temporalidad no válida*.\n"
 "\n"
@@ -584,13 +581,13 @@ msgstr ""
 "\n"
 "Use: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 
-#: handlers/trading.py:109
-#, fuzzy, python-brace-format
+#: handlers/trading.py:112
+#, python-brace-format
 msgid "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})..."
 msgstr "⏳ Generating chart for *{base}/{quote}* ({temporalidad})..."
 
-#: handlers/trading.py:121
-#, fuzzy, python-brace-format
+#: handlers/trading.py:124
+#, python-brace-format
 msgid ""
 "📈 *Gráfico de {base}/{quote} ({temporalidad})*\n"
 "\n"
@@ -600,7 +597,7 @@ msgstr ""
 "\n"
 "[View on TradingView]({url})"
 
-#: handlers/trading.py:133
+#: handlers/trading.py:136
 msgid ""
 "❌ Lo siento, no pude generar la captura del gráfico en este momento. Inténtalo "
 "de nuevo más tarde."
@@ -608,7 +605,7 @@ msgstr ""
 "❌ Sorry, I couldn't generate the chart screenshot at this time. Please try "
 "again later."
 
-#: handlers/trading.py:155
+#: handlers/trading.py:158
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -620,31 +617,73 @@ msgstr ""
 "Usage: `/p <COIN>`\n"
 "Example: `/p BTC`"
 
-#: handlers/trading.py:170
+#: handlers/trading.py:173
 #, python-brace-format
 msgid "😕 No se pudieron obtener los datos para *{moneda}*."
 msgstr "😕 Couldn't fetch data for *{moneda}*."
 
-#: handlers/trading.py:187
+#: handlers/trading.py:190
 msgid "Ξ:"
 msgstr "Ξ:"
 
-#: handlers/trading.py:188
+#: handlers/trading.py:191
 msgid "₿:"
 msgstr "₿:"
 
-#: handlers/trading.py:190
+#: handlers/trading.py:193
 msgid "Cap:"
 msgstr "Cap:"
 
-#: handlers/trading.py:191
+#: handlers/trading.py:194
 msgid "Vol:"
 msgstr "Vol:"
 
-#: handlers/trading.py:208
+#: handlers/trading.py:210
 #, python-brace-format
 msgid "🔄 Actualizar /p {symbol}"
 msgstr "🔄 Refresh /p {symbol}"
+
+#: handlers/trading.py:244
+msgid ""
+"❌ *FALLO TOTAL*\n"
+"\n"
+"La API de ElToque no devolvió ningún dato (`None`).\n"
+"\n"
+"**Causas probables:**\n"
+"1. La `ELTOQUE_API_KEY` en tu archivo `apit.env` es incorrecta o está vacía.\n"
+"2. La API de ElToque está caída o bloqueó tu solicitud."
+msgstr ""
+"❌ *TOTAL FAILURE* The ElToque API did not return any data (`None`). **Possible "
+"causes:** 1. The `ELTOQUE_API_KEY` in your `apit.env` file is incorrect or "
+"empty. 2. The ElToque API is down or blocked your request."
+
+#: handlers/trading.py:262
+msgid ""
+"😕 Se obtuvieron datos de ElToque, pero no se encontró el diccionario 'tasas' "
+"esperado."
+msgstr ""
+"😕 Data was obtained from ElToque, but the expected 'rates' dictionary was not "
+"found."
+
+#: handlers/trading.py:275
+msgid ""
+"🏦 *Tasas de Cambio*\n"
+"\n"
+msgstr ""
+"🏦 *Exchange Rates* \n"
+"\n"
+
+#: handlers/trading.py:325
+msgid "Actualizado:"
+msgstr "Updated:"
+
+#: handlers/trading.py:326
+msgid "Fuente: elTOQUE.com"
+msgstr "Source: elTOQUE.com"
+
+#: handlers/trading.py:337
+msgid "❌ Ocurrió un error inesperado procesando los datos de ElToque."
+msgstr "❌ An unexpected error occurred while processing data from ElToque."
 
 #: handlers/user_settings.py:59
 #, python-brace-format

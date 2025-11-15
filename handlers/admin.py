@@ -420,11 +420,12 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # COMANDO /logs para ver las últimas líneas del log
 async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_chat_id = update.effective_chat.id # <-- Obtener chat_id
+    global _get_logs_data_ref # <--- ¡ARREGLO 1: Mover esta línea aquí!
     
     # Comprobar si el ID está en la lista de administradores
     if str(current_chat_id) not in ADMIN_CHAT_IDS:
         # Obtener la última actualización desde el log si es posible
-        global _get_logs_data_ref
+        # global _get_logs_data_ref <--- Quitarla de aquí
         ultima_actualizacion = "N/A"
         if _get_logs_data_ref:
             log_data_full = _get_logs_data_ref()
@@ -447,17 +448,25 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "_Ya, eso es todo lo que puedes ver 🙂👍_",
             current_chat_id
         )
+        
+        # --- ¡NUEVA SECCIÓN DE ESCAPE! ---
+        # Escapamos las variables para evitar errores de Markdown
+        safe_version = str(VERSION).replace("_", " ").replace("*", " ").replace("`", " ")
+        safe_estado = str(STATE).replace("_", " ").replace("*", " ").replace("`", " ")
+        safe_ultima_actualizacion = str(ultima_actualizacion).replace("_", " ").replace("*", " ").replace("`", " ")
+
         mensaje = mensaje_template.format(
-            version=VERSION,
-            estado=STATE,
-            ultima_actualizacion=ultima_actualizacion
+            version=safe_version,
+            estado=safe_estado,
+            ultima_actualizacion=safe_ultima_actualizacion
         )
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
+    # --- Lógica de Administrador ---
+    
     # Verificar que la función de logs ha sido inyectada correctamente
     if not _get_logs_data_ref:
-       
         await update.message.reply_text(_("❌ Error interno: La función de logs no ha sido inicializada.", current_chat_id))
         return
 
@@ -477,8 +486,9 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 2. Extraer las últimas N líneas
     log_data_n_lines = log_data_full[-n_lineas:] if log_data_full else []
     
+    # (Esta es tu limpieza de logs, que ya estaba bien)
     log_lines_cleaned = [
-        line.replace("_", "-").replace("*", "#").replace("`", "'")
+        line.replace("_", " ").replace("*", "#").replace("`", "'")
             .replace("[", "(").replace("]", ")")
         for line in log_data_n_lines
     ]
@@ -487,9 +497,9 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Extraer la marca de tiempo de la última línea del log
     ultima_actualizacion = "N/A"
-    if log_data_n_lines:
+    if log_data_full: 
         try:
-            timestamp_ms_part = log_data_n_lines[-1].split(" | ")[0]
+            timestamp_ms_part = log_data_full[-1].split(" | ")[0] 
             timestamp_part = timestamp_ms_part.split("[")[1].split("]")[0].strip()
             ultima_actualizacion = f"{timestamp_part} UTC"
         except Exception:
@@ -510,13 +520,22 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "•📜 *Últimas {num_lineas} líneas de {total_lineas} *\n ```{log_str}```\n",
         current_chat_id
     )
+
+    # --- ¡NUEVA SECCIÓN DE ESCAPE (PARA ADMIN)! ---
+    # Escapamos todas las variables que podrían contener _ * `
+    safe_version = str(VERSION).replace("_", " ").replace("*", " ").replace("`", " ")
+    safe_pid = str(PID).replace("_", " ").replace("*", " ").replace("`", " ")
+    safe_python_version = str(PYTHON_VERSION).replace("_", " ").replace("*", " ").replace("`", " ")
+    safe_estado = str(STATE).replace("_", " ").replace("*", " ").replace("`", " ")
+    safe_ultima_actualizacion = str(ultima_actualizacion).replace("_", " ").replace("*", " ").replace("`", " ")
+
     mensaje = mensaje_template.format(
-        version=VERSION,
-        pid=PID,
-        python_version=PYTHON_VERSION,
+        version=safe_version,
+        pid=safe_pid,
+        python_version=safe_python_version,
         num_usuarios=len(cargar_usuarios()),
-        estado=STATE,
-        ultima_actualizacion=ultima_actualizacion,
+        estado=safe_estado,
+        ultima_actualizacion=safe_ultima_actualizacion,
         num_lineas=len(log_data_n_lines),
         total_lineas=len(log_data_full),
         log_str=log_str
