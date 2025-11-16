@@ -21,7 +21,7 @@ def inicializar_archivos():
     except Exception as e:
         add_log_line(f"❌ ERROR al inicializar el archivo de historial de alertas: {e}")
 
-# utils/file_manager.py
+
 
 MAX_HISTORY_ENTRIES = 500 # Limita el archivo para que no crezca indefinidamente
 
@@ -310,18 +310,25 @@ def registrar_usuario(chat_id, user_lang_code: str = 'es'):
     
     if chat_id_str not in usuarios: # <--- Usar chat_id_str
 
+        # --- INICIO DE LA CORRECCIÓN DE IDIOMA ---
         lang_to_save = 'es' # Por defecto
-        if user_lang_code and user_lang_code.startswith('en'):
-            lang_to_save = 'en'
+        if user_lang_code:
+            if user_lang_code.startswith('en'):
+                lang_to_save = 'en'
+            elif user_lang_code.startswith('pt'):
+                lang_to_save = 'pt'
+            elif user_lang_code.startswith('de'):
+                lang_to_save = 'de'
+            # Si no es ninguno, se queda como 'es'
+        # --- FIN DE LA CORRECCIÓN DE IDIOMA ---
 
-        # --- INICIO DE LA CORRECCIÓN ---
         usuarios[chat_id_str] = {
             "monedas": ["BTC", "HIVE", "HBD", "TON"], # Monedas por defecto
             "hbd_alerts": False,  # Activar alertas de HBD por defecto
             "language": lang_to_save, # <-- ¡ESTA LÍNEA ES LA SOLUCIÓN!
             "intervalo_alerta_h": 1.0 # <-- Añadir esto también es buena idea
         }
-        # --- FIN DE LA CORRECCIÓN ---
+     
 
         guardar_usuarios(usuarios)
         add_log_line(f"Nuevo usuario registrado: {chat_id} con idioma: {lang_to_save}") # Log mejorado

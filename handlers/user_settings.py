@@ -30,6 +30,7 @@ SUPPORTED_LANGUAGES = {
     'es': '🇪🇸 Español',
     'en': '🇬🇧 English',
     'pt': '🇧🇷 Português',
+    'de': '🇩🇪 Deutsch', 
     # Agrega más aquí cuando tengas los archivos .po/.mo
 }
 
