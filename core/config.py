@@ -27,7 +27,7 @@ CUSTOM_ALERT_HISTORY_PATH = os.path.join(DATA_DIR, "custom_alert_history.json")
 ELTOQUE_HISTORY_PATH = os.path.join(DATA_DIR, "eltoque_history.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "1.0.04_Stable"
+VERSION = "0.1.005-beta"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---

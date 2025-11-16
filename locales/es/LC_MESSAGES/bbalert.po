@@ -8,17 +8,16 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-11-15 15:27-0500\n"
+"POT-Creation-Date: 2025-11-16 14:05-0500\n"
 "PO-Revision-Date: 2025-11-15 15:35-0500\n"
 "Last-Translator: \n"
-"Language-Team: es <LL@li.org>\n"
 "Language: es\n"
+"Language-Team: es <LL@li.org>\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
 "Generated-By: Babel 2.17.0\n"
-"X-Generator: Poedit 3.8\n"
 
 #: bbalert.py:64
 #, python-brace-format
@@ -378,8 +377,8 @@ msgstr ""
 #: handlers/alerts.py:98
 #, python-brace-format
 msgid ""
-"✅ ¡Alertas creadas! Te avisaré cuando *{coin}* cruce por encima o por debajo "
-"de *${target_price:,.4f}*."
+"✅ ¡Alertas creadas! Te avisaré cuando *{coin}* cruce por encima o por "
+"debajo de *${target_price:,.4f}*."
 msgstr ""
 
 #: handlers/alerts.py:110
@@ -391,7 +390,8 @@ msgstr ""
 
 #: handlers/alerts.py:131
 msgid ""
-"No tienes ninguna alerta de precio activa. Crea una con el comando /alerta."
+"No tienes ninguna alerta de precio activa. Crea una con el comando "
+"/alerta."
 msgstr ""
 
 #: handlers/alerts.py:139 handlers/alerts.py:190
@@ -417,23 +417,25 @@ msgstr ""
 msgid ""
 "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n"
 "\n"
-"Para recibir alertas periódicas con los precios de tu lista de monedas, usa el "
-"comando `/monedas` seguido de los símbolos separados por comas. Puedes usar "
-"*cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n"
+"Para recibir alertas periódicas con los precios de tu lista de monedas, "
+"usa el comando `/monedas` seguido de los símbolos separados por comas. "
+"Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap."
+" Ejemplo:\n"
 "\n"
 "`/monedas BTC, ETH, TRX, HIVE, ADA`\n"
 "\n"
-"Puedes modificar la temporalidad de esta alerta en cualquier momento con el "
-"comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
+"Puedes modificar la temporalidad de esta alerta en cualquier momento con "
+"el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
 "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n"
 "\n"
+"Usa /help para ver todos los comandos disponibles."
 msgstr ""
 
-#: handlers/general.py:53
+#: handlers/general.py:54
 msgid "⚠️ No hay registros de precios aún."
 msgstr ""
 
-#: handlers/general.py:66
+#: handlers/general.py:67
 #, python-brace-format
 msgid ""
 "📊 *Última lectura (máx. 5 min atrás):*\n"
@@ -446,7 +448,7 @@ msgid ""
 "_Actualizado: {fecha}_"
 msgstr ""
 
-#: handlers/general.py:102
+#: handlers/general.py:103
 #, python-brace-format
 msgid ""
 "Estos son tus datos de Telegram:\n"
@@ -454,6 +456,52 @@ msgid ""
 "Nombre: {nombre}\n"
 "Usuario: {usuario}\n"
 "ID: `{id_chat}`"
+msgstr ""
+
+#: handlers/general.py:129
+msgid ""
+"👋 ¡Hola! Aquí tienes la lista de comandos disponibles:\n"
+"\n"
+"📊 *Alertas Periódicas (Tu Lista)*\n"
+"  • `/monedas <LISTA>`: Define tu lista de monedas (ej. `/monedas BTC, "
+"ETH, HIVE`).\n"
+"  • `/mismonedas`: Muestra tu lista de monedas actual.\n"
+"  • `/temp <HORAS>`: Cambia cada cuántas horas recibes tu alerta (ej. "
+"`/temp 2.5`).\n"
+"  • `/parar`: Detiene tus alertas periódicas (borra tu lista).\n"
+"\n"
+"🔔 *Alertas de Cruce (Precio Fijo)*\n"
+"  • `/alerta <MONEDA> <PRECIO>`: Crea una alerta cuando una moneda cruza "
+"un precio (ej. `/alerta BTC 60000`).\n"
+"  • `/misalertas`: Muestra y te permite borrar tus alertas de cruce "
+"activas.\n"
+"\n"
+"📈 *Comandos de Consulta*\n"
+"  • `/p <MONEDA>`: Muestra el precio detallado de una moneda (ej. `/p "
+"HIVE`).\n"
+"  • `/graf <MONEDA> [PAR] <TIEMPO>`: Genera un gráfico (ej. `/graf BTC "
+"1h` o `/graf HIVE USDT 15m`).\n"
+"  • `/tasa`: Muestra las tasas de cambio de ElToque (para CUP).\n"
+"  • `/ver`: Muestra la última lectura de precios del bot (BTC, HIVE, HBD,"
+" TON).\n"
+"\n"
+"⚙️ *Configuración y Varios*\n"
+"  • `/hbdalerts`: Activa o desactiva las alertas predefinidas de HBD.\n"
+"  • `/lang`: Cambia el idioma del bot.\n"
+"  • `/myid`: Muestra tu información de usuario de Telegram.\n"
+"  • `/start`: Muestra el mensaje de bienvenida.\n"
+"  • `/help`: Muestra este menú de ayuda.\n"
+msgstr ""
+
+#: handlers/general.py:154
+msgid ""
+"\n"
+"\n"
+"🔑 *Comandos de Administrador*\n"
+"  • `/users`: Muestra la lista de todos los usuarios registrados.\n"
+"  • `/logs [N]`: Muestra las últimas N líneas del log del bot.\n"
+"  • `/ms`: Inicia el asistente para enviar un mensaje masivo a todos los "
+"usuarios.\n"
 msgstr ""
 
 #: handlers/trading.py:70
@@ -488,8 +536,8 @@ msgstr ""
 
 #: handlers/trading.py:136
 msgid ""
-"❌ Lo siento, no pude generar la captura del gráfico en este momento. Inténtalo "
-"de nuevo más tarde."
+"❌ Lo siento, no pude generar la captura del gráfico en este momento. "
+"Inténtalo de nuevo más tarde."
 msgstr ""
 
 #: handlers/trading.py:158
@@ -533,14 +581,15 @@ msgid ""
 "La API de ElToque no devolvió ningún dato (`None`).\n"
 "\n"
 "**Causas probables:**\n"
-"1. La `ELTOQUE_API_KEY` en tu archivo `apit.env` es incorrecta o está vacía.\n"
+"1. La `ELTOQUE_API_KEY` en tu archivo `apit.env` es incorrecta o está "
+"vacía.\n"
 "2. La API de ElToque está caída o bloqueó tu solicitud."
 msgstr ""
 
 #: handlers/trading.py:262
 msgid ""
-"😕 Se obtuvieron datos de ElToque, pero no se encontró el diccionario 'tasas' "
-"esperado."
+"😕 Se obtuvieron datos de ElToque, pero no se encontró el diccionario "
+"'tasas' esperado."
 msgstr ""
 
 #: handlers/trading.py:275
@@ -567,14 +616,14 @@ msgid ""
 "✅ ¡Lista de monedas actualizada!\n"
 "Ahora recibirás alertas de para: `{monedas_limpias_str}`\n"
 "\n"
-"Puedes cambiar esta lista en cualquier momento enviando una nueva lista de "
-"símbolos separados por comas."
+"Puedes cambiar esta lista en cualquier momento enviando una nueva lista "
+"de símbolos separados por comas."
 msgstr ""
 
 #: handlers/user_settings.py:68
 msgid ""
-"⚠️ Por favor, envía una lista de símbolos de monedas separados por comas. "
-"Ejemplo: `BTC, ETH, HIVE`"
+"⚠️ Por favor, envía una lista de símbolos de monedas separados por comas."
+" Ejemplo: `BTC, ETH, HIVE`"
 msgstr ""
 
 #: handlers/user_settings.py:84
@@ -590,8 +639,8 @@ msgstr ""
 
 #: handlers/user_settings.py:104
 msgid ""
-"🛑 Alertas detenidas. Ya no recibirás mensajes cada hora (a menos que vuelvas a "
-"configurar tu lista o ajustes la temporalidad)."
+"🛑 Alertas detenidas. Ya no recibirás mensajes cada hora (a menos que "
+"vuelvas a configurar tu lista o ajustes la temporalidad)."
 msgstr ""
 
 #: handlers/user_settings.py:125
@@ -600,13 +649,15 @@ msgid ""
 "⚙️ *Configuración de Temporalidad*\n"
 "Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n"
 "\n"
-"Para cambiarlo, envía el comando con las horas deseadas (desde 1h hasta 12h).\n"
+"Para cambiarlo, envía el comando con las horas deseadas (desde 1h hasta "
+"12h).\n"
 "Ejemplo: `/temp 2.5` (para 2 horas y 30 minutos)."
 msgstr ""
 
 #: handlers/user_settings.py:141
 msgid ""
-"⚠️ El valor debe ser un número entre *0.5* (30min) y *24.0* horas. Ejemplo: `2.5`"
+"⚠️ El valor debe ser un número entre *0.5* (30min) y *24.0* horas. "
+"Ejemplo: `2.5`"
 msgstr ""
 
 #: handlers/user_settings.py:148
@@ -625,13 +676,14 @@ msgstr ""
 #, python-brace-format
 msgid ""
 "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
-"⚠️ Pero hubo un error al reprogramar la alerta. Intenta enviar /temp nuevamente."
+"⚠️ Pero hubo un error al reprogramar la alerta. Intenta enviar /temp "
+"nuevamente."
 msgstr ""
 
 #: handlers/user_settings.py:175
 msgid ""
-"⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo 0.5)(máximo "
-"24.0)."
+"⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo "
+"0.5)(máximo 24.0)."
 msgstr ""
 
 #: handlers/user_settings.py:179
@@ -647,8 +699,8 @@ msgstr ""
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
-"Para establecer tu lista de monedas, envía el comando seguido de los símbolos. "
-"Ejemplo:\n"
+"Para establecer tu lista de monedas, envía el comando seguido de los "
+"símbolos. Ejemplo:\n"
 "\n"
 "`/monedas BTC, ETH, HIVE, SOL`\n"
 "\n"
@@ -672,8 +724,8 @@ msgstr ""
 
 #: handlers/user_settings.py:242
 msgid ""
-"✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en "
-"este momento."
+"✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los "
+"precios en este momento."
 msgstr ""
 
 #: handlers/user_settings.py:259
@@ -724,8 +776,31 @@ msgid "⚠️ Idioma no soportado."
 msgstr ""
 
 #~ msgid ""
-#~ "✅ ¡Idioma cambiado a **{new_lang_name}**!\\nUsa el comando /lang si deseas "
-#~ "cambiarlo de nuevo."
+#~ "✅ ¡Idioma cambiado a "
+#~ "**{new_lang_name}**!\\nUsa el comando /lang si"
+#~ " deseas cambiarlo de nuevo."
 #~ msgstr ""
-#~ "✅ Language changed to **{new_lang_name}**!\\nUse the /lang command if you "
-#~ "want to change it again."
+#~ "✅ Language changed to "
+#~ "**{new_lang_name}**!\\nUse the /lang command "
+#~ "if you want to change it again."
+
+#~ msgid ""
+#~ "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n"
+#~ "\n"
+#~ "Para recibir alertas periódicas con los"
+#~ " precios de tu lista de monedas, "
+#~ "usa el comando `/monedas` seguido de "
+#~ "los símbolos separados por comas. Puedes"
+#~ " usar *cualquier* símbolo de criptomoneda"
+#~ " listado en CoinMarketCap. Ejemplo:\n"
+#~ "\n"
+#~ "`/monedas BTC, ETH, TRX, HIVE, ADA`\n"
+#~ "\n"
+#~ "Puedes modificar la temporalidad de esta"
+#~ " alerta en cualquier momento con el"
+#~ " comando /temp seguido de las horas"
+#~ " (entre 0.5 y 24.0).\n"
+#~ "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n"
+#~ "\n"
+#~ msgstr ""
+

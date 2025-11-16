@@ -250,8 +250,8 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     usuarios = cargar_usuarios()
     user_data = usuarios.get(str(user_id), {})
 
-    # Se asume True si la clave no existe (para usuarios antiguos)
-    is_enabled = user_data.get('hbd_alerts', True)
+    # Se asume false si la clave no existe (para usuarios antiguos)
+    is_enabled = user_data.get('hbd_alerts', False)
 
     if is_enabled:
         # Mensaje 1: Alertas activadas

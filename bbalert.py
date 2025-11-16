@@ -18,7 +18,7 @@ from core.i18n import _ # <-- Importar _
 
 
 # --- Importación de Handlers y Utilidades ---
-from handlers.general import start, myid, ver
+from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command, # <-- CAMBIADO
@@ -146,6 +146,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("ver", ver))
+    app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("users", users))
     app.add_handler(CommandHandler("logs", logs_command))
     app.add_handler(ms_conversation_handler)  

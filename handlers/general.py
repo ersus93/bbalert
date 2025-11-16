@@ -9,7 +9,7 @@ from telegram import Update
 from telegram.constants import ParseMode
 from telegram.ext import ConversationHandler, ContextTypes
 from utils.file_manager import load_hbd_history, registrar_usuario
-from core.config import ADMIN_CHAT_IDS
+from core.config import ADMIN_CHAT_IDS # <--- IMPORTACIÓN AÑADIDA
 from core.i18n import _
 
 #  Telegram comando /satart 
@@ -34,7 +34,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     "Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n\n"
     "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
     "Puedes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
-    "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n",
+    "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n"
+    "Usa /help para ver todos los comandos disponibles.", # <-- Pequeña adición
     user_id # <-- PASA EL chat_id
 ).format(nombre_usuario=nombre_usuario) 
 
@@ -114,4 +115,54 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+# ============================================================
+
+
+# === NUEVO COMANDO /help ===
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra el menú de ayuda con todos los comandos."""
+    user_id = update.effective_user.id
+    chat_id_str = str(user_id)
+
+    # --- Plantilla de Ayuda General ---
+    help_text_template = _(
+        "👋 ¡Hola! Aquí tienes la lista de comandos disponibles:\n\n"
+        "📊 *Alertas Periódicas (Tu Lista)*\n"
+        "  • `/monedas <LISTA>`: Define tu lista de monedas (ej. `/monedas BTC, ETH, HIVE`).\n"
+        "  • `/mismonedas`: Muestra tu lista de monedas actual.\n"
+        "  • `/temp <HORAS>`: Cambia cada cuántas horas recibes tu alerta (ej. `/temp 2.5`).\n"
+        "  • `/parar`: Detiene tus alertas periódicas (borra tu lista).\n\n"
+        "🔔 *Alertas de Cruce (Precio Fijo)*\n"
+        "  • `/alerta <MONEDA> <PRECIO>`: Crea una alerta cuando una moneda cruza un precio (ej. `/alerta BTC 60000`).\n"
+        "  • `/misalertas`: Muestra y te permite borrar tus alertas de cruce activas.\n\n"
+        "📈 *Comandos de Consulta*\n"
+        "  • `/p <MONEDA>`: Muestra el precio detallado de una moneda (ej. `/p HIVE`).\n"
+        "  • `/graf <MONEDA> [PAR] <TIEMPO>`: Genera un gráfico (ej. `/graf BTC 1h` o `/graf HIVE USDT 15m`).\n"
+        "  • `/tasa`: Muestra las tasas de cambio de ElToque (para CUP).\n"
+        "  • `/ver`: Muestra la última lectura de precios del bot (BTC, HIVE, HBD, TON).\n\n"
+        "⚙️ *Configuración y Varios*\n"
+        "  • `/hbdalerts`: Activa o desactiva las alertas predefinidas de HBD.\n"
+        "  • `/lang`: Cambia el idioma del bot.\n"
+        "  • `/myid`: Muestra tu información de usuario de Telegram.\n"
+        "  • `/start`: Muestra el mensaje de bienvenida.\n"
+        "  • `/help`: Muestra este menú de ayuda.\n"
+        , user_id
+    )
+
+    # --- Plantilla de Ayuda para Admins ---
+    admin_help_text_template = _(
+        "\n\n"
+        "🔑 *Comandos de Administrador*\n"
+        "  • `/users`: Muestra la lista de todos los usuarios registrados.\n"
+        "  • `/logs [N]`: Muestra las últimas N líneas del log del bot.\n"
+        "  • `/ms`: Inicia el asistente para enviar un mensaje masivo a todos los usuarios.\n"
+        , user_id
+    )
+
+    # Combinar mensajes si es admin
+    message = help_text_template
+    if chat_id_str in ADMIN_CHAT_IDS:
+        message += admin_help_text_template
+
+    await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 # ============================================================

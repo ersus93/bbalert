@@ -317,7 +317,7 @@ def registrar_usuario(chat_id, user_lang_code: str = 'es'):
         # --- INICIO DE LA CORRECCIÓN ---
         usuarios[chat_id_str] = {
             "monedas": ["BTC", "HIVE", "HBD", "TON"], # Monedas por defecto
-            "hbd_alerts": True,  # Activar alertas de HBD por defecto
+            "hbd_alerts": False,  # Activar alertas de HBD por defecto
             "language": lang_to_save, # <-- ¡ESTA LÍNEA ES LA SOLUCIÓN!
             "intervalo_alerta_h": 1.0 # <-- Añadir esto también es buena idea
         }
@@ -352,7 +352,7 @@ def toggle_hbd_alert_status(user_id: int) -> bool:
     user_id_str = str(user_id)
     if user_id_str in usuarios:
         # Si la clave no existe, por defecto es True, así que al negarla se vuelve False
-        current_status = usuarios[user_id_str].get('hbd_alerts', True)
+        current_status = usuarios[user_id_str].get('hbd_alerts', False)
         new_status = not current_status
         usuarios[user_id_str]['hbd_alerts'] = new_status
         guardar_usuarios(usuarios)
@@ -369,7 +369,7 @@ def get_hbd_alert_recipients() -> list:
     recipients = []
     for chat_id, data in usuarios.items():
         # Si la clave 'hbd_alerts' no existe, se asume que es True por retrocompatibilidad
-        if data.get('hbd_alerts', True):
+        if data.get('hbd_alerts', False):
             recipients.append(chat_id)
     return recipients
 
