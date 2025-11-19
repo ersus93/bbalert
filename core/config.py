@@ -27,11 +27,11 @@ CUSTOM_ALERT_HISTORY_PATH = os.path.join(DATA_DIR, "custom_alert_history.json")
 ELTOQUE_HISTORY_PATH = os.path.join(DATA_DIR, "eltoque_history.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.005-beta"
+VERSION = "0.1.006-beta"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---
-LOG_MAX = 50
+LOG_MAX = 45
 LOG_LINES = []
 INTERVALO_ALERTA = 300  # 5 minutos (¡Ajusta si prefieres 5 min!)
-INTERVALO_CONTROL = 1800 # 25 minutos
+INTERVALO_CONTROL = 600 # 10 minutos

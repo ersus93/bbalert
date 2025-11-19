@@ -312,7 +312,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         cambio_str = f" {diferencia:,.2f}" # Ya tiene el '-'
                     
                 # Formato: EUR:   500.00 CUP
-                linea = f"*{moneda_display}*:  `{tasa_actual:,.2f}` CUP  {indicador}{cambio_str}"
+                linea = f"*{moneda_display}*:  `{tasa_actual:,.2f}`  CUP  {indicador}{cambio_str}"
                 mensaje_lineas.append(linea)
 
         if not mensaje_lineas:
