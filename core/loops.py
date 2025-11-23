@@ -181,6 +181,10 @@ async def check_custom_price_alerts(bot: Bot):
 
 async def alerta_loop(bot: Bot):
     """Bucle de alerta HBD (cada N segundos)."""
+    
+    # 1. DIAGNÓSTICO: Imprimir el intervalo al iniciar para ver si es 0
+    add_log_line(f"⏱️ Iniciando bucle HBD. Intervalo configurado: {INTERVALO_ALERTA} segundos.")
+
     while True:
         try:
             precios_actuales = obtener_precios_alerta()
@@ -190,50 +194,49 @@ async def alerta_loop(bot: Bot):
                 guardar_precios_alerta(precios_actuales)
 
                 if precio_anterior_hbd:
-                    
                     # --- INICIO DE LA MODIFICACIÓN (I18N) ---
-                    # 1. Obtener solo los usuarios que quieren la alerta
                     recipients = get_hbd_alert_recipients()
-                    if not recipients:
-                        # Si no hay destinatarios, no hacemos nada
-                        continue 
-                    # 2. Variables para registrar el log SÓLO UNA VEZ
-                    log_msg_to_send = None
-                    trigger_detected = False
-                    # 3. Iterar sobre cada destinatario
-                    for user_id_str in recipients:
-                        user_id = int(user_id_str)
-                        # 4. Generar el mensaje traducido PARA ESTE USUARIO
-                        alerta_msg, log_msg = generar_alerta(precios_actuales, precio_anterior_hbd, user_id)
+                    if recipients:
+                        log_msg_to_send = None
+                        trigger_detected = False
+                        
+                        for user_id_str in recipients:
+                            user_id = int(user_id_str)
+                            alerta_msg, log_msg = generar_alerta(precios_actuales, precio_anterior_hbd, user_id)
 
-                        if alerta_msg:
-                            # 5. Si hay alerta, la marcamos y guardamos el log
-                            trigger_detected = True
-                            if not log_msg_to_send:
-                                log_msg_to_send = log_msg
-                            # 6. Crear el botón (también traducido)
-                            button_text = _("🔕 Desactivar estas alertas", user_id)
-                            keyboard = [[
-                                InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
-                            ]]
-                            reply_markup = InlineKeyboardMarkup(keyboard)
-                            # 7. Enviar el mensaje individualmente (usando la función de envío)
-                            await _enviar_mensaje_telegram_async_ref(
-                                alerta_msg, 
-                                [user_id_str], # Enviamos solo a este ID
-                                reply_markup=reply_markup
-                            )
-                    # 8. Registrar el log SÓLO UNA VEZ después de que el bucle termine
-                    if trigger_detected and log_msg_to_send:
-                        add_log_line(log_msg_to_send)
+                            if alerta_msg:
+                                trigger_detected = True
+                                if not log_msg_to_send:
+                                    log_msg_to_send = log_msg
+                                
+                                button_text = _("🔕 Desactivar estas alertas", user_id)
+                                keyboard = [[
+                                    InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
+                                ]]
+                                reply_markup = InlineKeyboardMarkup(keyboard)
+                                
+                                await _enviar_mensaje_telegram_async_ref(
+                                    alerta_msg, 
+                                    [user_id_str], 
+                                    reply_markup=reply_markup
+                                )
+                        
+                        if trigger_detected and log_msg_to_send:
+                            add_log_line(log_msg_to_send)
                         
             else:
-                add_log_line("❌ Falló la obtención o validación del precio de HBD.")
+                add_log_line("❌ Falló la obtención o validación del precio de HBD (o API agotada).")
 
         except Exception as e:
             add_log_line(f"Error crítico en alerta_loop: {e}")
 
-        await asyncio.sleep(INTERVALO_ALERTA)
+        # 2. SEGURIDAD: Asegurar que el intervalo sea al menos 60 segundos
+        tiempo_espera = INTERVALO_ALERTA
+        if not isinstance(tiempo_espera, (int, float)) or tiempo_espera < 60:
+            add_log_line(f"⚠️ ADVERTENCIA: INTERVALO_ALERTA es demasiado bajo ({tiempo_espera}). Forzando a 300s.")
+            tiempo_espera = 300
+
+        await asyncio.sleep(tiempo_espera)
 
 # === Función de callback para JobQueue de usuarios ===
 async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):

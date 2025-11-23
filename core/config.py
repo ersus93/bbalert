@@ -33,5 +33,5 @@ PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---
 LOG_MAX = 45
 LOG_LINES = []
-INTERVALO_ALERTA = 300  # 5 minutos (¡Ajusta si prefieres 5 min!)
-INTERVALO_CONTROL = 600 # 10 minutos
+INTERVALO_ALERTA = 300
+INTERVALO_CONTROL = 600

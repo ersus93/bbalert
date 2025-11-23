@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
 "POT-Creation-Date: 2025-11-16 14:05-0500\n"
-"PO-Revision-Date: 2025-11-16 14:14-0500\n"
+"PO-Revision-Date: 2025-11-19 22:10-0500\n"
 "Last-Translator: \n"
 "Language-Team: pt <LL@li.org>\n"
 "Language: pt\n"
@@ -451,11 +451,11 @@ msgstr "⚠️ O preço que inseriu não é válido. Deve ser um número positiv
 #: handlers/alerts.py:98
 #, python-brace-format
 msgid ""
-"✅ ¡Alertas creadas! Te avisaré cuando *{coin}* cruce por encima o por debajo "
-"de *${target_price:,.4f}*."
+"✅ ¡Alertas creadas! Te avisaré cuando *{coin}* cruce por encima o por debajo de "
+"*${target_price:,.4f}*."
 msgstr ""
-"✅ Alertas criadas! Iremos notificá-lo quando *{coin}* cruzar acima ou abaixo "
-"de *${target_price:,.4f}*."
+"✅ Alertas criadas! Iremos notificá-lo quando *{coin}* cruzar acima ou abaixo de "
+"*${target_price:,.4f}*."
 
 #: handlers/alerts.py:110
 #, python-brace-format
@@ -467,8 +467,7 @@ msgstr ""
 "📊 Preço atual: `{initial_price:,.4f}`"
 
 #: handlers/alerts.py:131
-msgid ""
-"No tienes ninguna alerta de precio activa. Crea una con el comando /alerta."
+msgid "No tienes ninguna alerta de precio activa. Crea una con el comando /alerta."
 msgstr "Não possui nenhum alerta de preço ativo. Crie um com o comando /alerta."
 
 #: handlers/alerts.py:139 handlers/alerts.py:190
@@ -584,8 +583,7 @@ msgid ""
 "  • `/graf <MONEDA> [PAR] <TIEMPO>`: Genera un gráfico (ej. `/graf BTC 1h` o `/"
 "graf HIVE USDT 15m`).\n"
 "  • `/tasa`: Muestra las tasas de cambio de ElToque (para CUP).\n"
-"  • `/ver`: Muestra la última lectura de precios del bot (BTC, HIVE, HBD, "
-"TON).\n"
+"  • `/ver`: Muestra la última lectura de precios del bot (BTC, HIVE, HBD, TON).\n"
 "\n"
 "⚙️ *Configuración y Varios*\n"
 "  • `/hbdalerts`: Activa o desactiva las alertas predefinidas de HBD.\n"
@@ -839,8 +837,7 @@ msgstr ""
 
 #: handlers/user_settings.py:148
 msgid "❌ No se pudo guardar tu configuración. ¿Estás registrado con /start?"
-msgstr ""
-"❌ Não foi possível guardar a sua configuração. Está registado com /start?"
+msgstr "❌ Não foi possível guardar a sua configuração. Está registado com /start?"
 
 #: handlers/user_settings.py:157
 #, python-brace-format
