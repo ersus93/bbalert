@@ -13,6 +13,18 @@ This is a **Telegram bot** designed for **monitoring cryptocurrency prices** (li
   * **Price History:** Persistent storage of price history in the `data/` folder.
 
 -----
+---
+config:
+  layout: elk
+---
+flowchart TB
+    A[/"home/ersu/bbalert"/] --> B["data/"] & C["core/"] & D["handlers/"] & E["utils/"] & F["bbalert.py"] & G["apit.env"] & H["requirements.txt"]
+    B --> B1["users.json"] & B2["eltoque_history.json"] & B3["custom_alert_history.json"] & B4["price_alerts.json"] & B5["hbd_price_history.json"]
+    C --> C1["__init__.py"] & C2["config.py"] & C3["api_client.py"] & C4["i18n.py"] & C5["loops.py"]
+    D --> D1["__init__.py"] & D2["admin.py"] & D3["alerts.py"] & D4["general.py"] & D5["user_settings.py"] & D6["trading.py"]
+    E --> E1["__init__.py"] & E2["file_manager.py"]
+    
+-----
 
 ## ⌨️ Commands
 
