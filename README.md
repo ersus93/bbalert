@@ -13,6 +13,8 @@ This is a **Telegram bot** designed for **monitoring cryptocurrency prices** (li
   * **Price History:** Persistent storage of price history in the `data/` folder.
 
 -----
+Proyect 
+
 ![alt text](<Untitled diagram-2025-11-23-184058.png>)
 
 -----
