@@ -13,17 +13,14 @@ def obtener_tasas_eltoque():
     """
     Obtiene las tasas de cambio más recientes de la API de eltoque.com.
     """
-    
-    # ¡IMPORTANTE! Revisa la URL correcta en la documentación de ElToque.
-    # Esta es una URL de ejemplo.
+
     URL_API_ELTOQUE = "https://tasas.eltoque.com/v1/trmi" 
     
     if not ELTOQUE_API_KEY:
         print("❌ Error: La variable ELTOQUE_API_KEY no está configurada en config.py.")
         return None
 
-    # Revisa la documentación de ElToque para ver cómo quieren la autenticación.
-    # Usualmente es un "Bearer token" o una clave en el header.
+
     headers = {
         "Authorization": f"Bearer {ELTOQUE_API_KEY}",
         "Accept": "application/json"
@@ -35,14 +32,7 @@ def obtener_tasas_eltoque():
         response.raise_for_status() 
         
         data = response.json()
-        
-        # --- AJUSTA ESTO ---
-        # Debes explorar la respuesta JSON de ElToque.
-        # Por ejemplo, si la API devuelve:
-        # { "tasas": { "USD": { "venta": 120, "compra": 118 }, ... } }
-        # entonces deberías retornar data.get("tasas", {})
-        
-        # Por ahora, devolveremos los datos crudos para procesar en el handler
+
         return data 
         
     except requests.exceptions.RequestException as e:
