@@ -23,7 +23,7 @@ def inicializar_archivos():
 
 
 
-MAX_HISTORY_ENTRIES = 500 # Limita el archivo para que no crezca indefinidamente
+MAX_HISTORY_ENTRIES = 2 # Limita el archivo para que no crezca indefinidamente
 
 def load_hbd_history():
     """Carga el historial de precios desde el archivo JSON."""

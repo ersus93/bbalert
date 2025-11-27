@@ -1,32 +1,31 @@
 # handlers/general.py 
 
 import asyncio
-import os
-import uuid
-import openpyxl 
 from datetime import datetime
 from telegram import Update
 from telegram.constants import ParseMode
-from telegram.ext import ConversationHandler, ContextTypes
-from utils.file_manager import load_hbd_history, registrar_usuario
-from core.config import ADMIN_CHAT_IDS # <--- IMPORTACIÓN AÑADIDA
+from telegram.ext import ContextTypes
+from utils.file_manager import (
+    registrar_usuario, 
+    obtener_monedas_usuario, 
+    load_last_prices_status
+)
+from core.api_client import obtener_precios_control
+from core.config import ADMIN_CHAT_IDS
 from core.i18n import _
 
-#  Telegram comando /satart 
-
+#  Telegram comando /start 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /start. Registra al usuario."""
 
-    user = update.effective_user # Obtén el objeto de usuario completo
-    user_id = user.id # Obtener el chat_id
-    user_lang = user.language_code # Obtener el idioma del cliente (ej. 'en', 'es')
+    user = update.effective_user
+    user_id = user.id
+    user_lang = user.language_code
     
-    # Pasa el idioma del usuario al registrarlo
-    registrar_usuario(user_id, user_lang) # <--- ÚNICA LLAMADA (Correcta)
+    registrar_usuario(user_id, user_lang)
     
     nombre_usuario = update.effective_user.first_name
-    
-    # ENVUELVE TODO EL MENSAJE CON _() y usa el chat_id
+
     mensaje = _(
     "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n\n"
     "Para recibir alertas periódicas con los precios de tu lista de monedas, "
@@ -35,56 +34,79 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
     "Puedes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
     "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n"
-    "Usa /help para ver todos los comandos disponibles.", # <-- Pequeña adición
-    user_id # <-- PASA EL chat_id
-).format(nombre_usuario=nombre_usuario) 
+    "Usa /help para ver todos los comandos disponibles.",
+    user_id
+    ).format(nombre_usuario=nombre_usuario) 
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
-# COMANDO /ver para ver la última lectura de precios
-from utils.file_manager import load_hbd_history # Nueva importación
-
+# COMANDO /ver REFACTORIZADO
 async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra la última lectura de precios desde el historial JSON."""
-    history = load_hbd_history()
-    user_id = update.effective_user.id # <-- Obtener chat_id
-
-    if not history:
-        # --- MENSAJE ENVUELTO ---
-        await update.message.reply_text(_("⚠️ No hay registros de precios aún.", user_id))
+    """
+    Muestra los precios actuales de la lista de monedas del usuario.
+    No afecta al cronómetro de la alerta periódica.
+    """
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    # 1. Obtener las monedas configuradas por el usuario
+    monedas = obtener_monedas_usuario(chat_id)
+    
+    if not monedas:
+        await update.message.reply_text(
+            _("⚠️ No tienes monedas configuradas. Usa /monedas para añadir algunas.", user_id),
+            parse_mode=ParseMode.MARKDOWN
+        )
         return
 
-    # El último registro es el más reciente
-    ultimo_registro = history[-1]
+    # 2. Notificar que estamos cargando (ya que la API puede tardar un segundo)
+    mensaje_espera = await update.message.reply_text(_("⏳ Consultando precios actuales...", user_id))
+
+    # 3. Obtener precios en tiempo real
+    precios_actuales = obtener_precios_control(monedas)
     
-    fecha_str = ultimo_registro.get('timestamp', 'N/A')
-    btc = ultimo_registro.get('btc', 0)
-    hive = ultimo_registro.get('hive', 0)
-    hbd = ultimo_registro.get('hbd', 0)
-    ton = ultimo_registro.get('ton', 0)
+    if not precios_actuales:
+        await mensaje_espera.edit_text(
+            _("❌ No se pudieron obtener los precios en este momento. Intenta luego.", user_id)
+        )
+        return
 
-    mensaje_template = _(
-        """📊 *Última lectura (máx. 5 min atrás):*
+    # 4. Cargar precios anteriores (SOLO LECTURA) para mostrar tendencias
+    # No guardamos nada aquí para no romper la lógica de "cambio desde la última alerta".
+    todos_precios_anteriores = load_last_prices_status()
+    precios_anteriores_usuario = todos_precios_anteriores.get(str(chat_id), {})
 
-🟠 *BTC/USD*: ${btc_val:,.2f}
-🔷 *TON/USD*: ${ton_val:,.4f}
-🐝 *HIVE/USD*: ${hive_val:,.4f}
-💰 *HBD/USD*: ${hbd_val:,.4f}
-
-_Actualizado: {fecha}_""",
-        user_id # Pasar el chat_id para obtener la traducción
-    )
+    # 5. Construir el mensaje
+    mensaje = _("📊 *Precios Actuales (Tu Lista):*\n\n", user_id)
     
-    # Rellenar la plantilla con los valores reales
-    mensaje = mensaje_template.format(
-        btc_val=btc,
-        ton_val=ton,
-        hive_val=hive,
-        hbd_val=hbd,
-        fecha=fecha_str
-    )
+    TOLERANCIA = 0.0000001
+    
+    for moneda in monedas:
+        p_actual = precios_actuales.get(moneda)
+        p_anterior = precios_anteriores_usuario.get(moneda)
+        
+        if p_actual is not None:
+            # Calcular indicador visual
+            indicador = ""
+            if p_anterior:
+                if p_actual > p_anterior + TOLERANCIA:
+                    indicador = " 🔺"
+                elif p_actual < p_anterior - TOLERANCIA:
+                    indicador = " 🔻"
+                else:
+                    indicador = " ▫️"
+            
+            mensaje += f"*{moneda}/USD*: ${p_actual:,.4f}{indicador}\n"
+        else:
+             mensaje += f"*{moneda}/USD*: N/A\n"
 
-    await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+    # Añadir fecha
+    fecha_actual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    mensaje += f"\n_📅 Consulta: {fecha_actual}_"
+
+    # 6. Editar el mensaje de espera con el resultado final
+    await mensaje_espera.edit_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+
 # ============================================================
 
 # COMANDO /myid para ver datos del usuario
@@ -92,22 +114,20 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Comando /myid. Muestra el ID de chat del usuario."""
     user_id = update.effective_user.id
     user = update.effective_user
-    
-    # 1. Preparacion de las variables
+
     nombre_completo = user.first_name or 'N/A'
     username_str = f"@{user.username}" if user.username else 'N/A'
 
-    # 2. Traduce la plantilla de mensaje, usando marcadores de posición.
-    #    NOTA: La plantilla debe ser una sola cadena literal (sin f-string dentro de _()).
+
     mensaje_template = _(
         "Estos son tus datos de Telegram:\n\n"
         "Nombre: {nombre}\n"
         "Usuario: {usuario}\n"
         "ID: `{id_chat}`",
-        user_id # <-- PASAR EL CHAT_ID
+        user_id 
     )
 
-    # 3. Formatea el resultado de la traducción con los valores de las variables
+
     mensaje = mensaje_template.format(
         nombre=nombre_completo,
         usuario=username_str,
@@ -115,16 +135,16 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
-# ============================================================
 
 
-# === NUEVO COMANDO /help ===
+
+# === COMANDO /help ===
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el menú de ayuda con todos los comandos."""
     user_id = update.effective_user.id
     chat_id_str = str(user_id)
 
-    # --- Plantilla de Ayuda General ---
+
     help_text_template = _(
         "👋 ¡Hola! Aquí tienes la lista de comandos disponibles:\n\n"
         "📊 *Alertas Periódicas (Tu Lista)*\n"
@@ -139,7 +159,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "  • `/p <MONEDA>`: Muestra el precio detallado de una moneda (ej. `/p HIVE`).\n"
         "  • `/graf <MONEDA> [PAR] <TIEMPO>`: Genera un gráfico (ej. `/graf BTC 1h` o `/graf HIVE USDT 15m`).\n"
         "  • `/tasa`: Muestra las tasas de cambio de ElToque (para CUP).\n"
-        "  • `/ver`: Muestra la última lectura de precios del bot (BTC, HIVE, HBD, TON).\n\n"
+        "  • `/ver`: Consulta al instante los precios de tu lista de monedas sin afectar tu alerta periódica.\n\n"
         "⚙️ *Configuración y Varios*\n"
         "  • `/hbdalerts`: Activa o desactiva las alertas predefinidas de HBD.\n"
         "  • `/lang`: Cambia el idioma del bot.\n"
@@ -149,7 +169,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         , user_id
     )
 
-    # --- Plantilla de Ayuda para Admins ---
+
     admin_help_text_template = _(
         "\n\n"
         "🔑 *Comandos de Administrador*\n"
@@ -159,10 +179,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         , user_id
     )
 
-    # Combinar mensajes si es admin
+
     message = help_text_template
     if chat_id_str in ADMIN_CHAT_IDS:
         message += admin_help_text_template
 
     await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
-# ============================================================
