@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-11-16 14:05-0500\n"
-"PO-Revision-Date: 2025-11-16 14:12-0500\n"
+"POT-Creation-Date: 2025-11-26 21:18-0500\n"
+"PO-Revision-Date: 2025-11-26 21:27-0500\n"
 "Last-Translator: \n"
 "Language-Team: en <LL@li.org>\n"
 "Language: en\n"
@@ -160,7 +160,7 @@ msgstr "🚨 *HBD dropped below $0.95.*"
 msgid "🚨 Alerta: 😣 HBD cayó por debajo de $0.95"
 msgstr "🚨 Alert: 😣 HBD dropped below $0.95"
 
-#: core/loops.py:132
+#: core/loops.py:133
 #, python-brace-format
 msgid ""
 "📈 ¡Alerta de Precio! 📈\n"
@@ -175,7 +175,7 @@ msgstr ""
 "\n"
 "Current price: *${current_price:,.4f}*"
 
-#: core/loops.py:146
+#: core/loops.py:147
 #, python-brace-format
 msgid ""
 "📉 ¡Alerta de Precio! 📉\n"
@@ -190,15 +190,15 @@ msgstr ""
 "\n"
 "Current price: *${current_price:,.4f}*"
 
-#: core/loops.py:159
+#: core/loops.py:160
 msgid "🗑️ Borrar esta alerta"
 msgstr "🗑️ Delete this alert"
 
-#: core/loops.py:215 handlers/user_settings.py:304
+#: core/loops.py:213 handlers/user_settings.py:305
 msgid "🔕 Desactivar estas alertas"
 msgstr "🔕 Mute these alerts"
 
-#: core/loops.py:265
+#: core/loops.py:269
 #, python-brace-format
 msgid ""
 "📊 *Alerta de tus monedas ({intervalo_h}h):*\n"
@@ -207,7 +207,7 @@ msgstr ""
 "📊 *Your {intervalo_h}h Coin Alert:*\n"
 "\n"
 
-#: core/loops.py:282
+#: core/loops.py:287
 #, python-brace-format
 msgid ""
 "\n"
@@ -604,8 +604,8 @@ msgstr ""
 "\n"
 "📈 *Query Commands*\n"
 "  • `/p <MONEDA>`: Shows the detailed price of a coin (e.g., `/p HIVE`).\n"
-"  • `/graf <MONEDA> [PAR] <TIEMPO>`: Generates a chart (e.g., `/graf BTC 1h` or "
-"`/graf HIVE USDT 15m`).\n"
+"  • `/graf <MONEDA> [PAR] <TIEMPO>`: Generates a chart (e.g., `/graf BTC 1h` or `/"
+"graf HIVE USDT 15m`).\n"
 "  • `/tasa`: Shows the ElToque exchange rates (for CUP).\n"
 "  • `/ver`: Shows the bot's last price reading (BTC, HIVE, HBD, TON).\n"
 "\n"
@@ -632,7 +632,7 @@ msgstr ""
 "  • `/logs [N]`: Shows the last N lines of the bot's log.\n"
 "  • `/ms`: Starts the assistant to send a broadcast message to all users.\n"
 
-#: handlers/trading.py:70
+#: handlers/trading.py:67
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -648,7 +648,7 @@ msgstr ""
 "`/graf BTC 15m`\n"
 "`/graf BTC USDT 1h`"
 
-#: handlers/trading.py:98
+#: handlers/trading.py:95
 msgid ""
 "⚠️ *Temporalidad no válida*.\n"
 "\n"
@@ -658,12 +658,12 @@ msgstr ""
 "\n"
 "Use: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 
-#: handlers/trading.py:112
+#: handlers/trading.py:109
 #, python-brace-format
 msgid "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})..."
 msgstr "⏳ Generating chart for *{base}/{quote}* ({temporalidad})..."
 
-#: handlers/trading.py:124
+#: handlers/trading.py:121
 #, python-brace-format
 msgid ""
 "📈 *Gráfico de {base}/{quote} ({temporalidad})*\n"
@@ -674,15 +674,15 @@ msgstr ""
 "\n"
 "[View on TradingView]({url})"
 
-#: handlers/trading.py:136
+#: handlers/trading.py:133
 msgid ""
 "❌ Lo siento, no pude generar la captura del gráfico en este momento. Inténtalo "
 "de nuevo más tarde."
 msgstr ""
-"❌ Sorry, I couldn't generate the chart screenshot at this time. Please try "
-"again later."
+"❌ Sorry, I couldn't generate the chart screenshot at this time. Please try again "
+"later."
 
-#: handlers/trading.py:158
+#: handlers/trading.py:151
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -694,55 +694,57 @@ msgstr ""
 "Usage: `/p <COIN>`\n"
 "Example: `/p BTC`"
 
-#: handlers/trading.py:173
+#: handlers/trading.py:166
 #, python-brace-format
 msgid "😕 No se pudieron obtener los datos para *{moneda}*."
 msgstr "😕 Couldn't fetch data for *{moneda}*."
 
-#: handlers/trading.py:190
+#: handlers/trading.py:183
 msgid "Ξ:"
 msgstr "Ξ:"
 
-#: handlers/trading.py:191
+#: handlers/trading.py:184
 msgid "₿:"
 msgstr "₿:"
 
-#: handlers/trading.py:193
+#: handlers/trading.py:185
 msgid "Cap:"
 msgstr "Cap:"
 
-#: handlers/trading.py:194
+#: handlers/trading.py:186
 msgid "Vol:"
 msgstr "Vol:"
 
-#: handlers/trading.py:210
+#: handlers/trading.py:200
 #, python-brace-format
 msgid "🔄 Actualizar /p {symbol}"
 msgstr "🔄 Refresh /p {symbol}"
 
-#: handlers/trading.py:244
-msgid ""
-"❌ *FALLO TOTAL*\n"
-"\n"
-"La API de ElToque no devolvió ningún dato (`None`).\n"
-"\n"
-"**Causas probables:**\n"
-"1. La `ELTOQUE_API_KEY` en tu archivo `apit.env` es incorrecta o está vacía.\n"
-"2. La API de ElToque está caída o bloqueó tu solicitud."
-msgstr ""
-"❌ *TOTAL FAILURE* The ElToque API did not return any data (`None`). **Possible "
-"causes:** 1. The `ELTOQUE_API_KEY` in your `apit.env` file is incorrect or "
-"empty. 2. The ElToque API is down or blocked your request."
+#: handlers/trading.py:234
+msgid "⏳ Estamos conectando con elToque..."
+msgstr "⏳ We are connecting with elToque..."
 
-#: handlers/trading.py:262
+#: handlers/trading.py:253
 msgid ""
-"😕 Se obtuvieron datos de ElToque, pero no se encontró el diccionario 'tasas' "
-"esperado."
+"⚠️ *Error de Conexión*\n"
+"\n"
+"No pudimos conectar con elToque en este momento.\n"
+"Posiblemente su servidor esté saturado o caído.\n"
+"\n"
+"👮‍♂️ _Los administradores han sido notificados._"
 msgstr ""
-"😕 Data was obtained from ElToque, but the expected 'rates' dictionary was not "
-"found."
+"⚠️ *Connection Error* \n"
+"\n"
+"We were unable to connect to elToque at this time.\n"
+" Their server may be overloaded or down. \n"
+"\n"
+"👮‍♂️ _The administrators have been notified._"
 
-#: handlers/trading.py:275
+#: handlers/trading.py:298
+msgid "😕 Error de formato en datos de ElToque."
+msgstr "😕 Formatting error in ElToque data."
+
+#: handlers/trading.py:306
 msgid ""
 "🏦 *Tasas de Cambio*\n"
 "\n"
@@ -750,19 +752,19 @@ msgstr ""
 "🏦 *Exchange Rates* \n"
 "\n"
 
-#: handlers/trading.py:325
+#: handlers/trading.py:348
 msgid "Actualizado:"
 msgstr "Updated:"
 
-#: handlers/trading.py:326
+#: handlers/trading.py:349
 msgid "Fuente: elTOQUE.com"
 msgstr "Source: elTOQUE.com"
 
-#: handlers/trading.py:337
-msgid "❌ Ocurrió un error inesperado procesando los datos de ElToque."
-msgstr "❌ An unexpected error occurred while processing data from ElToque."
+#: handlers/trading.py:359
+msgid "❌ Ocurrió un error inesperado procesando los datos."
+msgstr "❌ An unexpected error occurred while processing the data."
 
-#: handlers/user_settings.py:59
+#: handlers/user_settings.py:60
 #, python-brace-format
 msgid ""
 "✅ ¡Lista de monedas actualizada!\n"
@@ -777,14 +779,14 @@ msgstr ""
 "You can change this list at any time by sending a new list of comma-separated "
 "symbols."
 
-#: handlers/user_settings.py:68
+#: handlers/user_settings.py:69
 msgid ""
-"⚠️ Por favor, envía una lista de símbolos de monedas separados por comas. "
-"Ejemplo: `BTC, ETH, HIVE`"
+"⚠️ Por favor, envía una lista de símbolos de monedas separados por comas. Ejemplo: "
+"`BTC, ETH, HIVE`"
 msgstr ""
 "⚠️ Please send a list of comma-separated coin symbols. Example: `BTC, ETH, HIVE`"
 
-#: handlers/user_settings.py:84
+#: handlers/user_settings.py:85
 #, python-brace-format
 msgid ""
 "✅ Listo! recibirás alertas para las siguientes monedas:\n"
@@ -793,11 +795,11 @@ msgstr ""
 "✅ All set! You'll receive alerts for the following coins:\n"
 "`{monedas_str}`."
 
-#: handlers/user_settings.py:91
+#: handlers/user_settings.py:92
 msgid "⚠️ No tienes monedas configuradas para la alerta de tempralidad."
 msgstr "⚠️ You don't have any coins configured for the periodic alert."
 
-#: handlers/user_settings.py:104
+#: handlers/user_settings.py:105
 msgid ""
 "🛑 Alertas detenidas. Ya no recibirás mensajes cada hora (a menos que vuelvas a "
 "configurar tu lista o ajustes la temporalidad)."
@@ -805,7 +807,7 @@ msgstr ""
 "🛑 Alerts stopped. You will no longer receive periodic messages (unless you "
 "reconfigure your list or adjust the interval)."
 
-#: handlers/user_settings.py:125
+#: handlers/user_settings.py:126
 #, python-brace-format
 msgid ""
 "⚙️ *Configuración de Temporalidad*\n"
@@ -820,18 +822,18 @@ msgstr ""
 "To change it, send the command with the desired hours (from 0.5h to 24.0h).\n"
 "Example: `/temp 2.5` (for 2 hours and 30 minutes)."
 
-#: handlers/user_settings.py:141
+#: handlers/user_settings.py:142
 msgid ""
 "⚠️ El valor debe ser un número entre *0.5* (30min) y *24.0* horas. Ejemplo: `2.5`"
 msgstr ""
 "⚠️ The value must be a number between *0.5* (30min) and *24.0* hours. Example: "
 "`2.5`"
 
-#: handlers/user_settings.py:148
+#: handlers/user_settings.py:149
 msgid "❌ No se pudo guardar tu configuración. ¿Estás registrado con /start?"
 msgstr "❌ Couldn't save your settings. Have you registered using /start?"
 
-#: handlers/user_settings.py:157
+#: handlers/user_settings.py:158
 #, python-brace-format
 msgid ""
 "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
@@ -841,7 +843,7 @@ msgstr ""
 "✅ Alert interval updated to *{interval_h} hours*!\n"
 "The coin alert has been *rescheduled* to run every {interval_h} hours."
 
-#: handlers/user_settings.py:165
+#: handlers/user_settings.py:166
 #, python-brace-format
 msgid ""
 "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
@@ -850,21 +852,21 @@ msgstr ""
 "✅ Alert interval updated to *{interval_h} hours*!\n"
 "⚠️ But there was an error rescheduling the alert. Try sending /temp again."
 
-#: handlers/user_settings.py:175
+#: handlers/user_settings.py:176
 msgid ""
 "⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo 0.5)(máximo "
 "24.0)."
 msgstr "⚠️ Invalid time format. Use a number like `2` or `2.5` (min 0.5, max 24.0)."
 
-#: handlers/user_settings.py:179
+#: handlers/user_settings.py:180
 msgid "⚠️ Debes especificar el número de horas. Ejemplo: `/temp 2.5`"
 msgstr "⚠️ You must specify the number of hours. Example: `/temp 2.5`"
 
-#: handlers/user_settings.py:193
+#: handlers/user_settings.py:194
 msgid "ninguna"
 msgstr "none"
 
-#: handlers/user_settings.py:197
+#: handlers/user_settings.py:198
 #, python-brace-format
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
@@ -884,11 +886,11 @@ msgstr ""
 "\n"
 "Your current list is: {lista_str}"
 
-#: handlers/user_settings.py:215
+#: handlers/user_settings.py:216
 msgid "⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo."
 msgstr "⚠️ I couldn't find any coins in your message. Please try again."
 
-#: handlers/user_settings.py:228
+#: handlers/user_settings.py:229
 msgid ""
 "✅ *Tu lista de monedas ha sido guardada.*\n"
 "\n"
@@ -898,46 +900,46 @@ msgstr ""
 "\n"
 "Current prices:\n"
 
-#: handlers/user_settings.py:232
+#: handlers/user_settings.py:233
 msgid "No encontrado"
 msgstr "Not found"
 
-#: handlers/user_settings.py:242
+#: handlers/user_settings.py:243
 msgid ""
 "✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en "
 "este momento."
 msgstr ""
 "✅ *Your coin list has been saved*, but I couldn't fetch the prices right now."
 
-#: handlers/user_settings.py:259
+#: handlers/user_settings.py:260
 msgid "✅ Tus alertas predefinidas de HBD están *ACTIVADAS*."
 msgstr "✅ Your predefined HBD alerts are *ON*."
 
-#: handlers/user_settings.py:264
+#: handlers/user_settings.py:265
 msgid "🔕 Desactivar alertas"
 msgstr "🔕 Turn off alerts"
 
-#: handlers/user_settings.py:270
+#: handlers/user_settings.py:271
 msgid "☑️ Tus alertas predefinidas de HBD están *DESACTIVADAS*."
 msgstr "☑️ Your predefined HBD alerts are *OFF*."
 
-#: handlers/user_settings.py:275
+#: handlers/user_settings.py:276
 msgid "🔔 Activar alertas"
 msgstr "🔔 Turn on alerts"
 
-#: handlers/user_settings.py:299
+#: handlers/user_settings.py:300
 msgid "✅ ¡Alertas de HBD *activadas*! Volverás a recibir notificaciones."
 msgstr "✅ HBD alerts *enabled*! You'll start receiving notifications again."
 
-#: handlers/user_settings.py:310
+#: handlers/user_settings.py:311
 msgid "☑️ Alertas de HBD *desactivadas*. Ya no recibirás estos mensajes."
 msgstr "☑️ HBD alerts *disabled*. You will no longer receive these messages."
 
-#: handlers/user_settings.py:315
+#: handlers/user_settings.py:316
 msgid "🔔 Activar alertas de HBD"
 msgstr "🔔 Turn on HBD alerts"
 
-#: handlers/user_settings.py:337
+#: handlers/user_settings.py:338
 #, python-brace-format
 msgid ""
 "🌐 *Selecciona tu idioma:*\n"
@@ -948,7 +950,7 @@ msgstr ""
 "\n"
 "The current language is: {current_lang_name}"
 
-#: handlers/user_settings.py:367
+#: handlers/user_settings.py:368
 #, python-brace-format
 msgid ""
 "✅ ¡Idioma cambiado a **{new_lang_name}**!\n"
@@ -957,7 +959,7 @@ msgstr ""
 "✅ Language changed to **{new_lang_name}**!\n"
 "Use the /lang command if you want to change it again."
 
-#: handlers/user_settings.py:377
+#: handlers/user_settings.py:378
 msgid "⚠️ Idioma no soportado."
 msgstr "⚠️ Language not supported."
 
@@ -970,3 +972,23 @@ msgstr "⚠️ Language not supported."
 
 #~ msgid "H|L:"
 #~ msgstr "H|L:"
+
+#~ msgid ""
+#~ "❌ *FALLO TOTAL*\n"
+#~ "\n"
+#~ "La API de ElToque no devolvió ningún dato (`None`).\n"
+#~ "\n"
+#~ "**Causas probables:**\n"
+#~ "1. La `ELTOQUE_API_KEY` en tu archivo `apit.env` es incorrecta o está vacía.\n"
+#~ "2. La API de ElToque está caída o bloqueó tu solicitud."
+#~ msgstr ""
+#~ "❌ *TOTAL FAILURE* The ElToque API did not return any data (`None`). "
+#~ "**Possible causes:** 1. The `ELTOQUE_API_KEY` in your `apit.env` file is "
+#~ "incorrect or empty. 2. The ElToque API is down or blocked your request."
+
+#~ msgid ""
+#~ "😕 Se obtuvieron datos de ElToque, pero no se encontró el diccionario 'tasas' "
+#~ "esperado."
+#~ msgstr ""
+#~ "😕 Data was obtained from ElToque, but the expected 'rates' dictionary was not "
+#~ "found."

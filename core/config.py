@@ -25,9 +25,10 @@ PRICE_ALERTS_PATH = os.path.join(DATA_DIR, "price_alerts.json")
 HBD_HISTORY_PATH = os.path.join(DATA_DIR, "hbd_price_history.json")
 CUSTOM_ALERT_HISTORY_PATH = os.path.join(DATA_DIR, "custom_alert_history.json")
 ELTOQUE_HISTORY_PATH = os.path.join(DATA_DIR, "eltoque_history.json")
+LAST_PRICES_PATH = os.path.join(DATA_DIR, "last_prices.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.006-beta"
+VERSION = "0.1.008-beta"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---

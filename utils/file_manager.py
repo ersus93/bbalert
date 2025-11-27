@@ -6,7 +6,7 @@ from datetime import datetime
 import time 
 import uuid # Para generar IDs únicos si es necesario
 import openpyxl
-from core.config import USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH
+from core.config import USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH, LAST_PRICES_PATH
 
 
 # === Inicialización de Archivos ===
@@ -89,6 +89,26 @@ def add_log_line(linea):
     # Añadido: Imprimir a la consola para depuración
     print(LOG_LINES[-1]) 
 
+
+# === Funciones para Historial de Precios por Usuario (Persistencia) ===
+def load_last_prices_status():
+    """Carga el diccionario de últimos precios enviados a cada usuario."""
+    if not os.path.exists(LAST_PRICES_PATH):
+        return {}
+    try:
+        with open(LAST_PRICES_PATH, "r", encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        add_log_line("⚠️ Error cargando last_prices.json. Se inicia vacío.")
+        return {}
+
+def save_last_prices_status(data: dict):
+    """Guarda el diccionario de últimos precios."""
+    try:
+        with open(LAST_PRICES_PATH, "w", encoding='utf-8') as f:
+            json.dump(data, f, indent=4)
+    except Exception as e:
+        add_log_line(f"❌ Error guardando last_prices.json: {e}")
 
 # === Funciones para manejar el historial de alertas personalizadas ===
 def cargar_custom_alert_history():

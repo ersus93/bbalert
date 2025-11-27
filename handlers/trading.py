@@ -7,7 +7,7 @@ from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from core.config import SCREENSHOT_API_KEY # Importamos nuestra nueva API Key
+from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS # <--- IMPORTANTE: AÑADIDO ADMIN_CHAT_IDS
 from core.api_client import obtener_datos_moneda, obtener_tasas_eltoque
 from utils.file_manager import add_log_line, load_eltoque_history, save_eltoque_history
 from core.i18n import _
@@ -59,9 +59,6 @@ async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Genera una captura de pantalla de un gráfico de TradingView.
     Uso: /graf <MONEDA> [MONEDA_PAR] <TEMPORALIDAD>
-    Ejemplos:
-        /graf BTC 1h
-        /graf BTC USDT 1h
     """
     user_id = update.effective_user.id
 
@@ -146,12 +143,8 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Muestra el precio y otros datos de una criptomoneda.
     Uso: /p <MONEDA>
-    Ejemplo: /p BTC
     """
     user_id = update.effective_user.id
-    
-    
-    from core.api_client import obtener_datos_moneda
     
     if not context.args:
         mensaje_error_formato = _(
@@ -189,7 +182,6 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     etiqueta_eth = _("Ξ:", user_id)
     etiqueta_btc = _("₿:", user_id)
-    # etiqueta_hl = _("H|L:", user_id)
     etiqueta_cap = _("Cap:", user_id)
     etiqueta_vol = _("Vol:", user_id)
 
@@ -198,7 +190,6 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"${datos['price']:,.4f}\n"
         f"{etiqueta_eth} {datos['price_eth']:.8f}\n"
         f"{etiqueta_btc} {datos['price_btc']:.8f}\n"
-        # f"{etiqueta_hl} {datos['high_24h']:,.4f}|{datos['low_24h']:,.4f}\n"
         f"1h {format_change(datos['percent_change_1h'])}\n"
         f"24h {format_change(datos['percent_change_24h'])}\n"
         f"7d {format_change(datos['percent_change_7d'])}\n"
@@ -206,9 +197,7 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{etiqueta_vol} ${datos['volume_24h']:,.0f}\n"
     )
 
-    # 🔘 Botón para relanzar el comando
     button_text_template = _("🔄 Actualizar /p {symbol}", user_id)
-    
     button_text = button_text_template.format(symbol=datos['symbol'])
 
     keyboard = InlineKeyboardMarkup([
@@ -227,101 +216,135 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
     await p_command(update, context)
 
 
-# Nuevo comando para mostrar tasas de ElToque
+# Nuevo comando para mostrar tasas de ElToque con Lógica de Reintento
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Muestra las tasas de cambio de eltoque.com.
-    Comando: /tasa
+    Maneja reintentos si la API está saturada.
     """
     user_id = update.effective_user.id
-
-    # 1. Llamar a la API
+    
+    # 1. Primer intento de llamada a la API
     tasas_data = obtener_tasas_eltoque()
+    mensaje_espera = None # Variable para guardar el mensaje temporal
 
-    # 2. Manejar si la API falla
+    # 2. ### NUEVO: Si falla el primer intento, entramos en modo reintento
     if not tasas_data:
-        mensaje_error = _(
-            "❌ *FALLO TOTAL*\n\n"
-            "La API de ElToque no devolvió ningún dato (`None`).\n\n"
-            "**Causas probables:**\n"
-            "1. La `ELTOQUE_API_KEY` en tu archivo `apit.env` es incorrecta o está vacía.\n"
-            "2. La API de ElToque está caída o bloqueó tu solicitud.",
+        # Enviamos mensaje de "Conectando..."
+        texto_conectando = _("⏳ Estamos conectando con elToque...", user_id)
+        mensaje_espera = await update.message.reply_text(texto_conectando)
+        
+        # Intentamos 3 veces más, esperando 2 segundos entre cada una
+        MAX_RETRIES = 3
+        for i in range(MAX_RETRIES):
+            await asyncio.sleep(2) # Espera 2 segundos
+            tasas_data = obtener_tasas_eltoque()
+            
+            # Si obtenemos datos, rompemos el bucle
+            if tasas_data:
+                break
+    
+    # 3. ### NUEVO: Evaluación Final tras los intentos
+    if not tasas_data:
+        # --- CASO DE FALLO TOTAL ---
+        
+        # Mensaje amigable para el usuario
+        mensaje_error_usuario = _(
+            "⚠️ *Error de Conexión*\n\n"
+            "No pudimos conectar con elToque en este momento.\n"
+            "Posiblemente su servidor esté saturado o caído.\n\n"
+            "👮‍♂️ _Los administradores han sido notificados._",
             user_id
         )
-        await update.message.reply_text(mensaje_error, parse_mode=ParseMode.MARKDOWN)
-        return
+        
+        # Si ya había mensaje de espera, lo editamos. Si no, enviamos uno nuevo.
+        if mensaje_espera:
+            await mensaje_espera.edit_text(mensaje_error_usuario, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(mensaje_error_usuario, parse_mode=ParseMode.MARKDOWN)
 
-    # --- INICIO DE LA LÓGICA CON HISTORIAL ---
+        # Mensaje Técnico para los ADMINISTRADORES
+        mensaje_admin = (
+            f"⚠️ *Alerta de API ElToque*\n\n"
+            f"El usuario `{user_id}` intentó usar /tasa y falló tras 4 intentos (1 inicial + 3 reintentos).\n"
+            f"Causa probable: API caída, Timeout o Rate Limit."
+        )
+        
+        # Enviar alerta a todos los admins
+        for admin_id in ADMIN_CHAT_IDS:
+            try:
+                await context.bot.send_message(chat_id=admin_id, text=mensaje_admin, parse_mode=ParseMode.MARKDOWN)
+            except Exception:
+                pass # Si falla enviar al admin, no detenemos el flujo
+        
+        return # Terminamos aquí si falló
+
+    # --- CASO DE ÉXITO ---
+    
+    # Si teníamos un mensaje de "Conectando...", lo borramos para limpiar el chat
+    if mensaje_espera:
+        try:
+            await mensaje_espera.delete()
+        except Exception:
+            pass # Si no se puede borrar (raro), no importa
+
+    # A partir de aquí sigue la lógica normal de formateo y guardado
     try:
-        # 3. Cargar tasas actuales y anteriores
         tasas_actuales = tasas_data.get('tasas')
-        tasas_anteriores = load_eltoque_history() # ¡Cargamos el historial!
+        tasas_anteriores = load_eltoque_history()
 
         if not tasas_actuales or not isinstance(tasas_actuales, dict):
-            mensaje_error_formato = _(
-                "😕 Se obtuvieron datos de ElToque, pero no se encontró el diccionario 'tasas' esperado.",
-                user_id
-            )
-            await update.message.reply_text(mensaje_error_formato, parse_mode=ParseMode.MARKDOWN)
+            # Error de formato en la respuesta JSON
+            await update.message.reply_text(_("😕 Error de formato en datos de ElToque.", user_id))
             return
 
-        # Extraer la fecha y hora de la actualización
         fecha = tasas_data.get('date', '')
         hora = tasas_data.get('hour', 0)
         minutos = tasas_data.get('minutes', 0)
         timestamp_str = f"{fecha} {hora:02d}:{minutos:02d}"
 
-        # --- 4. Formateo del mensaje ---
-        mensaje_titulo = _("🏦 *Tasas de Cambio CUP*\n\n", user_id)
+        mensaje_titulo = _("🏦 *Tasas de Cambio*\n\n", user_id)
         mensaje_lineas = []
             
-        # Lista de monedas en el orden deseado por el usuario
         monedas_ordenadas = [
               'ECU', 'USD', 'MLC', 'ZELLE', 'CLA', 
               'CAD', 'MXN', 'BRL', 'BTC', 'TRX', 'USDT_TRC20'
           ]
             
-        TOLERANCIA = 0.0001 # Para evitar cambios por ruido
+        TOLERANCIA = 0.0001
             
         for moneda_key in monedas_ordenadas:
             if moneda_key in tasas_actuales:
                 tasa_actual = tasas_actuales[moneda_key]
                 tasa_anterior = tasas_anteriores.get(moneda_key)
                     
-                # --- INICIO DE LA MODIFICACIÓN ---
-                # Renombrar 'USDT_TRC20' a 'USDT' y 'ECU' a 'EUR'
                 if moneda_key == 'USDT_TRC20':
                  moneda_display = 'USDT'
                 elif moneda_key == 'ECU':
                     moneda_display = 'EUR'
                 else:
                     moneda_display = moneda_key
-                # --- FIN DE LA MODIFICACIÓN ---
                     
                 indicador = ""
                 cambio_str = ""
 
                 if tasa_anterior is not None:
                     diferencia = tasa_actual - tasa_anterior
-                      
                     if diferencia > TOLERANCIA:
                         indicador = "🔺"
                         cambio_str = f" +{diferencia:,.2f}"
                     elif diferencia < -TOLERANCIA:
                         indicador = "🔻"
-                        cambio_str = f" {diferencia:,.2f}" # Ya tiene el '-'
+                        cambio_str = f" {diferencia:,.2f}"
                     
-                # Formato: EUR:   500.00 CUP
                 linea = f"*{moneda_display}*:  `{tasa_actual:,.2f}`  CUP  {indicador}{cambio_str}"
                 mensaje_lineas.append(linea)
 
         if not mensaje_lineas:
-            # ... (Manejo de error si 'tasas' estaba vacío) ...
             return
 
         mensaje_final = mensaje_titulo + "\n".join(mensaje_lineas)
 
-        # 5. Añadir pie de página
         actualizado_label = _("Actualizado:", user_id)
         fuente_label = _("Fuente: elTOQUE.com", user_id)
 
@@ -329,10 +352,9 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(mensaje_final, parse_mode=ParseMode.MARKDOWN)
 
-        # 6. ¡GUARDAR LAS NUEVAS TASAS!
         save_eltoque_history(tasas_actuales)
 
     except Exception as e:
-        add_log_line(f"Error fatal procesando datos de ElToque con historial: {e}. Datos: {tasas_data}")
-        mensaje_error_inesperado = _("❌ Ocurrió un error inesperado procesando los datos de ElToque.", user_id)
-        await update.message.reply_text(mensaje_error_inesperADO, parse_mode=ParseMode.MARKDOWN)
+        add_log_line(f"Error fatal procesando datos de ElToque con historial: {e}.")
+        mensaje_error_inesperado = _("❌ Ocurrió un error inesperado procesando los datos.", user_id)
+        await update.message.reply_text(mensaje_error_inesperado, parse_mode=ParseMode.MARKDOWN)

@@ -13,7 +13,8 @@ from core.api_client import obtener_precios_alerta, generar_alerta, obtener_prec
 from utils.file_manager import (
     cargar_usuarios, leer_precio_anterior_alerta, guardar_precios_alerta, add_log_line,
     load_price_alerts, update_alert_status, 
-    cargar_custom_alert_history, guardar_custom_alert_history, get_hbd_alert_recipients
+    cargar_custom_alert_history, guardar_custom_alert_history, get_hbd_alert_recipients,
+    load_last_prices_status, save_last_prices_status
 )
 from core.i18n import _ # <-- Importar _
 
@@ -28,8 +29,8 @@ def set_enviar_mensaje_telegram_async(func, app: Application):
     _app_ref = app
 
 # Variables globales para los loops
-PRECIOS_CONTROL_ANTERIORES = {} 
-CUSTOM_ALERT_HISTORY = {} 
+PRECIOS_CONTROL_ANTERIORES = load_last_prices_status()
+CUSTOM_ALERT_HISTORY = {}
 
 def obtener_indicador(precio_actual, precio_anterior):
     """Retorna 🔺, 🔻, o ▫️ basado en la comparación de precios."""
@@ -241,7 +242,7 @@ async def alerta_loop(bot: Bot):
 # === Función de callback para JobQueue de usuarios ===
 async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     """Función de callback del JobQueue para enviar la alerta de precios periódica."""
-    chat_id = int(context.job.chat_id) # <-- Obtener chat_id como int
+    chat_id = int(context.job.chat_id) 
     chat_id_str = str(chat_id) 
     enviar_mensaje_ref = context.job.data.get('enviar_mensaje_ref')
     
@@ -268,6 +269,7 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     mensaje_template = _("📊 *Alerta de tus monedas ({intervalo_h}h):*\n\n", chat_id)
     mensaje = mensaje_template.format(intervalo_h=intervalo_h)
     
+    # Usamos la variable global que ya se cargó al inicio (o se actualizó en ejecuciones previas)
     precios_anteriores_usuario = PRECIOS_CONTROL_ANTERIORES.get(chat_id_str, {})
     precios_para_guardar = {} 
     
@@ -292,13 +294,16 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     )
     
     if enviar_mensaje_ref:
-        # 1. Capturamos el resultado del envío
         fallidos = await enviar_mensaje_ref(mensaje, [chat_id_str], parse_mode=ParseMode.MARKDOWN)
 
-    # 2. Comprobamos si el envío para este chat_id falló
     if chat_id_str not in fallidos:
+        # --- AQUÍ LA MEJORA DE RENDIMIENTO ---
+        # 1. Actualizamos la memoria RAM para uso inmediato
         PRECIOS_CONTROL_ANTERIORES[chat_id_str] = precios_para_guardar
-        add_log_line(f"✅ Alerta de control enviada a {chat_id_str} con intervalo {intervalo_h}h.")
-
+        
+        # 2. Persistimos en disco para proteger contra reinicios
+        save_last_prices_status(PRECIOS_CONTROL_ANTERIORES)
+        
+        add_log_line(f"✅ Alerta enviada a {chat_id_str}. Precios guardados.")
     else:
         add_log_line(f"❌ ERROR: Referencia de envío no disponible para {chat_id_str}.")
