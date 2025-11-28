@@ -19,7 +19,7 @@ from core.i18n import _ # <-- Importar _
 
 # --- Importación de Handlers y Utilidades ---
 from handlers.general import start, myid, ver, help_command
-from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler
+from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, tasaimg_command
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command, # <-- CAMBIADO
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
@@ -149,6 +149,7 @@ def main():
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("users", users))
     app.add_handler(CommandHandler("logs", logs_command))
+    app.add_handler(CommandHandler("tasaimg", tasaimg_command))
     app.add_handler(ms_conversation_handler)  
     app.add_handler(CommandHandler("mismonedas", mismonedas))
     app.add_handler(CommandHandler("parar", parar))

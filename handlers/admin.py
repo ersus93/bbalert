@@ -21,6 +21,7 @@ from telegram.constants import ParseMode
 from utils.file_manager import cargar_usuarios
 from utils.file_manager import get_user_alerts
 from utils.file_manager import load_hbd_history
+from utils.image_generator import generar_imagen_tasas_eltoque # <-- NUEVA IMPORTACIÓN
 from core.config import VERSION, PID, PYTHON_VERSION, STATE, ADMIN_CHAT_IDS
 from core.i18n import _
 
@@ -542,3 +543,36 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+
+# NUEVO COMANDO ADMIN: /tasaimg
+async def tasaimg_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Genera y envía una imagen con las tasas de cambio actuales (Disponible para todos).
+    Lee los datos de eltoque_history.json.
+    """
+    chat_id = update.effective_chat.id
+    # user_id_str = str(update.effective_user.id) <-- Ya no es necesario obtener el ID para verificar
+
+    # 1. (ELIMINADO) Verificación de seguridad (Solo Admins)
+    # if user_id_str not in ADMIN_CHAT_IDS:
+    #     await update.message.reply_text("⛔ No tienes permisos para usar este comando.")
+    #     return
+
+    # 2. Notificar que se está trabajando
+    msg_espera = await update.message.reply_text("🎨 Generando imagen de tasas...")
+
+    # 3. Generar la imagen (esto puede tardar un segundo)
+    # Se ejecuta en un hilo aparte para no bloquear el bot si tarda mucho
+    image_bio = await asyncio.to_thread(generar_imagen_tasas_eltoque)
+
+    if image_bio:
+        # 4. Enviar la imagen
+        await update.message.reply_photo(
+            photo=image_bio,
+            caption="🏦 Tasas de cambio actuales (El Toque).",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        # Eliminar el mensaje de espera
+        await msg_espera.delete()
+    else:
+        await msg_espera.edit_text("❌ Error: No hay datos en el historial de El Toque para generar la imagen. Ejecuta /tasa primero.")
