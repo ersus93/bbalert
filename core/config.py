@@ -27,6 +27,7 @@ CUSTOM_ALERT_HISTORY_PATH = os.path.join(DATA_DIR, "custom_alert_history.json")
 ELTOQUE_HISTORY_PATH = os.path.join(DATA_DIR, "eltoque_history.json")
 LAST_PRICES_PATH = os.path.join(DATA_DIR, "last_prices.json")
 TEMPLATE_PATH = os.path.join(DATA_DIR, "img.png")
+ADS_PATH = os.path.join(DATA_DIR, "ads.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
 VERSION = "0.1.010-beta"

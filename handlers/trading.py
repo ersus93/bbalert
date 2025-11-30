@@ -10,6 +10,7 @@ from telegram.constants import ParseMode
 from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS # <--- IMPORTANTE: AÑADIDO ADMIN_CHAT_IDS
 from core.api_client import obtener_datos_moneda, obtener_tasas_eltoque
 from utils.file_manager import add_log_line, load_eltoque_history, save_eltoque_history
+from utils.ads_manager import get_random_ad_text
 from core.i18n import _
 
 def _take_screenshot_sync(url: str) -> BytesIO | None:
@@ -194,8 +195,12 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"24h {format_change(datos['percent_change_24h'])}\n"
         f"7d {format_change(datos['percent_change_7d'])}\n"
         f"{etiqueta_cap} {datos['market_cap_rank']}st | ${datos['market_cap']:,.0f}\n"
-        f"{etiqueta_vol} ${datos['volume_24h']:,.0f}\n"
+        f"{etiqueta_vol} ${datos['volume_24h']:,.0f}"
     )
+
+    # --- INYECCIÓN DE ANUNCIO ---
+    mensaje += get_random_ad_text()
+    # ----------------------------
 
     button_text_template = _("🔄 Actualizar /p {symbol}", user_id)
     button_text = button_text_template.format(symbol=datos['symbol'])
@@ -349,6 +354,10 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         fuente_label = _("Fuente: elTOQUE.com", user_id)
 
         mensaje_final += f"\n\n_{actualizado_label} {timestamp_str}_\n_{fuente_label}_"
+        
+        # --- INYECCIÓN DE ANUNCIO ---
+        mensaje_final += get_random_ad_text()
+        # ----------------------------
 
         await update.message.reply_text(mensaje_final, parse_mode=ParseMode.MARKDOWN)
 

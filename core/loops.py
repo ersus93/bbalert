@@ -6,6 +6,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram import Bot, Update
 from telegram.ext import ContextTypes, Application
+from utils.ads_manager import get_random_ad_text
 from core.config import( PID, VERSION, STATE, INTERVALO_ALERTA, INTERVALO_CONTROL,
                         LOG_LINES, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, USUARIOS_PATH, 
                             ADMIN_CHAT_IDS, PYTHON_VERSION, HBD_HISTORY_PATH)
@@ -155,6 +156,10 @@ async def check_custom_price_alerts(bot: Bot):
                             current_price=current_price
                         )
 
+                        # --- INYECCIÓN DE ANUNCIO ---
+                        mensaje += get_random_ad_text() 
+                        # ----------------------------
+
                     if triggered:
                         # --- TEXTO DE BOTÓN ENVUELTO ---
                         button_text = _("🗑️ Borrar esta alerta", user_id)
@@ -206,6 +211,9 @@ async def alerta_loop(bot: Bot):
                             alerta_msg, log_msg = generar_alerta(precios_actuales, precio_anterior_hbd, user_id)
 
                             if alerta_msg:
+                                # --- INYECCIÓN DE ANUNCIO ---
+                                mensaje += get_random_ad_text()
+                                # ----------------------------
                                 trigger_detected = True
                                 if not log_msg_to_send:
                                     log_msg_to_send = log_msg
@@ -292,7 +300,9 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
         fecha=current_time_str,
         intervalo_h=intervalo_h
     )
-    
+    # --- INYECCIÓN DE ANUNCIO ---
+    mensaje += get_random_ad_text()
+    # ----------------------------
     if enviar_mensaje_ref:
         fallidos = await enviar_mensaje_ref(mensaje, [chat_id_str], parse_mode=ParseMode.MARKDOWN)
 

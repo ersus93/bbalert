@@ -11,6 +11,7 @@ from utils.file_manager import (
     load_last_prices_status
 )
 from core.api_client import obtener_precios_control
+from utils.ads_manager import get_random_ad_text
 from core.config import ADMIN_CHAT_IDS
 from core.i18n import _
 
@@ -104,6 +105,8 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fecha_actual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     mensaje += f"\n_📅 Consulta: {fecha_actual}_"
 
+    mensaje += get_random_ad_text()
+
     # 6. Editar el mensaje de espera con el resultado final
     await mensaje_espera.edit_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
@@ -137,28 +140,32 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
 
-
-# === COMANDO /help ===
+# COMANDO /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el menú de ayuda con todos los comandos."""
+    """Muestra el menú de ayuda."""
     user_id = update.effective_user.id
-    chat_id_str = str(user_id)
+    
+    # 1. Verificar si es administrador para mostrar comandos extra
+    chat_id_str = str(update.effective_chat.id)
+    is_admin = chat_id_str in ADMIN_CHAT_IDS
 
-
+    # --- Texto de Ayuda General (completo) ---
     help_text_template = _(
-        "👋 ¡Hola! Aquí tienes la lista de comandos disponibles:\n\n"
-        "📊 *Alertas Periódicas (Tu Lista)*\n"
-        "  • `/monedas <LISTA>`: Define tu lista de monedas (ej. `/monedas BTC, ETH, HIVE`).\n"
-        "  • `/mismonedas`: Muestra tu lista de monedas actual.\n"
-        "  • `/temp <HORAS>`: Cambia cada cuántas horas recibes tu alerta (ej. `/temp 2.5`).\n"
-        "  • `/parar`: Detiene tus alertas periódicas (borra tu lista).\n\n"
-        "🔔 *Alertas de Cruce (Precio Fijo)*\n"
-        "  • `/alerta <MONEDA> <PRECIO>`: Crea una alerta cuando una moneda cruza un precio (ej. `/alerta BTC 60000`).\n"
+        "📚 *Menú de Ayuda*\n"
+        "————————————————————\n"
+        "🚀 *Alertas Periódicas (Monitor)*\n"
+        "  • `/monedas <SÍMBOLO1, SÍMBOLO2,...>`: Configura tu lista de monedas a monitorizar (ej. `/monedas BTC, ETH`).\n"
+        "  • `/temp <HORAS>`: Ajusta la frecuencia de la alerta periódica (ej. `/temp 2.5` para 2h 30m).\n"
+        "  • `/parar`: Detiene la alerta periódica, pero mantiene tu lista de monedas.\n"
+        "  • `/mismonedas`: Muestra tu lista de monedas configuradas.\n\n"
+        "🚨 *Alertas por Cruce de Precio*\n"
+        "  • `/alerta <SÍMBOLO> <PRECIO>`: Crea una alerta que se disparará al cruzar un precio (ej. `/alerta HIVE 0.35`).\n"
         "  • `/misalertas`: Muestra y te permite borrar tus alertas de cruce activas.\n\n"
         "📈 *Comandos de Consulta*\n"
         "  • `/p <MONEDA>`: Muestra el precio detallado de una moneda (ej. `/p HIVE`).\n"
         "  • `/graf <MONEDA> [PAR] <TIEMPO>`: Genera un gráfico (ej. `/graf BTC 1h` o `/graf HIVE USDT 15m`).\n"
         "  • `/tasa`: Muestra las tasas de cambio de ElToque (para CUP).\n"
+        "  • `/tasaimg`: Muestra las tasas de cambio de ElToque en formato de imagen.\n"
         "  • `/ver`: Consulta al instante los precios de tu lista de monedas sin afectar tu alerta periódica.\n\n"
         "⚙️ *Configuración y Varios*\n"
         "  • `/hbdalerts`: Activa o desactiva las alertas predefinidas de HBD.\n"
@@ -169,19 +176,17 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         , user_id
     )
 
-
-    admin_help_text_template = _(
-        "\n\n"
-        "🔑 *Comandos de Administrador*\n"
-        "  • `/users`: Muestra la lista de todos los usuarios registrados.\n"
-        "  • `/logs [N]`: Muestra las últimas N líneas del log del bot.\n"
-        "  • `/ms`: Inicia el asistente para enviar un mensaje masivo a todos los usuarios.\n"
-        , user_id
-    )
-
-
-    message = help_text_template
-    if chat_id_str in ADMIN_CHAT_IDS:
-        message += admin_help_text_template
-
-    await update.message.reply_text(message, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+    mensaje = help_text_template
+    
+    if is_admin:
+        admin_help_text_template = _(
+            "\n\n"
+            "🔑 *Comandos de Administrador*\n"
+            "  • `/users`: Muestra la lista de todos los usuarios registrados.\n"
+            "  • `/logs [N]`: Muestra las últimas N líneas del log del bot.\n"
+            "  • `/ms`: Inicia el proceso interactivo para enviar un mensaje masivo (broadcast) a todos los usuarios.\n" 
+            , user_id 
+        )
+        mensaje += admin_help_text_template
+    
+    await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)

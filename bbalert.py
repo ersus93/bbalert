@@ -19,7 +19,7 @@ from core.i18n import _ # <-- Importar _
 
 # --- Importación de Handlers y Utilidades ---
 from handlers.general import start, myid, ver, help_command
-from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, tasaimg_command
+from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, tasaimg_command, ad_command
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command, # <-- CAMBIADO
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
@@ -29,9 +29,11 @@ from handlers.alerts import (
     misalertas, 
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
+    
 
 )
 from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback
+
 
 async def post_init(app: Application):
     """
@@ -150,6 +152,7 @@ def main():
     app.add_handler(CommandHandler("users", users))
     app.add_handler(CommandHandler("logs", logs_command))
     app.add_handler(CommandHandler("tasaimg", tasaimg_command))
+    app.add_handler(CommandHandler("ad", ad_command))
     app.add_handler(ms_conversation_handler)  
     app.add_handler(CommandHandler("mismonedas", mismonedas))
     app.add_handler(CommandHandler("parar", parar))
@@ -160,7 +163,7 @@ def main():
     app.add_handler(CommandHandler("misalertas", misalertas))
     app.add_handler(CommandHandler("graf", graf_command)) 
     app.add_handler(CommandHandler("p", p_command))       
-    app.add_handler(CommandHandler("tasa", eltoque_command)) #-- NUEVO COMANDO PARA ELTOQUE
+    app.add_handler(CommandHandler("tasa", eltoque_command))
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(CommandHandler("monedas", set_monedas_command))
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
