@@ -49,7 +49,7 @@ def generar_imagen_tasas_eltoque():
         # Antes era 0.045, ahora 0.032
         font_val = ImageFont.truetype(font_path, int(H * 0.032)) # Para el valor numérico
         # Antes era 0.025, ahora 0.020
-        font_sm = ImageFont.truetype(font_path, int(H * 0.020)) # Para el footer (fecha)
+        font_sm = ImageFont.truetype(font_path, int(H * 0.021)) # Para el footer (fecha)
         # --------------------
         
     except OSError:

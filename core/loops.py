@@ -156,11 +156,12 @@ async def check_custom_price_alerts(bot: Bot):
                             current_price=current_price
                         )
 
-                        # --- INYECCIÓN DE ANUNCIO ---
-                        mensaje += get_random_ad_text() 
-                        # ----------------------------
-
                     if triggered:
+                        # --- CORRECCIÓN: INYECCIÓN DE ANUNCIO ---
+                        # Se mueve aquí para que aplique a ambos casos y se corrige 'messaje' a 'message'
+                        message += get_random_ad_text() 
+                        # ----------------------------------------
+
                         # --- TEXTO DE BOTÓN ENVUELTO ---
                         button_text = _("🗑️ Borrar esta alerta", user_id)
                         keyboard = [[InlineKeyboardButton(button_text, callback_data=f"delete_alert_{alert['alert_id']}")]]
@@ -212,7 +213,7 @@ async def alerta_loop(bot: Bot):
 
                             if alerta_msg:
                                 # --- INYECCIÓN DE ANUNCIO ---
-                                mensaje += get_random_ad_text()
+                                alerta_msg += get_random_ad_text()
                                 # ----------------------------
                                 trigger_detected = True
                                 if not log_msg_to_send:
