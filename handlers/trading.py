@@ -187,7 +187,7 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     etiqueta_vol = _("Vol:", user_id)
 
     mensaje = (
-        f"*{datos['symbol']}*\n"
+        f"*{datos['symbol']}*\n————————————————————\n"
         f"${datos['price']:,.4f}\n"
         f"{etiqueta_eth} {datos['price_eth']:.8f}\n"
         f"{etiqueta_btc} {datos['price_btc']:.8f}\n"
@@ -308,7 +308,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutos = tasas_data.get('minutes', 0)
         timestamp_str = f"{fecha} {hora:02d}:{minutos:02d}"
 
-        mensaje_titulo = _("🏦 *Tasas de Cambio*\n\n", user_id)
+        mensaje_titulo = _("🏦 *Tasas de Cambio* (Informal)\n————————————————————\n\n", user_id)
         mensaje_lineas = []
             
         monedas_ordenadas = [
@@ -353,7 +353,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         actualizado_label = _("Actualizado:", user_id)
         fuente_label = _("Fuente: elTOQUE.com", user_id)
 
-        mensaje_final += f"\n\n_{actualizado_label} {timestamp_str}_\n_{fuente_label}_"
+        mensaje_final += f"\n\n————————————————————\n_{actualizado_label} {timestamp_str}_\n_{fuente_label}_"
         
         # --- INYECCIÓN DE ANUNCIO ---
         mensaje_final += get_random_ad_text()

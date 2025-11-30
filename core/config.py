@@ -30,7 +30,7 @@ TEMPLATE_PATH = os.path.join(DATA_DIR, "img.png")
 ADS_PATH = os.path.join(DATA_DIR, "ads.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.011-beta"
+VERSION = "0.1.012-beta"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---

@@ -131,8 +131,8 @@ async def check_custom_price_alerts(bot: Bot):
                         triggered = True
                         # --- PLANTILLA ENVUELTA ---
                         message_template = _(
-                            "📈 ¡Alerta de Precio! 📈\n\n"
-                            "*{coin}* ha *SUPERADO* tu objetivo de *${target_price:,.4f}*.\n\n"
+                            "📈 ¡Alerta de Precio! 📈\n————————————————————\n\n"
+                            "*{coin}* ha *SUPERADO* tu objetivo de *${target_price:,.4f}*.\n————————————————————\n\n"
                             "Precio actual: *${current_price:,.4f}*",
                             user_id
                         )
@@ -145,8 +145,8 @@ async def check_custom_price_alerts(bot: Bot):
                         triggered = True
                         # --- PLANTILLA ENVUELTA ---
                         message_template = _(
-                            "📉 ¡Alerta de Precio! 📉\n\n"
-                            "*{coin}* ha *CAÍDO POR DEBAJO* de tu objetivo de *${target_price:,.4f}*.\n\n"
+                            "📉 ¡Alerta de Precio! 📉\n————————————————————\n\n"
+                            "*{coin}* ha *CAÍDO POR DEBAJO* de tu objetivo de *${target_price:,.4f}*.\n————————————————————\n\n"
                             "Precio actual: *${current_price:,.4f}*",
                             user_id
                         )
@@ -275,7 +275,7 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
         add_log_line(f"❌ Falló obtención de precios para usuario {chat_id_str}.")
         return
 
-    mensaje_template = _("📊 *Alerta de tus monedas ({intervalo_h}h):*\n\n", chat_id)
+    mensaje_template = _("📊 *Alerta de tus monedas ({intervalo_h}h):*\n————————————————————\n\n", chat_id)
     mensaje = mensaje_template.format(intervalo_h=intervalo_h)
     
     # Usamos la variable global que ya se cargó al inicio (o se actualizó en ejecuciones previas)
@@ -293,7 +293,7 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     
     current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     mensaje_footer_template = _(
-        "\n📅 Fecha: {fecha}\n\n"
+        "\n————————————————————\n📅 Fecha: {fecha}\n"
         "_🔰 Alerta configurada cada {intervalo_h} horas._",
         chat_id
     )
