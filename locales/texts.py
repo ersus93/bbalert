@@ -3,7 +3,7 @@
 HELP_MSG = {
     "es": (
         "📚 *Menú de Ayuda*\n"
-        "————————————————————\n"
+        "—————————————————\n"
         "🚀 *Alertas Periódicas (Monitor)*\n"
         "  • `/monedas <SÍMBOLO1, ...>`: Configura tu lista de monedas (ej. `/monedas BTC, ETH`).\n"
         "  • `/temp <HORAS>`: Ajusta la frecuencia de la alerta periódica (ej. `/temp 2.5`).\n"
@@ -23,7 +23,7 @@ HELP_MSG = {
         "  • `/lang`: Cambia el idioma del bot.\n"
         "  • `/myid`: Muestra tu ID de Telegram.\n"
         "  • `/start`: Mensaje de bienvenida.\n"
-        "  • `/help`: Muestra este menú.\n\n"
+        "  • `/help`: Muestra este menú.\n\n—————————————————\n\n"
         "🔑 *Comandos de Administrador*\n"
         "  • `/users`: Muestra estadísticas y lista de usuarios.\n"
         "  • `/logs [N]`: Muestra las últimas líneas del log.\n"
@@ -32,7 +32,7 @@ HELP_MSG = {
     ),
     "en": (
         "📚 *Help Menu*\n"
-        "————————————————————\n"
+        "—————————————————\n"
         "🚀 *Periodic Alerts (Monitor)*\n"
         "  • `/monedas <SYMBOL1, ...>`: Set up your watchlist (e.g. `/monedas BTC, ETH`).\n"
         "  • `/temp <HOURS>`: Adjust the periodic alert frequency (e.g. `/temp 2.5`).\n"
@@ -52,7 +52,7 @@ HELP_MSG = {
         "  • `/lang`: Change the bot language.\n"
         "  • `/myid`: Shows your Telegram ID.\n"
         "  • `/start`: Welcome message.\n"
-        "  • `/help`: Shows this menu.\n\n"
+        "  • `/help`: Shows this menu.\n\n—————————————————\n\n"
         "🔑 *Admin Commands*\n"
         "  • `/users`: Shows statistics and user list.\n"
         "  • `/logs [N]`: Shows the last lines of the log.\n"
