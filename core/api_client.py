@@ -63,7 +63,7 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
          
     # --- Estructura del mensaje adicional (que se adjuntará a la alerta) ---
     detalle_precios = (
-        _("\n\n**Precios Actuales:**\n————————————————————\n", user_id) + # <-- chat_id para msg
+        _("\n\n————————————————————\n📊 *Precios Actuales:*\n", user_id) + # <-- chat_id para msg
         f"🟠 *BTC/USD*: ${btc:.2f}\n"
         f"🔷 *TON/USD*: ${ton:.4f}\n"
         f"🐝 *HIVE/USD*: ${hive:.4f}\n"

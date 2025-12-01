@@ -28,11 +28,10 @@ from core.i18n import _ # <-- AGREGAR LA FUNCIÓN DE TRADUCCIÓN
 # Soporte de idiomas
 SUPPORTED_LANGUAGES = {
     'es': '🇪🇸 Español',
-    'en': '🇬🇧 English',
-    'pt': '🇧🇷 Português',
-    'de': '🇩🇪 Deutsch', 
-    # Agrega más aquí cuando tengas los archivos .po/.mo
+    'en': '🇬🇧 English'
 }
+    # Agrega más aquí cuando tengas los archivos .po/.mo
+
 
 # ... (set_admin_util y set_logs_util) ...
 _reprogramar_alerta_ref = None
@@ -365,7 +364,7 @@ async def set_language_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
         # Mensaje 1: Éxito (requiere formateo)
         new_text = _(
-            "✅ ¡Idioma cambiado a **{new_lang_name}**!\n"
+            "✅ ¡Idioma cambiado a *{new_lang_name}*!\n"
             "Usa el comando /lang si deseas cambiarlo de nuevo.",
             user_id
         ).format(new_lang_name=SUPPORTED_LANGUAGES[lang_code])

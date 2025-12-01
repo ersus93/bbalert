@@ -132,7 +132,7 @@ async def check_custom_price_alerts(bot: Bot):
                         # --- PLANTILLA ENVUELTA ---
                         message_template = _(
                             "📈 ¡Alerta de Precio! 📈\n————————————————————\n\n"
-                            "*{coin}* ha *SUPERADO* tu objetivo de *${target_price:,.4f}*.\n————————————————————\n\n"
+                            "*{coin}* ha *SUPERADO* tu objetivo de *${target_price:,.4f}*.\n\n"
                             "Precio actual: *${current_price:,.4f}*",
                             user_id
                         )
@@ -146,7 +146,7 @@ async def check_custom_price_alerts(bot: Bot):
                         # --- PLANTILLA ENVUELTA ---
                         message_template = _(
                             "📉 ¡Alerta de Precio! 📉\n————————————————————\n\n"
-                            "*{coin}* ha *CAÍDO POR DEBAJO* de tu objetivo de *${target_price:,.4f}*.\n————————————————————\n\n"
+                            "*{coin}* ha *CAÍDO POR DEBAJO* de tu objetivo de *${target_price:,.4f}*.\n\n"
                             "Precio actual: *${current_price:,.4f}*",
                             user_id
                         )

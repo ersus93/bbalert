@@ -281,8 +281,6 @@ def update_alert_status(user_id, alert_id, new_status):
                 return True
     return False
 
-# ... (guardar_usuarios y registrar_usuario se mantienen iguales) ...
-
 # 💡 NUEVA FUNCIÓN: para actualizar el intervalo
 def actualizar_intervalo_alerta(chat_id, new_interval_h):
     """Actualiza el intervalo de alerta (en horas) para un usuario específico y guarda los cambios."""
@@ -328,18 +326,16 @@ def registrar_usuario(chat_id, user_lang_code: str = 'es'):
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
     
-    if chat_id_str not in usuarios: # <--- Usar chat_id_str
+    if chat_id_str not in usuarios: 
 
         # --- INICIO DE LA CORRECCIÓN DE IDIOMA ---
-        lang_to_save = 'es' # Por defecto
+        lang_to_save = 'es' # Por defecto (Español)
+        
         if user_lang_code:
+            # Solo comprobamos si es inglés.
+            # Si era 'pt' o 'de', caerá en el valor por defecto 'es'.
             if user_lang_code.startswith('en'):
                 lang_to_save = 'en'
-            elif user_lang_code.startswith('pt'):
-                lang_to_save = 'pt'
-            elif user_lang_code.startswith('de'):
-                lang_to_save = 'de'
-            # Si no es ninguno, se queda como 'es'
         # --- FIN DE LA CORRECCIÓN DE IDIOMA ---
 
         usuarios[chat_id_str] = {
@@ -369,6 +365,11 @@ def obtener_monedas_usuario(chat_id):
     """Obtiene la lista de monedas de un usuario."""
     usuarios = cargar_usuarios()
     return usuarios.get(str(chat_id), {}).get("monedas", [])
+
+def obtener_datos_usuario(chat_id):
+    """Obtiene el diccionario de datos de un usuario específico."""
+    usuarios = cargar_usuarios()
+    return usuarios.get(str(chat_id), {})
 
 def toggle_hbd_alert_status(user_id: int) -> bool:
     """

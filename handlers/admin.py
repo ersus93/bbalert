@@ -18,9 +18,8 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from utils.file_manager import cargar_usuarios
-from utils.file_manager import get_user_alerts
-from utils.file_manager import load_hbd_history
+from collections import Counter
+from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history
 from utils.image_generator import generar_imagen_tasas_eltoque
 from utils.ads_manager import load_ads, add_ad, delete_ad
 from core.config import VERSION, PID, PYTHON_VERSION, STATE, ADMIN_CHAT_IDS
@@ -318,28 +317,31 @@ def set_logs_util(func):
     global _get_logs_data_ref
     _get_logs_data_ref = func
 
-# Comando /users para ver el número de usuarios registrados
+# COMANDO /users mejorado
 async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /users. Muestra el número de usuarios registrados con detalles.
-    Si el usuario no es admin, solo ve sus propios datos.
     """
-
-    current_chat_id = update.effective_chat.id # <-- Obtener chat_id
+    Comando /users mejorado. 
+    - Usuarios normales: Ven su propio perfil.
+    - Admins: Ven estadísticas globales y los últimos 5 registros.
+    """
+    current_chat_id = update.effective_chat.id
     current_chat_id_str = str(current_chat_id)
-    usuarios = cargar_usuarios()
+    usuarios = cargar_usuarios() # Carga users.json
+    all_alerts = load_price_alerts() # Carga price_alerts.json
 
-    # Si el usuario NO es administrador, mostrar solo sus propios datos
+    # --- VISTA DE USUARIO NORMAL (Sin cambios) ---
     if current_chat_id_str not in ADMIN_CHAT_IDS:
         data = usuarios.get(current_chat_id_str)
         if not data:
-            # --- MENSAJE ENVUELTO ---
             await update.message.reply_text(_("😕 No estás registrado en el sistema.", current_chat_id))
             return
 
         monedas_str = ', '.join(data.get('monedas', []))
         intervalo_h = data.get('intervalo_alerta_h', 1.0)
         user_id = int(current_chat_id_str)
-        alertas_activas = len(get_user_alerts(user_id))
+        # Contamos alertas activas específicas de este usuario
+        user_alerts = [a for a in all_alerts.get(current_chat_id_str, []) if a['status'] == 'ACTIVE']
+        alertas_activas = len(user_alerts)
 
         try:
             chat_info = await context.bot.get_chat(user_id)
@@ -351,7 +353,6 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if 'Bot blocked' in str(e):
                 nombre_completo += " (Bloqueado)"
         
-       
         mensaje_template = _(
             "👤 *Tu Perfil Registrado*\n"
             "————————————————————\n"
@@ -360,7 +361,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "  - 👤 Usuario: {username_str}\n"
             "  - 🪙 Monedas: `{monedas_str}`\n"
             "  - ⏰ Alerta cada: {intervalo_h}h\n"
-            "  - 🔔 Alertas activas: {alertas_activas}\n"
+            "  - 🔔 Alertas cruce activas: {alertas_activas}\n"
             "————————————————————\n"
             "_Solo puedes ver tu propia información 🙂_",
             current_chat_id
@@ -376,47 +377,102 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
-    # Si es administrador, mostrar todos los usuarios
-    num_usuarios = len(usuarios)
-    detalles = []
+    # --- VISTA DE ADMINISTRADOR (NUEVA LÓGICA) ---
+    
+    # 1. Cálculos Estadísticos
+    total_usuarios = len(usuarios)
+    
+    # Calcular total de alertas de cruce (Price Alerts) activas en todo el sistema
+    total_alertas_cruce = sum(
+        len([a for a in alerts if a['status'] == 'ACTIVE']) 
+        for alerts in all_alerts.values()
+    )
+    
+    # Calcular usuarios con alertas HBD activadas
+    # (Asumimos True si no existe la clave, o False si está explícito, según tu lógica de file_manager)
+    total_hbd_users = sum(1 for u in usuarios.values() if u.get('hbd_alerts', False))
+    porcentaje_hbd = (total_hbd_users / total_usuarios * 100) if total_usuarios > 0 else 0
 
-    for chat_id_str, data in usuarios.items():
+    # Calcular Top 5 Monedas más seguidas
+    todas_monedas = []
+    for u in usuarios.values():
+        todas_monedas.extend(u.get('monedas', []))
+    conteo_monedas = Counter(todas_monedas)
+    top_5_monedas = conteo_monedas.most_common(5)
+    top_5_monedas_str = ", ".join([f"{m} ({c})" for m, c in top_5_monedas])
+
+    # Calcular "Usuarios más pesados" (Proxy de actividad: quién tiene más alertas configuradas)
+    # Creamos una lista de tuplas (user_id, num_alertas)
+    users_by_alerts = []
+    for uid, alerts in all_alerts.items():
+        active_count = len([a for a in alerts if a['status'] == 'ACTIVE'])
+        if active_count > 0:
+            users_by_alerts.append((uid, active_count))
+    
+    # Ordenamos descendente y tomamos los top 3
+    users_by_alerts.sort(key=lambda x: x[1], reverse=True)
+    top_3_users_data = users_by_alerts[:3]
+    
+    top_3_str = ""
+    for idx, (uid, count) in enumerate(top_3_users_data):
+        # Intentamos obtener nombre del diccionario de usuarios si existe
+        u_data = usuarios.get(uid, {})
+        # Nombre fallback si no tenemos datos de Telegram frescos aquí
+        name_display = u_data.get('username', uid) 
+        top_3_str += f"{idx+1}. {name_display}: {count} alertas\n"
+
+    if not top_3_str:
+        top_3_str = "N/A"
+
+    # 2. Obtener los últimos 5 usuarios registrados
+    # Los diccionarios en Python 3.7+ mantienen orden de inserción, así que tomamos los últimos.
+    lista_ids_usuarios = list(usuarios.keys())
+    ultimos_5_ids = lista_ids_usuarios[-5:]
+    ultimos_5_ids.reverse() # Invertimos para ver el más nuevo arriba
+
+    detalles_ultimos = []
+    
+    msg_procesando = await update.message.reply_text("⏳ Recopilando datos de Telegram...")
+
+    for chat_id_str in ultimos_5_ids:
+        data = usuarios[chat_id_str]
         chat_id = int(chat_id_str)
-        monedas_str = ', '.join(data.get('monedas', []))
-        intervalo_h = data.get('intervalo_alerta_h', 1.0)
-        alertas_activas = len(get_user_alerts(chat_id))
-
+        monedas_user = ', '.join(data.get('monedas', []))
+        
         try:
             chat_info = await context.bot.get_chat(chat_id)
             nombre_completo = chat_info.full_name or "N/A"
             username_str = f"@{chat_info.username}" if chat_info.username else "N/A"
-        except Exception as e:
-            nombre_completo = data.get('first_name', 'N/A')
-            username_str = f"@{data.get('username', 'N/A')}"
-            if 'Bot blocked' in str(e):
-                nombre_completo += " (Bloqueado)"
+        except Exception:
+            nombre_completo = "Desconocido/Bloqueado"
+            username_str = "N/A"
 
-        detalles.append(
-            f"  - Nombre: {nombre_completo}\n"
-            f"  - 🪪 ID: `{chat_id}`\n"
-            f"  - 👤 Usuario: {username_str}\n"
-            f"  - 🪙 Monedas: `{monedas_str}`\n"
-            f"  - ⏰ Alerta cada: {intervalo_h}h\n"
-            f"  - 🔔 Alertas activas: {alertas_activas}\n"
+        detalles_ultimos.append(
+            f" 🔹 {nombre_completo} ({username_str}) | ID: {chat_id}\n"
+            f"Monedas: {monedas_user}"
         )
-    
-    # --- PLANTILLA ENVUELTA ---
-    mensaje_template = _(
-        "👥 *Usuarios Registrados*: {num_usuarios}\n"
-        "————————————————————\n"
-        "```{detalles_str}```",
-        current_chat_id
+
+    # 3. Construir Mensaje Final
+    mensaje_admin = (
+        f"📊 **ESTADÍSTICAS GENERALES** (v{VERSION})\n"
+        f"————————————————————\n"
+        f"👥 **Usuarios Totales:** `{total_usuarios}`\n"
+        f"🔔 **Alertas Cruce Activas:** `{total_alertas_cruce}`\n"
+        f"📢 **Suscritos a HBD:** `{total_hbd_users}` ({porcentaje_hbd:.1f}%)\n\n"
+        
+        f"🏆 **Top 5 Monedas:**\n"
+        f"`{top_5_monedas_str}`\n\n"
+        
+        f"⚡ **Usuarios con más alertas (Top 3):**\n"
+        f"{top_3_str}\n"
+        
+        f"🆕 **Últimos 5 Usuarios Registrados:**\n"
+        f"————————————————————\n"
+        f"```{chr(10).join(detalles_ultimos)}```"
     )
-    mensaje = mensaje_template.format(
-        num_usuarios=num_usuarios,
-        detalles_str=chr(10).join(detalles)
-    )
-    await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+
+    await msg_procesando.delete() # Borrar mensaje de espera
+    await update.message.reply_text(mensaje_admin, parse_mode=ParseMode.MARKDOWN)
 
 
 # COMANDO /logs para ver las últimas líneas del log

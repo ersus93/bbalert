@@ -8,11 +8,13 @@ from telegram.ext import ContextTypes
 from utils.file_manager import (
     registrar_usuario, 
     obtener_monedas_usuario, 
-    load_last_prices_status
+    load_last_prices_status,
+    obtener_datos_usuario
 )
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text
 from core.config import ADMIN_CHAT_IDS
+from locales.texts import HELP_MSG
 from core.i18n import _
 
 #  Telegram comando /start 
@@ -142,51 +144,28 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # COMANDO /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el menú de ayuda."""
-    user_id = update.effective_user.id
+    """Muestra el menú de ayuda unificado."""
+    user = update.effective_user
+    user_id = user.id
     
-    # 1. Verificar si es administrador para mostrar comandos extra
-    chat_id_str = str(update.effective_chat.id)
-    is_admin = chat_id_str in ADMIN_CHAT_IDS
+    # 1. Obtener los datos del usuario del JSON
+    datos_usuario = obtener_datos_usuario(user_id)
+    
+    # 2. Obtener el idioma (por defecto español)
+    # Nota: Asegúrate de usar 'language', que es como se guarda en file_manager.py
+    lang = datos_usuario.get('language', 'es') 
+    
+    # 3. Validación extra por seguridad
+    if lang not in ['es', 'en']:
+        lang = 'es' 
+    
+    # 4. Obtener el texto directamente del diccionario HELP_MSG
+    # Si por alguna razón falla el idioma, usa español como respaldo
+    texto = HELP_MSG.get(lang, HELP_MSG['es'])
 
-    # --- Texto de Ayuda General (completo) ---
-    help_text_template = _(
-        "📚 *Menú de Ayuda*\n"
-        "————————————————————\n"
-        "🚀 *Alertas Periódicas (Monitor)*\n"
-        "  • `/monedas <SÍMBOLO1, SÍMBOLO2,...>`: Configura tu lista de monedas a monitorizar (ej. `/monedas BTC, ETH`).\n"
-        "  • `/temp <HORAS>`: Ajusta la frecuencia de la alerta periódica (ej. `/temp 2.5` para 2h 30m).\n"
-        "  • `/parar`: Detiene la alerta periódica, pero mantiene tu lista de monedas.\n"
-        "  • `/mismonedas`: Muestra tu lista de monedas configuradas.\n\n"
-        "🚨 *Alertas por Cruce de Precio*\n"
-        "  • `/alerta <SÍMBOLO> <PRECIO>`: Crea una alerta que se disparará al cruzar un precio (ej. `/alerta HIVE 0.35`).\n"
-        "  • `/misalertas`: Muestra y te permite borrar tus alertas de cruce activas.\n\n"
-        "📈 *Comandos de Consulta*\n"
-        "  • `/p <MONEDA>`: Muestra el precio detallado de una moneda (ej. `/p HIVE`).\n"
-        "  • `/graf <MONEDA> [PAR] <TIEMPO>`: Genera un gráfico (ej. `/graf BTC 1h` o `/graf HIVE USDT 15m`).\n"
-        "  • `/tasa`: Muestra las tasas de cambio de ElToque (para CUP).\n"
-        "  • `/tasaimg`: Muestra las tasas de cambio de ElToque en formato de imagen.\n"
-        "  • `/ver`: Consulta al instante los precios de tu lista de monedas sin afectar tu alerta periódica.\n\n"
-        "⚙️ *Configuración y Varios*\n"
-        "  • `/hbdalerts`: Activa o desactiva las alertas predefinidas de HBD.\n"
-        "  • `/lang`: Cambia el idioma del bot.\n"
-        "  • `/myid`: Muestra tu información de usuario de Telegram.\n"
-        "  • `/start`: Muestra el mensaje de bienvenida.\n"
-        "  • `/help`: Muestra este menú de ayuda.\n"
-        , user_id
+    # 5. Enviar mensaje
+    await update.message.reply_text(
+        text=texto,
+        parse_mode=ParseMode.MARKDOWN,
+        disable_web_page_preview=True
     )
-
-    mensaje = help_text_template
-    
-    if is_admin:
-        admin_help_text_template = _(
-            "\n\n"
-            "🔑 *Comandos de Administrador*\n"
-            "  • `/users`: Muestra la lista de todos los usuarios registrados.\n"
-            "  • `/logs [N]`: Muestra las últimas N líneas del log del bot.\n"
-            "  • `/ms`: Inicia el proceso interactivo para enviar un mensaje masivo (broadcast) a todos los usuarios.\n" 
-            , user_id 
-        )
-        mensaje += admin_help_text_template
-    
-    await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
