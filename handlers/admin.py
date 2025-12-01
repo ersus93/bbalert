@@ -355,14 +355,14 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         mensaje_template = _(
             "👤 *Tu Perfil Registrado*\n"
-            "————————————————————\n"
+            "—————————————————\n"
             "  - Nombre: {nombre_completo}\n"
             "  - 🪪 ID: `{user_id}`\n"
             "  - 👤 Usuario: {username_str}\n"
             "  - 🪙 Monedas: `{monedas_str}`\n"
             "  - ⏰ Alerta cada: {intervalo_h}h\n"
             "  - 🔔 Alertas cruce activas: {alertas_activas}\n"
-            "————————————————————\n"
+            "—————————————————\n"
             "_Solo puedes ver tu propia información 🙂_",
             current_chat_id
         )
@@ -455,7 +455,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 3. Construir Mensaje Final
     mensaje_admin = (
         f"📊 **ESTADÍSTICAS GENERALES** (v{VERSION})\n"
-        f"————————————————————\n"
+        f"—————————————————\n"
         f"👥 **Usuarios Totales:** `{total_usuarios}`\n"
         f"🔔 **Alertas Cruce Activas:** `{total_alertas_cruce}`\n"
         f"📢 **Suscritos a HBD:** `{total_hbd_users}` ({porcentaje_hbd:.1f}%)\n\n"
@@ -467,7 +467,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"{top_3_str}\n"
         
         f"🆕 **Últimos 5 Usuarios Registrados:**\n"
-        f"————————————————————\n"
+        f"—————————————————\n"
         f"```{chr(10).join(detalles_ultimos)}```"
     )
 
@@ -498,11 +498,11 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # --- PLANTILLA ENVUELTA ---
         mensaje_template = _(
             "🤖 *Estado de BitBread Alert*\n\n"
-            "————————————————————\n"
+            "—————————————————\n"
             "• Versión: {version} 🤖\n"
             "• Estado: {estado} 👌\n"
             "• Última Actualización: {ultima_actualizacion} 🕒 \n"
-            "————————————————————\n\n"
+            "—————————————————\n\n"
             "_Ya, eso es todo lo que puedes ver 🙂👍_",
             current_chat_id
         )
@@ -567,14 +567,14 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- PLANTILLA ENVUELTA ---
     mensaje_template = _(
         "🤖 *Estado de BitBread Alert*\n"
-        "————————————————————\n"
+        "—————————————————\n"
         "• Versión: {version} 🤖\n"
         "• PID: {pid} 🪪\n"
         "• Python: {python_version} 🐍\n"
         "• Usuarios: {num_usuarios} 👥\n"
         "• Estado: {estado} 👌\n"
         "• Última Actualización: {ultima_actualizacion} 🕒 \n"
-        "————————————————————\n"
+        "—————————————————\n"
         "•📜 *Últimas {num_lineas} líneas de {total_lineas} *\n ```{log_str}```\n",
         current_chat_id
     )

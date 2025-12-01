@@ -37,7 +37,7 @@ def get_random_ad_text():
     anuncio = random.choice(ads)
     
     # Formato visual del anuncio (puedes cambiar los emojis o separadores)
-    return f"\n•\n📌——————— ADs ———————📌\n📢 {anuncio}\n"
+    return f"\n•\n📌—————— ADs ——————📌\n📢 {anuncio}\n"
 
 def add_ad(text):
     """Añade un nuevo anuncio a la lista."""

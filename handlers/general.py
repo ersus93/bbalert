@@ -80,7 +80,7 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     precios_anteriores_usuario = todos_precios_anteriores.get(str(chat_id), {})
 
     # 5. Construir el mensaje
-    mensaje = _("📊 *Precios Actuales (Tu Lista):*\n————————————————————\n\n", user_id)
+    mensaje = _("📊 *Precios Actuales (Tu Lista):*\n—————————————————\n\n", user_id)
     
     TOLERANCIA = 0.0000001
     
@@ -105,7 +105,7 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Añadir fecha
     fecha_actual = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    mensaje += f"\n————————————————————\n_📅 Consulta: {fecha_actual}_"
+    mensaje += f"\n—————————————————\n_📅 Consulta: {fecha_actual}_"
 
     mensaje += get_random_ad_text()
 
@@ -125,7 +125,7 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     mensaje_template = _(
-        "Estos son tus datos de Telegram:\n————————————————————\n\n"
+        "Estos son tus datos de Telegram:\n—————————————————\n\n"
         "Nombre: {nombre}\n"
         "Usuario: {usuario}\n"
         "ID: `{id_chat}`",

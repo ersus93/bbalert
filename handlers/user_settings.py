@@ -225,7 +225,7 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     # 5. Construir y enviar el mensaje de confirmación
     if precios:
         # Mensaje 3a: Éxito con precios disponibles
-        encabezado_base = _("✅ *Tu lista de monedas ha sido guardada.*\n————————————————————\n\n*Precios actuales:*\n•\n", user_id)
+        encabezado_base = _("✅ *Tu lista de monedas ha sido guardada.*\n—————————————————\n\n*Precios actuales:*\n•\n", user_id)
         mensaje_respuesta = encabezado_base
         
         # Etiqueta 4: 'No encontrado'
