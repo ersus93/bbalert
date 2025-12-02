@@ -28,6 +28,7 @@ ELTOQUE_HISTORY_PATH = os.path.join(DATA_DIR, "eltoque_history.json")
 LAST_PRICES_PATH = os.path.join(DATA_DIR, "last_prices.json")
 TEMPLATE_PATH = os.path.join(DATA_DIR, "img.png")
 ADS_PATH = os.path.join(DATA_DIR, "ads.json")
+HBD_THRESHOLDS_PATH = os.path.join(DATA_DIR, "hbd_thresholds.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
 VERSION = "0.1.015-beta"
@@ -37,4 +38,4 @@ PYTHON_VERSION = platform.python_version()
 LOG_MAX = 45
 LOG_LINES = []
 INTERVALO_ALERTA = 300
-INTERVALO_CONTROL = 600
+INTERVALO_CONTROL = 480

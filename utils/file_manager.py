@@ -6,8 +6,11 @@ from datetime import datetime
 import time 
 import uuid # Para generar IDs únicos si es necesario
 import openpyxl
-from core.config import USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH, LAST_PRICES_PATH
-
+from core.config import (
+    USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, 
+    PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH, 
+    LAST_PRICES_PATH, HBD_THRESHOLDS_PATH
+)
 
 # === Inicialización de Archivos ===
 def inicializar_archivos():
@@ -20,6 +23,18 @@ def inicializar_archivos():
             add_log_line(f"✅ Archivo de historial de alertas creado en: {CUSTOM_ALERT_HISTORY_PATH}")
     except Exception as e:
         add_log_line(f"❌ ERROR al inicializar el archivo de historial de alertas: {e}")
+
+# --- NUEVO BLOQUE ---
+    try:
+        if not os.path.exists(HBD_THRESHOLDS_PATH):
+            # Inicializamos con algunos valores por defecto si quieres
+            default_thresholds = {"1.00": True, "1.10": True, "0.95": True} 
+            with open(HBD_THRESHOLDS_PATH, 'w', encoding='utf-8') as f:
+                json.dump(default_thresholds, f, indent=4)
+            add_log_line(f"✅ Archivo de umbrales HBD creado en: {HBD_THRESHOLDS_PATH}")
+    except Exception as e:
+        add_log_line(f"❌ ERROR al inicializar umbrales HBD: {e}")
+    # --------------------
 
 
 
@@ -89,6 +104,91 @@ def add_log_line(linea):
     # Añadido: Imprimir a la consola para depuración
     print(LOG_LINES[-1]) 
 
+
+# === NUEVAS FUNCIONES PARA GESTIÓN DE UMBRALES HBD ===
+
+def load_hbd_thresholds():
+    """Carga los umbrales de HBD (Precio: Estado)."""
+    if not os.path.exists(HBD_THRESHOLDS_PATH):
+        return {}
+    try:
+        with open(HBD_THRESHOLDS_PATH, "r", encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, FileNotFoundError):
+        return {}
+
+def save_hbd_thresholds(thresholds):
+    """Guarda los umbrales de HBD."""
+    try:
+        with open(HBD_THRESHOLDS_PATH, "w", encoding='utf-8') as f:
+            json.dump(thresholds, f, indent=4, sort_keys=True) # sort_keys para mantener orden
+    except Exception as e:
+        add_log_line(f"Error al guardar umbrales HBD: {e}")
+
+def modify_hbd_threshold(price: float, action: str):
+    """
+    Modifica los umbrales.
+    action: 'add', 'del', 'run', 'stop'
+    Maneja la búsqueda de claves de forma flexible (float vs string).
+    """
+    thresholds = load_hbd_thresholds()
+    
+    # Clave estandarizada para NUEVAS entradas
+    target_key = f"{price:.4f}"
+    
+    # --- BUSQUEDA INTELIGENTE DE CLAVE EXISTENTE ---
+    # Buscamos si ya existe el precio, independientemente del formato ("1.00", "1.0", "1.0000")
+    existing_key = None
+    
+    # 1. Intento directo
+    if target_key in thresholds:
+        existing_key = target_key
+    else:
+        # 2. Búsqueda por valor numérico (Tolerancia epsilon pequeña)
+        for key in thresholds.keys():
+            try:
+                if abs(float(key) - price) < 0.00001:
+                    existing_key = key
+                    break
+            except ValueError:
+                continue
+    # -----------------------------------------------
+
+    if action == 'add':
+        # Siempre usamos el formato estándar para nuevas entradas, 
+        # a menos que ya exista (para no duplicar)
+        key_to_use = existing_key if existing_key else target_key
+        thresholds[key_to_use] = True # True = Running
+        msg = f"✅ Alerta HBD para ${key_to_use} añadida y activada."
+        
+    elif action == 'del':
+        if existing_key:
+            del thresholds[existing_key]
+            msg = f"🗑️ Alerta HBD para ${existing_key} eliminada."
+        else:
+            msg = f"⚠️ No existe alerta para ${target_key}."
+            
+    elif action == 'run':
+        if existing_key:
+            thresholds[existing_key] = True
+            msg = f"▶️ Alerta HBD para ${existing_key} activada (Running)."
+        else:
+            # Si no existe, la creamos
+            thresholds[target_key] = True
+            msg = f"▶️ Alerta HBD para ${target_key} creada y activada."
+            
+    elif action == 'stop':
+        if existing_key:
+            thresholds[existing_key] = False
+            msg = f"⏸️ Alerta HBD para ${existing_key} detenida (Stopped)."
+        else:
+            msg = f"⚠️ No existe alerta para ${target_key} para detener."
+    else:
+        return False, "Acción desconocida"
+
+    save_hbd_thresholds(thresholds)
+    add_log_line(msg)
+    return True, msg
 
 # === Funciones para Historial de Precios por Usuario (Persistencia) ===
 def load_last_prices_status():

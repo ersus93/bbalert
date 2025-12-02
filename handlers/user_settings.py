@@ -17,7 +17,8 @@ from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYT
 from utils.file_manager import(cargar_usuarios, guardar_usuarios, registrar_usuario,\
                                actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, add_log_line,\
                                 add_price_alert, get_user_alerts, delete_price_alert,delete_all_alerts,\
-                                      toggle_hbd_alert_status, set_user_language, get_user_language
+                                      toggle_hbd_alert_status, set_user_language, get_user_language,\
+                                      toggle_hbd_alert_status, modify_hbd_threshold, load_hbd_thresholds
                                 ) 
 from core.api_client import obtener_precios_control
 from core.loops import set_custom_alert_history_util # Nueva importación
@@ -243,46 +244,105 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await update.message.reply_text(mensaje_respuesta, parse_mode=ParseMode.MARKDOWN)
 
-# COMANDO /hbdalerts para activar/desactivar alertas de HBD
+# COMANDO /hbdalerts (Actualizado con lógica Admin)
 async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el estado de las alertas HBD y permite al usuario activarlas/desactivarlas."""
+    """
+    Gestión de alertas HBD.
+    Admins: /hbdalerts add/del/edit <precio> [run/stop]
+    Usuarios: Ver lista y botón Activar/Desactivar suscripción personal.
+    """
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    user_id_str = str(user_id)
+    args = context.args
+
+    # --- LÓGICA DE ADMINISTRADOR (Edición) ---
+    if user_id_str in ADMIN_CHAT_IDS and args:
+        if len(args) < 2:
+            await update.message.reply_text(
+                "👮‍♂️ *Admin*: Uso: `/hbdalerts <add|del|edit> <precio> [run|stop]`",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return
+
+        action = args[0].lower()
+        try:
+            precio = float(args[1].replace(',', '.'))
+        except ValueError:
+            await update.message.reply_text("⚠️ El precio debe ser un número válido.")
+            return
+
+        sub_action = args[2].lower() if len(args) > 2 else None
+
+        # Mapeo de lógica para 'edit' con 'run/stop'
+        final_action = action
+        if action == 'edit':
+            if sub_action in ['run', 'stop']:
+                final_action = sub_action
+            else:
+                await update.message.reply_text("⚠️ Para editar usa: `/hbdalerts edit <precio> run` o `stop`.")
+                return
+
+        success, msg = modify_hbd_threshold(precio, final_action)
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # --- VISTA GENERAL (Usuarios y Admins sin argumentos) ---
+    
+    # 1. Obtener estado de suscripción del usuario
     usuarios = cargar_usuarios()
     user_data = usuarios.get(str(user_id), {})
+    is_subscribed = user_data.get('hbd_alerts', False)
 
-    # Se asume false si la clave no existe (para usuarios antiguos)
-    is_enabled = user_data.get('hbd_alerts', False)
+    # 2. Cargar lista de umbrales configurados
+    thresholds = load_hbd_thresholds()
+    
+    # Ordenar precios de mayor a menor para visualizar (convertimos a float para ordenar numéricamente)
+    sorted_prices = sorted(thresholds.keys(), key=lambda x: float(x), reverse=True)
 
-    if is_enabled:
-        # Mensaje 1: Alertas activadas
-        text = _(
-            "✅ Tus alertas predefinidas de HBD están *ACTIVADAS*.",
-            user_id
-        )
-        # Botón 1: Desactivar
-        button_text = _(
-            "🔕 Desactivar alertas",
-            user_id
-        )
+    lista_msg = ""
+    if not thresholds:
+        lista_msg = _("_(No hay alertas configuradas por el administrador)_", user_id)
     else:
-        # Mensaje 2: Alertas desactivadas
-        text = _(
-            "☑️ Tus alertas predefinidas de HBD están *DESACTIVADAS*.",
-            user_id
-        )
-        # Botón 2: Activar
-        button_text = _(
-            "🔔 Activar alertas",
-            user_id
-        )
+        for p in sorted_prices:
+            status = thresholds[p]
+            icon = "🟢 Running" if status else "🔴 Stopped"
+            
+            # --- CAMBIO: Convertir a float y formatear a 4 decimales para visualización ---
+            try:
+                precio_display = f"{float(p):.4f}"
+            except ValueError:
+                precio_display = p # Fallback por si hay error de datos
+            # -----------------------------------------------------------------------------
 
-    # Reutilizamos el mismo callback_data para no tener que crear un nuevo handler
+            lista_msg += f"• *${precio_display}* USD ({icon})\n"
+
+    # 3. Construir mensaje
+    encabezado = _("🚨 *Configuración de Alertas HBD*\n—————————————————\n\n", user_id)
+    
+    estado_usuario = _("✅ Tus notificaciones están *ACTIVADAS*", user_id) if is_subscribed else _("☑️ Tus notificaciones están *DESACTIVADAS*", user_id)
+    
+    mensaje_final = (
+        f"{encabezado}"
+        f"{lista_msg}\n"
+        f"—————————————————\n"
+        f"{estado_usuario}\n\n"
+        f"_{_('Usa el botón abajo para cambiar tu preferencia.', user_id)}_"
+    )
+
+    # 4. Botón Toggle
+    if is_subscribed:
+        button_text = _("🔕 Desactivar mis alertas", user_id)
+    else:
+        button_text = _("🔔 Activar mis alertas", user_id)
+
     keyboard = [[
         InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
     ]]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(mensaje_final, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+
 
 # Callback para el botón de activar/desactivar alertas de HBD
 async def toggle_hbd_alerts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
