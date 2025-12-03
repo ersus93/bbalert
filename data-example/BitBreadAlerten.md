@@ -94,8 +94,6 @@ BitBreadAlert is a robust, low-maintenance solution for crypto tracking. Its arc
 
 ---
 
-Here are the **Visual Diagrams** and the **Admin Cheat Sheet** for the English version of the BitBreadAlert documentation.
-
 ### 1\. 🏗️ System Architecture Diagrams
 
 These diagrams visualize how the different components of `BitBreadAlert` interact. You can include these in the **"3. Technical Architecture"** section of your paper.
