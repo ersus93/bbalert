@@ -1,8 +1,8 @@
-```**BitBreadAlert**.
+**BitBreadAlert**.
 
 This document is structured to be distributed to two audiences:
 1.  **End Users:** To understand how to interact with the bot intuitively.
-2.  **Developers/Admins:** To understand the logic, architecture, and data flow.```
+2.  **Developers/Admins:** To understand the logic, architecture, and data flow.
 
 ---
 
