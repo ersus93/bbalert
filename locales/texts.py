@@ -47,7 +47,7 @@ HELP_MSG = {
         "  • `/graf <COIN> [PAIR] <TIME>`: Chart (e.g. `/graf BTC 1h`).\n"
         "  • `/tasa`: Exchange rates from ElToque (CUP).\n"
         "  • `/tasaimg`: Image of exchange rates from ElToque.\n"
-        "  • `/mk`: Check the status (open/closed) of the major global markets.\n
+        "  • `/mk`: Check the status (open/closed) of the major global markets.\n"
         "  • `/ver`: Quick check of your watchlist prices.\n\n"
         "⚙️ *Settings & Misc*\n"
         "  • `/hbdalerts [add/del/run/stop]`: Manage HBD thresholds. (Ex: `/hbdalerts add 0.9950`).\n"
