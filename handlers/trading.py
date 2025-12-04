@@ -3,10 +3,12 @@
 import asyncio
 import requests # Usaremos requests en lugar de Selenium
 import json
+import pytz 
 from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from datetime import timedelta, datetime
 from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS # <--- IMPORTANTE: AÑADIDO ADMIN_CHAT_IDS
 from core.api_client import obtener_datos_moneda, obtener_tasas_eltoque
 from utils.file_manager import add_log_line, load_eltoque_history, save_eltoque_history
@@ -367,3 +369,105 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         add_log_line(f"Error fatal procesando datos de ElToque con historial: {e}.")
         mensaje_error_inesperado = _("❌ Ocurrió un error inesperado procesando los datos.", user_id)
         await update.message.reply_text(mensaje_error_inesperado, parse_mode=ParseMode.MARKDOWN)
+
+# === NUEVA LÓGICA PARA /MK ===
+
+def get_time_str(minutes_delta):
+    """Convierte minutos a formato legible (ej: 'in an hour', 'in 2 hours')."""
+    hours = int(minutes_delta // 60)
+    minutes = int(minutes_delta % 60)
+    
+    if hours == 0:
+        return f"in {minutes} minutes"
+    elif hours == 1:
+        return "in an hour"
+    else:
+        return f"in {hours} hours"
+
+async def mk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Muestra el estado de los mercados globales (Abierto/Cerrado).
+    """
+    user_id = update.effective_user.id
+
+    # Configuración de Mercados: (Nombre, Emoji, Timezone, Hora Apertura, Hora Cierre)
+    # Horas en formato 24h local
+    markets = [
+        {"name": "NYC", "flag": "🇺🇸", "tz": "America/New_York", "open": 9.5, "close": 16.0}, # 9:30 - 16:00
+        {"name": "Hong Kong", "flag": "🇭🇰", "tz": "Asia/Hong_Kong", "open": 9.5, "close": 16.0},
+        {"name": "Tokyo", "flag": "🇯🇵", "tz": "Asia/Tokyo", "open": 9.0, "close": 15.0},
+        {"name": "Seoul", "flag": "🇰🇷", "tz": "Asia/Seoul", "open": 9.0, "close": 15.5},
+        {"name": "London", "flag": "🇬🇧", "tz": "Europe/London", "open": 8.0, "close": 16.5},
+        {"name": "Shanghai", "flag": "🇨🇳", "tz": "Asia/Shanghai", "open": 9.5, "close": 15.0},
+        {"name": "South Africa", "flag": "🇿🇦", "tz": "Africa/Johannesburg", "open": 9.0, "close": 17.0},
+        {"name": "Dubai", "flag": "🇦🇪", "tz": "Asia/Dubai", "open": 10.0, "close": 15.0},
+        {"name": "Australia", "flag": "🇦🇺", "tz": "Australia/Sydney", "open": 10.0, "close": 16.0},
+        {"name": "India", "flag": "🇮🇳", "tz": "Asia/Kolkata", "open": 9.25, "close": 15.5}, # 9:15
+        {"name": "Russia", "flag": "🇷🇺", "tz": "Europe/Moscow", "open": 10.0, "close": 18.75}, # 18:45
+        {"name": "Germany", "flag": "🇩🇪", "tz": "Europe/Berlin", "open": 9.0, "close": 17.5}, # 17:30
+        {"name": "Canada", "flag": "🇨🇦", "tz": "America/Toronto", "open": 9.5, "close": 16.0},
+        {"name": "Brazil", "flag": "🇧🇷", "tz": "America/Sao_Paulo", "open": 10.0, "close": 17.0},
+    ]
+
+    lines = []
+    now_utc = datetime.now(pytz.utc)
+
+    for m in markets:
+        try:
+            tz = pytz.timezone(m["tz"])
+            now_local = now_utc.astimezone(tz)
+            
+            # Convertir hora actual a float para comparar fácil (ej: 9:30 = 9.5)
+            current_float = now_local.hour + (now_local.minute / 60.0)
+            
+            # Determinar si es fin de semana (Saturday=5, Sunday=6)
+            is_weekend = now_local.weekday() >= 5
+            
+            # Estado base
+            is_open = False
+            msg_status = ""
+            
+            if not is_weekend and m["open"] <= current_float < m["close"]:
+                is_open = True
+                
+                # Calcular tiempo para cerrar
+                minutes_to_close = (m["close"] - current_float) * 60
+                time_str = get_time_str(minutes_to_close)
+                msg_status = f"Open ✅ closes {time_str}"
+            else:
+                is_open = False
+                
+                # Calcular tiempo para abrir
+                if is_weekend:
+                    # Si es finde, abre el Lunes (calculo aproximado sumando días)
+                    days_ahead = 7 - now_local.weekday() # 7 - 5(Sab) = 2 dias
+                    if days_ahead == 0: days_ahead = 1 # Si es Domingo noche y ya pasó la hora 0
+                    # Simplificación: "Opens on Monday" o calcular horas reales es complejo
+                    msg_status = "Closed ❌ opens Monday"
+                elif current_float < m["open"]:
+                    # Abre hoy más tarde
+                    minutes_to_open = (m["open"] - current_float) * 60
+                    time_str = get_time_str(minutes_to_open)
+                    msg_status = f"Closed ❌ opens {time_str}"
+                else:
+                    # Ya cerró hoy, abre mañana
+                    # Calculamos horas hasta la medianoche + hora de apertura
+                    hours_remaining_today = 24.0 - current_float
+                    total_hours = hours_remaining_today + m["open"]
+                    time_str = get_time_str(total_hours * 60)
+                    msg_status = f"Closed ❌ opens {time_str}"
+
+            lines.append(f"{m['flag']}*{m['name']}*: {msg_status}")
+
+        except Exception as e:
+            print(f"Error procesando {m['name']}: {e}")
+            lines.append(f"{m['flag']}*{m['name']}*: Error Data")
+
+    # Construir mensaje final con estética del bot
+    header = _("🌍 *Estado de Mercados Globales*\n—————————————————\n\n", user_id)
+    body = "\n".join(lines)
+    footer = get_random_ad_text()
+
+    full_message = header + body + footer
+
+    await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)

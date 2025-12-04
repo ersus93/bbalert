@@ -17,6 +17,7 @@ HELP_MSG = {
         "  • `/graf <MONEDA> [PAR] <TIEMPO>`: Gráfico (ej. `/graf BTC 1h`).\n"
         "  • `/tasa`: Tasas de cambio de ElToque (CUP).\n"
         "  • `/tasaimg`: Imagen de tasas de cambio de ElToque.\n"
+        "  • `/mk`: Consulta el estado (abierto/cerrado) de los principales mercados globales.\n"
         "  • `/ver`: Consulta rápida de precios de tu lista.\n\n"
         "⚙️ *Configuración y Varios*\n"
         "  • `/hbdalerts [add/del/run/stop]`: Administra umbrales HBD. (Ej: `/hbdalerts add 0.9950`).\n"
@@ -46,6 +47,7 @@ HELP_MSG = {
         "  • `/graf <COIN> [PAIR] <TIME>`: Chart (e.g. `/graf BTC 1h`).\n"
         "  • `/tasa`: Exchange rates from ElToque (CUP).\n"
         "  • `/tasaimg`: Image of exchange rates from ElToque.\n"
+        "  • `/mk`: Check the status (open/closed) of the major global markets.\n
         "  • `/ver`: Quick check of your watchlist prices.\n\n"
         "⚙️ *Settings & Misc*\n"
         "  • `/hbdalerts [add/del/run/stop]`: Manage HBD thresholds. (Ex: `/hbdalerts add 0.9950`).\n"
