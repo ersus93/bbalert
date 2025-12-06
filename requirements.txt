@@ -4,3 +4,4 @@ python-dotenv
 openpyxl
 Babel
 Pillow
+pytz

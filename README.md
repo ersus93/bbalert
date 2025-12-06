@@ -37,6 +37,9 @@ Users can set specific triggers that fire *only* when a price condition is met.
 * **Charts:** `/graf <COIN> <TIMEFRAME>` (e.g., `/graf BTC 1h`). Returns a screenshot of the TradingView chart.
 * **Detailed Price:** `/p <COIN>`. Shows price, volume, market cap, and change vs BTC/ETH.
 * **Cuban Exchange Rate (ElToque):** `/tasa`. Connects to the ElToque API to fetch informal exchange rates (USD/CUP, MLC, etc.) with trend indicators.
+* **Global Market Status:** `/mk`
+* **Function:** Checks the opening/closing status of major world stock exchanges (New York, London, Tokyo, etc.).
+* **Logic:** Converts UTC time to local market timezones using pytz to tell you if a market is Open 🟢 or Closed 🔴
 
 ---
 
@@ -75,6 +78,10 @@ The bot uses a lightweight JSON-based database system located in the `/data` fol
 * **ElToque API:** Source for Cuban informal market rates (includes retry logic for reliability).
 * **ScreenshotOne:** Renders HTML/TradingView widgets into images for the `/graf` command.
 
+### 3.5. Dynamic Image Generation The bot features a dedicated engine in image_generator.py.
+* **Command:** `/tasaimg` triggers this function via admin.py.
+* **Process:** It loads a base template (img.png) and uses the Pillow library to draw the latest exchange rates (fetched from ElToque) directly onto the image coordinates. It dynamically adjusts font positioning based on the data.
+
 ---
 
 ## 4. Admin & Monetization Features
@@ -83,9 +90,17 @@ The bot uses a lightweight JSON-based database system located in the `/data` fol
 The bot includes an `ads_manager.py`. Admins can add text ads.
 * *Logic:* Every time a user requests a price check (`/p`), a report (`/ver`), or receives an alert, the bot injects a random ad from the JSON database at the bottom of the message.
 
-### 4.2. Administration
-* **Logs:** Admins can view the last 45 internal log lines via `/logs` directly in Telegram.
-* **Broadcasting:** Admins can define HBD thresholds dynamically using `/hbdalerts add <price> run`.
+### 4.2. Administration Commands
+
+| Command | Usage | Description | Key File |
+| :--- | :--- | :--- | :--- |
+| **/ms** | `/ms` (Starts conversation) | **Interactive Broadcast:** Starts a "Wizard" (ConversationHandler) to safely send text, photos, or both to **ALL** registered users, including a confirmation step. | `handlers/admin.py` |
+| **/ad** | `/ad add <TEXT>` | **Add Ad:** Adds a new text ad to the random rotation used in reports. | `handlers/admin.py` |
+| | `/ad del <N>` | **Remove Ad:** Deletes the ad at position `N`. | `handlers/admin.py` |
+| **/users** | `/users` | **User Stats:** Shows total registered users, HBD subscribers percentage, and the Top 5 most-watched coins. | `handlers/admin.py` |
+| **/logs** | `/logs` | **View Logs:** Displays the last lines of the internal system log (errors, startup events). | `handlers/admin.py` |
+| **/tasaimg** | `/tasaimg` | **ElToque Image:** Generates the dynamic visual summary of the ElToque exchange rates and sends the image. | `handlers/admin.py` |
+| **/hbdalerts** | `/hbdalerts` | **Peg Control:** Manage (add, delete, run, stop) the specific price thresholds for the HBD monitor. | `handlers/user_settings.py` |
 
 ---
 
@@ -165,6 +180,53 @@ sequenceDiagram
     JobQ->>JobQ: Load User's Coin List
     JobQ->>Users: 📊 SEND PERIODIC REPORT
 ```
+#### C. MS Command (Mermaid)
+stateDiagram-v2
+    [*] --> Command_MS: /ms (Admin Only)
+    Command_MS --> AwaitingContent: Ask for Text/Photo
+    
+    state AwaitingContent {
+        [*] --> UserSendsText
+        [*] --> UserSendsPhoto
+    }
+
+    AwaitingContent --> Confirmation: Admin sends Content
+    
+    state Confirmation {
+        direction LR
+        Edit --> AddButton: Add Text/Photo
+        Send --> SendButton: Confirm Send
+        Cancel --> CancelButton: Cancel Operation
+    }
+
+    Confirmation --> BroadcastLoop: Click "Send"
+    Confirmation --> [*]: Click "Cancel"
+
+    state BroadcastLoop {
+        [*] --> LoadUsers: users.json
+        LoadUsers --> SendMsg: Loop Async
+        SendMsg --> LogErrors: Track blocked users
+    }
+    
+    BroadcastLoop --> Report: Send Summary to Admin
+
+#### D. Image Generation
+
+flowchart LR
+    A[User /tasaimg] --> B(Admin Handler)
+    B --> C{Data Exists?}
+    C -- No --> D[Error Message]
+    C -- Yes --> E[Call image_generator.py]
+    
+    subgraph "Image Generation Process"
+        E --> F[Load Template img.png]
+        F --> G[Load Font arial.ttf]
+        G --> H[Get Data eltoque_history.json]
+        H --> I[Draw Text with PIL]
+        I --> J[Save to BytesIO]
+    end
+    
+    J --> K[Send Photo to Telegram]
 
 -----
 
