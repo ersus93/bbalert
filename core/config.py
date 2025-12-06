@@ -31,7 +31,7 @@ ADS_PATH = os.path.join(DATA_DIR, "ads.json")
 HBD_THRESHOLDS_PATH = os.path.join(DATA_DIR, "hbd_thresholds.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.016-beta"
+VERSION = "0.1.018-beta"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---

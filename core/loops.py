@@ -1,7 +1,7 @@
 # core/loops.py
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram import Bot, Update
@@ -15,7 +15,7 @@ from utils.file_manager import (
     cargar_usuarios, leer_precio_anterior_alerta, guardar_precios_alerta, add_log_line,
     load_price_alerts, update_alert_status, 
     cargar_custom_alert_history, guardar_custom_alert_history, get_hbd_alert_recipients,
-    load_last_prices_status, save_last_prices_status
+    load_last_prices_status, save_last_prices_status, update_last_alert_timestamp
 )
 from core.i18n import _ # <-- Importar _
 
@@ -53,24 +53,62 @@ def set_custom_alert_history_util(coin, price):
 
 # === FUNCIONES DE UTILIDAD PARA EXPORTAR ===
 def programar_alerta_usuario(user_id: int, intervalo_h: float):
-    """Crea o reprograma el job de alerta periódica para un usuario."""
+    """
+    Crea o reprograma el job de alerta periódica.
+    Calcula el tiempo restante basado en la última alerta enviada para no reiniciar el ciclo.
+    """
     if not _app_ref:
         add_log_line("❌ ERROR: La referencia a la aplicación (JobQueue) no está disponible.")
         return
         
     job_queue = _app_ref.job_queue
     chat_id = int(user_id)
+    chat_id_str = str(chat_id)
     job_name = f"user_alert_{chat_id}"
-    # Remover trabajos existentes para este usuario para evitar duplicados
+    
+    # Remover trabajos existentes
     jobs = job_queue.get_jobs_by_name(job_name)
     for job in jobs:
         job.schedule_removal()
-        add_log_line(f"🛠️ Job anterior '{job_name}' eliminado para reprogramación.")
+    
+    # --- LÓGICA DE PERSISTENCIA DE TIEMPO ---
+    usuarios = cargar_usuarios() #
+    user_data = usuarios.get(chat_id_str, {})
+    last_timestamp_str = user_data.get('last_alert_timestamp')
+    
+    intervalo_segundos = intervalo_h * 3600
+    first_run_delay = 10 # Por defecto: 10 segundos (si es usuario nuevo)
+
+    if last_timestamp_str:
+        try:
+            last_run = datetime.strptime(last_timestamp_str, '%Y-%m-%d %H:%M:%S')
+            next_run = last_run + timedelta(seconds=intervalo_segundos)
+            now = datetime.now()
+            
+            # Calculamos cuántos segundos faltan para la siguiente ejecución
+            remaining_seconds = (next_run - now).total_seconds()
+            
+            if remaining_seconds > 0:
+                # Si falta tiempo, esperamos exactamente eso
+                first_run_delay = remaining_seconds
+                add_log_line(f"⏱️ Restaurando ciclo para {chat_id}: Próxima alerta en {remaining_seconds/60:.1f} min.")
+            else:
+                # Si el tiempo ya pasó (el bot estuvo apagado mucho tiempo),
+                # ejecutamos casi de inmediato para "ponernos al día".
+                first_run_delay = 5 
+                add_log_line(f"⏱️ Alerta atrasada para {chat_id}. Se enviará en 5s.")
+        except Exception as e:
+            add_log_line(f"⚠️ Error calculando tiempo restante para {chat_id}: {e}. Usando default.")
+            first_run_delay = 10
+    else:
+        # Si no hay registro previo, es la primera vez o actualización nueva
+        add_log_line(f"🆕 Iniciando nuevo ciclo de alertas para {chat_id} en 10s.")
+
     # Programar el nuevo trabajo
     job_queue.run_repeating(
         alerta_trabajo_callback,
-        interval=intervalo_h * 3600,  # Convertir horas a segundos
-        first=10,  # Empezar 10 segundos después de programar
+        interval=intervalo_segundos,
+        first=first_run_delay,  # <--- Usamos el tiempo calculado
         chat_id=chat_id,
         name=job_name,
         data={'enviar_mensaje_ref': _enviar_mensaje_telegram_async_ref}
@@ -278,7 +316,6 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     mensaje_template = _("📊 *Alerta de tus monedas ({intervalo_h}h):*\n—————————————————\n\n", chat_id)
     mensaje = mensaje_template.format(intervalo_h=intervalo_h)
     
-    # Usamos la variable global que ya se cargó al inicio (o se actualizó en ejecuciones previas)
     precios_anteriores_usuario = PRECIOS_CONTROL_ANTERIORES.get(chat_id_str, {})
     precios_para_guardar = {} 
     
@@ -301,20 +338,21 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
         fecha=current_time_str,
         intervalo_h=intervalo_h
     )
-    # --- INYECCIÓN DE ANUNCIO ---
+    
     mensaje += get_random_ad_text()
-    # ----------------------------
+    
+    fallidos = {}
     if enviar_mensaje_ref:
-        fallidos = await enviar_mensaje_ref(mensaje, [chat_id_str], parse_mode=ParseMode.MARKDOWN)
+        fallidos = await enviar_mensaje_ref(mensaje, [chat_id_str], parse_mode=ParseMode.MARKDOWN) #
 
     if chat_id_str not in fallidos:
-        # --- AQUÍ LA MEJORA DE RENDIMIENTO ---
-        # 1. Actualizamos la memoria RAM para uso inmediato
+        # 1. Actualizamos la memoria RAM para uso inmediato (precios anteriores)
         PRECIOS_CONTROL_ANTERIORES[chat_id_str] = precios_para_guardar
-        
-        # 2. Persistimos en disco para proteger contra reinicios
         save_last_prices_status(PRECIOS_CONTROL_ANTERIORES)
         
-        add_log_line(f"✅ Alerta enviada a {chat_id_str}. Precios guardados.")
+        # 2. NUEVO: Guardar el timestamp de éxito para persistencia del temporizador
+        update_last_alert_timestamp(chat_id) # <--- AQUÍ GUARDAMOS LA HORA
+        
+        add_log_line(f"✅ Alerta enviada a {chat_id_str}. Precios y timestamp guardados.")
     else:
-        add_log_line(f"❌ ERROR: Referencia de envío no disponible para {chat_id_str}.")
+        add_log_line(f"❌ ERROR: Referencia de envío no disponible o fallo para {chat_id_str}.")

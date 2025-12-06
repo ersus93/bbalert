@@ -253,12 +253,8 @@ def delete_all_alerts(user_id: int) -> bool:
 
     return True
 
-
-
-
 # Llamar a la inicialización al importar el módulo
 inicializar_archivos()
-
 
 # === Funciones de Gestión de Usuarios ===
 
@@ -401,6 +397,19 @@ def actualizar_intervalo_alerta(chat_id, new_interval_h):
         return False
     
 # === Gestión de Usuarios (JSON) ===
+
+def update_last_alert_timestamp(chat_id):
+    """
+    Actualiza el campo 'last_alert_timestamp' del usuario con la hora actual.
+    Esto permite mantener el ciclo de alertas incluso si el bot se reinicia.
+    """
+    usuarios = cargar_usuarios() #
+    chat_id_str = str(chat_id)
+    
+    if chat_id_str in usuarios:
+        # Guardamos el timestamp actual en formato string ISO
+        usuarios[chat_id_str]['last_alert_timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        guardar_usuarios(usuarios) #
 
 def cargar_usuarios():
     """Carga el diccionario de usuarios."""

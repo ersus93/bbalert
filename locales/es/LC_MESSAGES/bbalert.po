@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-12-01 18:56-0500\n"
+"POT-Creation-Date: 2025-12-05 18:51-0500\n"
 "PO-Revision-Date: 2025-11-30 19:33-0500\n"
 "Last-Translator: \n"
 "Language: es\n"
@@ -104,11 +104,11 @@ msgid ""
 "_🔰 Alerta configurada cada {intervalo_h} horas._"
 msgstr ""
 
-#: handlers/admin.py:41
+#: handlers/admin.py:42
 msgid "🚫 Comando no autorizado."
 msgstr ""
 
-#: handlers/admin.py:52
+#: handlers/admin.py:53
 msgid ""
 "✍️ *Creación de Mensaje Masivo*\n"
 "\n"
@@ -116,73 +116,73 @@ msgid ""
 "Puedes enviar una imagen, un texto, o una imagen con texto."
 msgstr ""
 
-#: handlers/admin.py:69
+#: handlers/admin.py:70
 msgid "🖼️ Añadir Imagen"
 msgstr ""
 
-#: handlers/admin.py:70
+#: handlers/admin.py:71
 msgid "➡️ Enviar Solo Texto"
 msgstr ""
 
-#: handlers/admin.py:71 handlers/admin.py:157 handlers/admin.py:183
+#: handlers/admin.py:72 handlers/admin.py:158 handlers/admin.py:184
 msgid "❌ Cancelar"
 msgstr ""
 
-#: handlers/admin.py:72
+#: handlers/admin.py:73
 msgid "✍️ Añadir/Editar Texto"
 msgstr ""
 
-#: handlers/admin.py:73
+#: handlers/admin.py:74
 msgid "➡️ Enviar Solo Imagen"
 msgstr ""
 
-#: handlers/admin.py:84
+#: handlers/admin.py:85
 msgid "✅ Texto recibido. ¿Deseas añadir una imagen o enviar el mensaje?"
 msgstr ""
 
-#: handlers/admin.py:104
+#: handlers/admin.py:105
 msgid "✅ Imagen recibida. ¿Deseas añadir o editar el texto del pie de foto?"
 msgstr ""
 
-#: handlers/admin.py:113
+#: handlers/admin.py:114
 msgid "⚠️ Por favor, envía un texto o una imagen."
 msgstr ""
 
-#: handlers/admin.py:128
+#: handlers/admin.py:129
 msgid "✍️ De acuerdo, por favor envía el texto que quieres usar como pie de foto."
 msgstr ""
 
-#: handlers/admin.py:135
+#: handlers/admin.py:136
 msgid "🖼️ Entendido, por favor envía la imagen que quieres adjuntar."
 msgstr ""
 
-#: handlers/admin.py:144 handlers/admin.py:271
+#: handlers/admin.py:145 handlers/admin.py:272
 msgid "🚫 Operación cancelada."
 msgstr ""
 
-#: handlers/admin.py:156 handlers/admin.py:182
+#: handlers/admin.py:157 handlers/admin.py:183
 msgid "🚀 Enviar a todos los usuarios"
 msgstr ""
 
-#: handlers/admin.py:166
+#: handlers/admin.py:167
 msgid "✅ Texto añadido. El mensaje está listo para ser enviado."
 msgstr ""
 
-#: handlers/admin.py:192
+#: handlers/admin.py:193
 msgid "✅ Imagen añadida. El mensaje está listo para ser enviado."
 msgstr ""
 
-#: handlers/admin.py:208
+#: handlers/admin.py:209
 msgid ""
 "⏳ *Enviando mensaje a todos los usuarios...*\n"
 "Esto puede tardar un momento."
 msgstr ""
 
-#: handlers/admin.py:216
+#: handlers/admin.py:217
 msgid "❌ Error interno: La función de envío masivo no ha sido inicializada."
 msgstr ""
 
-#: handlers/admin.py:239
+#: handlers/admin.py:240
 #, python-brace-format
 msgid ""
 "✅ Envío completado.\n"
@@ -193,16 +193,16 @@ msgid ""
 "{fallidos_str}"
 msgstr ""
 
-#: handlers/admin.py:253
+#: handlers/admin.py:254
 #, python-brace-format
 msgid "✅ ¡Éxito! Mensaje enviado a todos los *{total_usuarios}* usuarios."
 msgstr ""
 
-#: handlers/admin.py:336
+#: handlers/admin.py:337
 msgid "😕 No estás registrado en el sistema."
 msgstr ""
 
-#: handlers/admin.py:357
+#: handlers/admin.py:358
 #, python-brace-format
 msgid ""
 "👤 *Tu Perfil Registrado*\n"
@@ -217,7 +217,7 @@ msgid ""
 "_Solo puedes ver tu propia información 🙂_"
 msgstr ""
 
-#: handlers/admin.py:500
+#: handlers/admin.py:501
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -231,15 +231,15 @@ msgid ""
 "_Ya, eso es todo lo que puedes ver 🙂👍_"
 msgstr ""
 
-#: handlers/admin.py:528
+#: handlers/admin.py:529
 msgid "❌ Error interno: La función de logs no ha sido inicializada."
 msgstr ""
 
-#: handlers/admin.py:541
+#: handlers/admin.py:542
 msgid "⚠️ El argumento debe ser un número entero."
 msgstr ""
 
-#: handlers/admin.py:569
+#: handlers/admin.py:570
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -357,7 +357,7 @@ msgid ""
 "ID: `{id_chat}`"
 msgstr ""
 
-#: handlers/trading.py:68
+#: handlers/trading.py:70
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -367,19 +367,19 @@ msgid ""
 "`/graf BTC USDT 1h`"
 msgstr ""
 
-#: handlers/trading.py:96
+#: handlers/trading.py:98
 msgid ""
 "⚠️ *Temporalidad no válida*.\n"
 "\n"
 "Usa: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 msgstr ""
 
-#: handlers/trading.py:110
+#: handlers/trading.py:112
 #, python-brace-format
 msgid "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})..."
 msgstr ""
 
-#: handlers/trading.py:122
+#: handlers/trading.py:124
 #, python-brace-format
 msgid ""
 "📈 *Gráfico de {base}/{quote} ({temporalidad})*\n"
@@ -387,13 +387,13 @@ msgid ""
 "[Ver en TradingView]({url})"
 msgstr ""
 
-#: handlers/trading.py:134
+#: handlers/trading.py:136
 msgid ""
 "❌ Lo siento, no pude generar la captura del gráfico en este momento. "
 "Inténtalo de nuevo más tarde."
 msgstr ""
 
-#: handlers/trading.py:152
+#: handlers/trading.py:154
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -401,37 +401,37 @@ msgid ""
 "Ejemplo: `/p BTC`"
 msgstr ""
 
-#: handlers/trading.py:167
+#: handlers/trading.py:169
 #, python-brace-format
 msgid "😕 No se pudieron obtener los datos para *{moneda}*."
 msgstr ""
 
-#: handlers/trading.py:184
+#: handlers/trading.py:186
 msgid "Ξ:"
 msgstr ""
 
-#: handlers/trading.py:185
+#: handlers/trading.py:187
 msgid "₿:"
 msgstr ""
 
-#: handlers/trading.py:186
+#: handlers/trading.py:188
 msgid "Cap:"
 msgstr ""
 
-#: handlers/trading.py:187
+#: handlers/trading.py:189
 msgid "Vol:"
 msgstr ""
 
-#: handlers/trading.py:205
+#: handlers/trading.py:207
 #, python-brace-format
 msgid "🔄 Actualizar /p {symbol}"
 msgstr ""
 
-#: handlers/trading.py:239
+#: handlers/trading.py:241
 msgid "⏳ Estamos conectando con elToque..."
 msgstr ""
 
-#: handlers/trading.py:258
+#: handlers/trading.py:260
 msgid ""
 "⚠️ *Error de Conexión*\n"
 "\n"
@@ -441,27 +441,34 @@ msgid ""
 "👮‍♂️ _Los administradores han sido notificados._"
 msgstr ""
 
-#: handlers/trading.py:303
+#: handlers/trading.py:305
 msgid "😕 Error de formato en datos de ElToque."
 msgstr ""
 
-#: handlers/trading.py:311
+#: handlers/trading.py:313
 msgid ""
 "🏦 *Tasas de Cambio* (Informal)\n"
 "—————————————————\n"
 "\n"
 msgstr ""
 
-#: handlers/trading.py:353
+#: handlers/trading.py:355
 msgid "Actualizado:"
 msgstr ""
 
-#: handlers/trading.py:354
+#: handlers/trading.py:356
 msgid "Fuente: elTOQUE.com"
 msgstr ""
 
-#: handlers/trading.py:368
+#: handlers/trading.py:370
 msgid "❌ Ocurrió un error inesperado procesando los datos."
+msgstr ""
+
+#: handlers/trading.py:467
+msgid ""
+"🌍 *Estado de Mercados Globales*\n"
+"—————————————————\n"
+"\n"
 msgstr ""
 
 #: handlers/user_settings.py:60
