@@ -5,3 +5,5 @@ openpyxl
 Babel
 Pillow
 pytz
+pandas 
+pandas_ta

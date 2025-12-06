@@ -1,268 +1,170 @@
 # 📄 BitBreadAlert: Technical Whitepaper & User Manual
 
-## 1. Executive Summary
-**BitBreadAlert** is an asynchronous Telegram bot designed for real-time cryptocurrency monitoring. Unlike standard price bots, BitBreadAlert offers a hybrid approach: it combines **periodic portfolio reports** (user-defined intervals) with **event-driven alerts** (price crossing targets). It features specialized integration for the **Hive** ecosystem (HBD stability monitoring) and the Cuban informal exchange market (**ElToque**).
+## 1\. Executive Summary
 
----
-
-## 2. User Guide: How to use the Bot
-*For the general user, the bot operates on three main pillars: Portfolio Monitoring, Target Alerts, and Market Tools.*
-
-### 2.1. Getting Started
-* **Initialization:** Send `/start` to register. The bot automatically detects the user's language (Spanish/English) but defaults to Spanish if unsure.
-* **Language:** Users can manually switch languages using `/lang`.
-
-### 2.2. Pillar A: The "Watchlist" (Periodic Reports)
-This is the bot's "heartbeat." Users define a list of coins and a frequency, and the bot sends a summary automatically.
-
-* **Step 1: Define Coins:**
-    * Command: `/monedas BTC, HIVE, ETH`
-    * *Action:* Sets the list of assets the user wants to track.
-* **Step 2: Set Frequency:**
-    * Command: `/temp 2.5` (Example for 2.5 hours).
-    * *Action:* The bot will send a report of the defined coins every 2.5 hours.
-* **Step 3: Instant Check:**
-    * Command: `/ver`
-    * *Action:* Ignores the timer and shows the current prices of the watchlist immediately.
-
-### 2.3. Pillar B: Target Alerts (Price Crossing)
-Users can set specific triggers that fire *only* when a price condition is met.
-
-* **Set Alert:** `/alerta <COIN> <PRICE>`
-    * *Example:* `/alerta BTC 95000`
-    * *Logic:* The bot creates two hidden triggers: one if BTC goes *above* 95k, and one if it drops *below* 95k. Whichever happens first triggers the notification.
-* **Manage Alerts:** `/misalertas` shows active triggers with buttons to delete them.
-
-### 2.4. Pillar C: Specialized Market Tools
-* **Charts:** `/graf <COIN> <TIMEFRAME>` (e.g., `/graf BTC 1h`). Returns a screenshot of the TradingView chart.
-* **Detailed Price:** `/p <COIN>`. Shows price, volume, market cap, and change vs BTC/ETH.
-* **Cuban Exchange Rate (ElToque):** `/tasa`. Connects to the ElToque API to fetch informal exchange rates (USD/CUP, MLC, etc.) with trend indicators.
-* **Global Market Status:** `/mk`
-* **Function:** Checks the opening/closing status of major world stock exchanges (New York, London, Tokyo, etc.).
-* **Logic:** Converts UTC time to local market timezones using pytz to tell you if a market is Open 🟢 or Closed 🔴
-
----
-
-## 3. Technical Architecture (Internal Logic)
-
-### 3.1. The Asynchronous Core
-The bot is built on `python-telegram-bot` (v20+) using `asyncio`. It handles high concurrency without blocking using a non-blocking JobQueue.
-
-
-### 3.2. The Loop System (Background Tasks)
-The bot runs three concurrent monitoring processes in `loops.py`:
-
-1.  **The User JobQueue (Personalized):**
-    * *Logic:* When a user sets `/temp`, a unique `Job` is scheduled in the application's `JobQueue`.
-    * *Flow:* Every $X$ hours $\rightarrow$ Fetch user's coin list $\rightarrow$ Call API $\rightarrow$ Send Message.
-
-2.  **The Custom Alert Loop (`check_custom_price_alerts`):**
-    * *Frequency:* Runs every `INTERVALO_CONTROL` (approx. 8 mins).
-    * *Efficiency:* It loads all active alerts into memory. It fetches prices for *all* unique coins in one API call (to save API credits) rather than one call per user.
-    * *Trigger:* Compares `Current_Price` vs `Target_Price` vs `Previous_Memory_Price`. If a crossover is detected, it notifies the user and deletes the alert.
-
-3.  **The HBD Monitor (`alerta_loop`):**
-    * *Frequency:* High frequency (every `INTERVALO_ALERTA`, approx. 5 mins).
-    * *Purpose:* Monitors the HBD (Hive Backed Dollar) peg.
-    * *Logic:* It compares the current HBD price against an Admin-defined list of thresholds (e.g., $0.95, $1.05). If a threshold is crossed, it broadcasts a message to *all* users who subscribed via `/hbdalerts`.
-
-### 3.3. Data Persistence
-The bot uses a lightweight JSON-based database system located in the `/data` folder:
-* `users.json`: Stores User IDs, language preferences, watchlists, and alert intervals.
-* `price_alerts.json`: Stores active target alerts (Coin, Target, Condition).
-* `hbd_thresholds.json`: Stores the "tripwires" for the HBD peg alerts.
-* `ads.json`: Stores text ads injected into bot messages.
-
-### 3.4. External Integrations
-* **CoinMarketCap:** Primary source for crypto prices and metadata.
-* **ElToque API:** Source for Cuban informal market rates (includes retry logic for reliability).
-* **ScreenshotOne:** Renders HTML/TradingView widgets into images for the `/graf` command.
-
-### 3.5. Dynamic Image Generation The bot features a dedicated engine in image_generator.py.
-* **Command:** `/tasaimg` triggers this function via admin.py.
-* **Process:** It loads a base template (img.png) and uses the Pillow library to draw the latest exchange rates (fetched from ElToque) directly onto the image coordinates. It dynamically adjusts font positioning based on the data.
-
----
-
-## 4. Admin & Monetization Features
-
-### 4.1. Advertisement Injection
-The bot includes an `ads_manager.py`. Admins can add text ads.
-* *Logic:* Every time a user requests a price check (`/p`), a report (`/ver`), or receives an alert, the bot injects a random ad from the JSON database at the bottom of the message.
-
-### 4.2. Administration Commands
-
-| Command | Usage | Description | Key File |
-| :--- | :--- | :--- | :--- |
-| **/ms** | `/ms` (Starts conversation) | **Interactive Broadcast:** Starts a "Wizard" (ConversationHandler) to safely send text, photos, or both to **ALL** registered users, including a confirmation step. | `handlers/admin.py` |
-| **/ad** | `/ad add <TEXT>` | **Add Ad:** Adds a new text ad to the random rotation used in reports. | `handlers/admin.py` |
-| | `/ad del <N>` | **Remove Ad:** Deletes the ad at position `N`. | `handlers/admin.py` |
-| **/users** | `/users` | **User Stats:** Shows total registered users, HBD subscribers percentage, and the Top 5 most-watched coins. | `handlers/admin.py` |
-| **/logs** | `/logs` | **View Logs:** Displays the last lines of the internal system log (errors, startup events). | `handlers/admin.py` |
-| **/tasaimg** | `/tasaimg` | **ElToque Image:** Generates the dynamic visual summary of the ElToque exchange rates and sends the image. | `handlers/admin.py` |
-| **/hbdalerts** | `/hbdalerts` | **Peg Control:** Manage (add, delete, run, stop) the specific price thresholds for the HBD monitor. | `handlers/user_settings.py` |
-
----
-
-## 5. Conclusion
-BitBreadAlert is a robust, low-maintenance solution for crypto tracking. Its architecture separates "Personal/Periodic" monitoring from "Event/Trigger" monitoring, ensuring users are informed both regularly and instantly when market conditions change. The inclusion of localized tools (ElToque) and niche ecosystem tools (HBD) makes it uniquely valuable compared to generic price bots.
-
----
-
-### 1\. 🏗️ System Architecture Diagrams
-
-These diagrams visualize how the different components of `BitBreadAlert` interact. You can include these in the **"3. Technical Architecture"** section of your paper.
-
-#### A. High-Level Data Flow (Mermaid)
-
-This diagram shows how a user request travels through the bot to external APIs and databases.
-
-```mermaid
-graph TD
-    User((User)) -->|Commands /start, /p| TG[Telegram Bot API]
-    TG -->|Update| BB[BitBreadAlert Core<br/>bbalert.py]
-    
-    subgraph "Internal Handlers"
-        BB -->|/p, /graf| TR[Trading Handler<br/>trading.py]
-        BB -->|/alerta| AL[Alerts Handler<br/>alerts.py]
-        BB -->|/monedas| US[User Settings<br/>user_settings.py]
-    end
-
-    subgraph "Data Persistence /data"
-        DB1[(users.json)]
-        DB2[(price_alerts.json)]
-        DB3[(hbd_thresholds.json)]
-    end
-
-    subgraph "External APIs"
-        CMC[CoinMarketCap API]
-        ET[ElToque API]
-        SS[ScreenshotOne API]
-    end
-
-    TR --> CMC
-    TR --> ET
-    TR --> SS
-    US --> DB1
-    AL --> DB2
-```
-
-#### B. The Loop System (Mermaid)
-
-This diagram illustrates the three concurrent background processes defined in `loops.py` and how they trigger notifications.
-
-```mermaid
-sequenceDiagram
-    participant Timer
-    participant LoopHBD as HBD Monitor (Loop)
-    participant LoopCustom as Custom Alerts (Loop)
-    participant JobQ as User JobQueue
-    participant Users
-
-    Note over Timer, LoopHBD: Every ~5 min (INTERVALO_ALERTA)
-    Timer->>LoopHBD: Check HBD Price
-    LoopHBD->>LoopHBD: Compare vs Thresholds
-    alt Threshold Crossed
-        LoopHBD->>Users: 🚨 SEND HBD ALERT (Broadcast)
-    end
-
-    Note over Timer, LoopCustom: Every ~8 min (INTERVALO_CONTROL)
-    Timer->>LoopCustom: Check "Target" Alerts
-    LoopCustom->>LoopCustom: Fetch Prices for ALL active coins
-    LoopCustom->>LoopCustom: Check Price vs Target
-    alt Condition Met
-        LoopCustom->>Users: 🔔 SEND PRICE ALERT (Individual)
-        LoopCustom->>LoopCustom: Delete Alert
-    end
-
-    Note over Timer, JobQ: User Defined (e.g., 2.5h)
-    Timer->>JobQ: Trigger "User_Alert_Job"
-    JobQ->>JobQ: Load User's Coin List
-    JobQ->>Users: 📊 SEND PERIODIC REPORT
-```
-#### C. MS Command (Mermaid)
-
-```mermaid
-stateDiagram-v2
-    [*] --> Command_MS: /ms (Admin Only)
-    Command_MS --> AwaitingContent: Ask for Text/Photo
-    
-    state AwaitingContent {
-        [*] --> UserSendsText
-        [*] --> UserSendsPhoto
-    }
-
-    AwaitingContent --> Confirmation: Admin sends Content
-    
-    state Confirmation {
-        direction LR
-        Edit --> AddButton: Add Text/Photo
-        Send --> SendButton: Confirm Send
-        Cancel --> CancelButton: Cancel Operation
-    }
-
-    Confirmation --> BroadcastLoop: Click "Send"
-    Confirmation --> [*]: Click "Cancel"
-
-    state BroadcastLoop {
-        [*] --> LoadUsers: users.json
-        LoadUsers --> SendMsg: Loop Async
-        SendMsg --> LogErrors: Track blocked users
-    }
-    
-    BroadcastLoop --> Report: Send Summary to Admin
-```
-
-#### D. Image Generation
-
-```mermaid
-flowchart LR
-    A[User /tasaimg] --> B(Admin Handler)
-    B --> C{Data Exists?}
-    C -- No --> D[Error Message]
-    C -- Yes --> E[Call image_generator.py]
-    
-    subgraph "Image Generation Process"
-        E --> F[Load Template img.png]
-        F --> G[Load Font arial.ttf]
-        G --> H[Get Data eltoque_history.json]
-        H --> I[Draw Text with PIL]
-        I --> J[Save to BytesIO]
-    end
-    
-    J --> K[Send Photo to Telegram]
-```
+**BitBreadAlert** is an asynchronous Telegram bot engineered for real-time cryptocurrency monitoring. Unlike standard price checkers, BitBreadAlert utilizes a **hybrid architecture** combining **periodic portfolio reports** (cron-based) with **event-driven alerts** (threshold triggers). It features specialized integrations for the **Hive** ecosystem (HBD peg stability) and the Cuban informal exchange market (**ElToque**), alongside advanced Technical Analysis (TA) tools.
 
 -----
 
-### 2\. 🛡️ Admin Cheat Sheet
+## 2\. User Guide: Commands & Modules
 
-This section is strictly for users whose Telegram ID is listed in `ADMIN_CHAT_IDS` in `config.py`. These commands allow you to manage the bot without accessing the server terminal.
+### 2.1. Initialization
 
-#### 📢 Broadcasting & HBD Management
+  * **/start**: Registers the user in the database. The bot automatically detects the user's language (ES/EN).
+  * **/lang**: Manually toggles the interface language.
 
-| Command | Usage | Description | Source File |
-| :--- | :--- | :--- | :--- |
-| **/hbdalerts** | `/hbdalerts add <price>` | **Add Alert:** Adds a new price tripwire. <br>*Ex: `/hbdalerts add 0.95`* | `user_settings.py` |
-| | `/hbdalerts del <price>` | **Delete Alert:** Removes an existing tripwire. | |
-| | `/hbdalerts edit <price> stop`| **Pause Alert:** Keeps the threshold but stops checking it. | |
-| | `/hbdalerts edit <price> run` | **Resume Alert:** Re-activates a paused threshold. | |
-| **/ms** | `/ms` (Start conversation) | **Broadcast Message:** Starts a wizard to send a message to **ALL** registered users. Follow the bot's prompts. | `handlers/admin.py`\* |
+### 2.2. Module A: Portfolio Monitoring (Periodic)
 
-#### 🛠️ System & Debugging
+The core monitoring engine allows users to define a custom list of assets and a reporting frequency.
 
-| Command | Usage | Description | Source File |
-| :--- | :--- | :--- | :--- |
-| **/users** | `/users` | **User Stats:** Shows total registered users and active database stats. | `handlers/admin.py`\* |
-| **/logs** | `/logs` | **View Logs:** Displays the last \~45 lines of the internal system log (errors, startup events). | `handlers/admin.py`\* |
-| **/ad** | `/ad <text>` | **Add Ad:** Adds a new text ad to the rotation. | `handlers/admin.py`\* |
-| **/tasaimg**| `/tasaimg` | **ElToque Image:** (Likely) Generates/Sends a visual summary of the exchange rates. | `handlers/admin.py`\* |
+  * **/monedas `<COINS>`**: Sets the watchlist.
+      * *Usage:* `/monedas BTC, HIVE, ETH`
+  * **/temp `<HOURS>`**: Sets the reporting interval.
+      * *Usage:* `/temp 2.5` (Sends a report every 2.5 hours).
+  * **/ver**: Forces an immediate execution of the portfolio report, bypassing the timer.
 
-> **Note:** The `*` indicates that the handler is imported in `bbalert.py` but the file content wasn't fully visible in the upload. However, the command registration confirms their existence.
+### 2.3. Module B: Event-Driven Alerts (Triggers)
 
-#### 🚨 Automatic Admin Notifications
+Triggers that fire *only* when specific market conditions are met.
 
-The bot will automatically DM all admins in these events:
+  * **/alerta `<COIN> <PRICE>`**: Sets a price crossing alert.
+      * *Usage:* `/alerta BTC 95000`
+      * *Logic:* Creates dual triggers (Upper/Lower). Whichever is crossed first fires the notification and consumes the alert.
+  * **/misalertas**: Displays active triggers with interactive buttons to delete them.
 
-1.  **Bot Restart:** When `bbalert.py` initializes (includes Version & PID).
-2.  **API Failure:** If critical APIs (like ElToque) fail repeatedly after retries.
+### 2.4. Module C: Market Analysis & Tools
+
+#### 📊 Advanced Technical Analysis (`/ta`)
+
+The `/ta` command performs a real-time technical analysis using a fallback system between Binance (Historical Data) and TradingView (Snapshot).
+
+  * **Syntax:** `/ta <SYMBOL> [PAIR] [TIMEFRAME] [TV]`
+  * **Smart Argument Parsing:**
+      * *Default:* `/ta BTC` $\rightarrow$ Analyzes BTC/USDT on 1h timeframe via Binance.
+      * *Custom Pair:* `/ta BTC ETH` $\rightarrow$ Analyzes BTC/ETH.
+      * *Custom Time:* `/ta BTC 4h` $\rightarrow$ Analyzes BTC/USDT on 4h.
+      * *Force Source:* `/ta BTC TV` $\rightarrow$ Forces data from **TradingView** (bypassing Binance).
+  * **Output Modes:**
+    1.  **Binance Mode (Rich Data):** Provides historical context (Current | Prev | Prev-2) for indicators like RSI, MFI, CCI, and Pivots. Includes **Experimental** divergence detection.
+    2.  **TradingView Mode (Snapshot):** Used as a fallback or forced option. Provides current indicator values without historical columns.
+  * **Indicators:** RSI, MACD, Bollinger Bands, ATR, OBV, Williams %R, Momentum, ADX, and PSAR.
+
+#### 📉 Other Market Tools
+
+  * **/graf `<COIN> [PAIR] <TIME>`**: Generates a chart screenshot.
+      * *Usage:* `/graf BTC ETH 4h` (Returns an image from TradingView charts).
+  * **/p `<COIN>`**: detailed ticker information (Price, Vol, Cap, 24h% Change).
+  * **/mk**: **Global Market Status**. Checks opening/closing times of major stock exchanges (NYC, London, Tokyo, etc.) relative to UTC.
+  * **/tasa**: Fetches informal exchange rates (USD, MLC, EUR) from the **ElToque API** with trend indicators.
+
+-----
+
+## 3\. Technical Architecture
+
+### 3.1. Core Components
+
+The bot is built on `python-telegram-bot` (v20+) using `asyncio` for non-blocking operations.
+
+  * **Event Loop:** Manages concurrent tasks (API calls, listeners).
+  * **JobQueue:** Handles scheduled tasks (User Reports).
+  * **Background Loops:** Independent `asyncio` tasks for high-frequency monitoring.
+
+### 3.2. Data Flow & Logic Diagrams
+
+#### A. High-Level Architecture (Mermaid)
+
+Data flow from user input to external APIs and storage.
+
+```mermaid
+graph TD
+    User((User)) -->|Commands| TG[Telegram API]
+    TG -->|Update| Core[BitBreadAlert Core]
+    
+    subgraph "Handlers"
+        Core -->|/ta, /p| Trading[Trading Module]
+        Core -->|/alerta| Alerts[Alerts Module]
+        Core -->|/monedas| UserSet[Settings Module]
+    end
+
+    subgraph "External Services"
+        Trading -->|REST| Binance[Binance API]
+        Trading -->|Lib| TV[TradingView-TA]
+        Trading -->|REST| ElToque[ElToque API]
+        Trading -->|REST| SS[ScreenshotOne]
+    end
+
+    subgraph "Persistence /data"
+        UserSet --> DB1[(users.json)]
+        Alerts --> DB2[(price_alerts.json)]
+    end
+```
+
+#### B. Technical Analysis Logic (`/ta` Flow)
+
+Decision tree for the smart analysis command.
+
+```mermaid
+flowchart TD
+    Start(/ta Command) --> Parse[Parse Args: Symbol, Pair, Time]
+    Parse --> CheckFlag{Flag 'TV' present?}
+    
+    CheckFlag -- Yes --> TV_Call[Call TradingView API]
+    CheckFlag -- No --> Bin_Call[Call Binance API]
+    
+    Bin_Call --> Success{Data Found?}
+    Success -- Yes --> Calc[Calc Indicators + History Cols]
+    Calc --> Exp[Run Experimental Divergences]
+    Exp --> FormatBin[Format: Rich Table]
+    
+    Success -- No --> TV_Fallback[Fallback to TradingView]
+    TV_Call --> TV_Fallback
+    
+    TV_Fallback --> TV_Success{Data Found?}
+    TV_Success -- Yes --> FormatTV[Format: Simple Snapshot]
+    TV_Success -- No --> Error[Return 'No Data']
+    
+    FormatBin --> Send[Edit Message]
+    FormatTV --> Send
+    Error --> Send
+```
+
+#### C. The Loop System
+
+Three concurrent monitoring processes defined in `loops.py`.
+
+1.  **HBD Monitor (High Freq):** Checks Hive Backed Dollar peg stability every \~5 mins. Broadcasts to subscribers if thresholds are breached.
+2.  **Custom Alert Loop (Med Freq):** Batches all user price alerts, fetches unique coin prices in a single API call, and triggers individual notifications.
+3.  **User JobQueue (Low Freq):** Individual timers for portfolio reports.
+
+-----
+
+## 4\. Administration & Monetization
+
+### 4.1. Ad Injection System
+
+The bot includes an `ads_manager.py` that injects text-based advertisements into high-traffic responses (`/p`, `/ta`, `/ver`).
+
+  * **/ad add `<TEXT>`**: Adds a new ad to the rotation.
+  * **/ad del `<INDEX>`**: Removes an ad.
+
+### 4.2. Admin Commands
+
+Restricted to IDs listed in `ADMIN_CHAT_IDS`.
+
+| Command | Usage | Description |
+| :--- | :--- | :--- |
+| **/ms** | `/ms` | **Broadcast Wizard:** Interactive conversation to send text/media to ALL users safely. |
+| **/users** | `/users` | **Analytics:** Displays total users, active retention, and top watched coins. |
+| **/logs** | `/logs` | **System Health:** Retrieves the last 50 lines of the runtime log. |
+| **/tasaimg** | `/tasaimg` | **Dynamic Image:** Generates a `.png` summary of ElToque rates using `Pillow` and sends it. |
+| **/hbdalerts** | `/hbdalerts` | **Peg Control:** interactive menu to Add/Delete/Pause/Resume HBD price thresholds. |
+
+-----
+
+## 5\. External Integrations & libraries
+
+  * **pandas & pandas\_ta:** Heavy-duty data manipulation and indicator calculation for `/ta` (Binance mode).
+  * **tradingview\_ta:** API wrapper for scraping TradingView technical ratings.
+  * **ScreenshotOne:** API for server-side rendering of chart screenshots.
+  * **ElToque:** Custom integration with retry logic and caching for Cuban market data.
+  * **Pillow (PIL):** Used in `image_generator.py` for drawing data over image templates.

@@ -4,10 +4,13 @@ import asyncio
 import requests # Usaremos requests en lugar de Selenium
 import json
 import pytz 
+import pandas as pd
+import pandas_ta as ta
 from io import BytesIO
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
+from tradingview_ta import TA_Handler, Interval, Exchange
 from datetime import timedelta, datetime
 from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS # <--- IMPORTANTE: AÑADIDO ADMIN_CHAT_IDS
 from core.api_client import obtener_datos_moneda, obtener_tasas_eltoque
@@ -471,3 +474,379 @@ async def mk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     full_message = header + body + footer
 
     await update.message.reply_text(full_message, parse_mode=ParseMode.MARKDOWN)
+
+
+# === NUEVO COMANDO /ta (Análisis Técnico) ===
+def get_binance_klines(symbol, interval, limit=1000): 
+    """Obtiene velas de Binance (Global o US)."""
+    endpoints = [
+        "https://api.binance.com/api/v3/klines", 
+        "https://api.binance.us/api/v3/klines"
+    ]
+    for url in endpoints:
+        params = {"symbol": symbol, "interval": interval, "limit": limit}
+        try:
+            response = requests.get(url, params=params, timeout=5)
+            response.raise_for_status()
+            data = response.json()
+            if not data: continue
+            
+            df = pd.DataFrame(data, columns=[
+                "open_time", "open", "high", "low", "close", "volume",
+                "close_time", "quote_asset_volume", "trades", 
+                "taker_base", "taker_quote", "ignore"
+            ])
+            cols = ["open", "high", "low", "close", "volume"]
+            df[cols] = df[cols].apply(pd.to_numeric, errors='coerce')
+            return df
+        except Exception:
+            continue
+    return None
+
+def calculate_indicators_binance(df):
+    """Calcula indicadores de manera segura usando pandas_ta. Si falla alguno, no crashea."""
+    
+    # Helper para asignar columnas de forma segura
+    def safe_indicator(name, indicator_series):
+        try:
+            if indicator_series is not None and not indicator_series.empty:
+                df[name] = indicator_series
+            else:
+                df[name] = 0.0
+        except Exception:
+            df[name] = 0.0
+
+    # Indicadores Clásicos
+    safe_indicator('RSI', df.ta.rsi(length=14))
+    
+    try:
+        macd = df.ta.macd(fast=12, slow=26, signal=9)
+        if macd is not None and not macd.empty:
+            df = pd.concat([df, macd], axis=1)
+        else:
+            df['MACDh_12_26_9'] = 0.0
+    except:
+        df['MACDh_12_26_9'] = 0.0
+
+    safe_indicator('ATR', df.ta.atr(length=14))
+    safe_indicator('MFI', df.ta.mfi(length=14))
+    safe_indicator('CCI', df.ta.cci(length=14))
+    
+    try:
+        adx = df.ta.adx(length=14)
+        if adx is not None and not adx.empty:
+            df = pd.concat([df, adx], axis=1)
+        else:
+            df['ADX_14'] = 0.0
+    except:
+        df['ADX_14'] = 0.0
+    
+    # Indicadores Extra
+    safe_indicator('OBV', df.ta.obv())
+    safe_indicator('WILLR', df.ta.willr(length=14))
+    safe_indicator('MOM', df.ta.mom(length=10))
+    
+    # Medias y PSAR
+    safe_indicator('SMA_50', df.ta.sma(length=50))
+    safe_indicator('SMA_200', df.ta.sma(length=200))
+    
+    try:
+        psar = df.ta.psar()
+        if psar is not None and not psar.empty:
+            df = pd.concat([df, psar], axis=1)
+    except:
+        pass 
+
+    # --- Lógica Experimental (Divergencias Simplificadas) ---
+    divergences = []
+    try:
+        last_rsi = df['RSI'].iloc[-1]
+        prev_rsi = df['RSI'].iloc[-2]
+        last_price = df['close'].iloc[-1]
+        prev_price = df['close'].iloc[-2]
+        
+        # RSI Divergence
+        if last_price > prev_price and last_rsi < prev_rsi:
+            divergences.append("🐻RSI: Bearish div (Weak)")
+        elif last_price < prev_price and last_rsi > prev_rsi:
+            divergences.append("🐂RSI: Bullish div (Weak)")
+            
+        # Volume Trend
+        vol_sma = df['volume'].rolling(window=20).mean()
+        if df['volume'].iloc[-1] > vol_sma.iloc[-1]:
+            divergences.append("🐂Volume: High Activity")
+    except Exception:
+        pass 
+    
+    # Devolvemos las últimas 3 filas y divergencias
+    return df.iloc[-3:], divergences
+
+def get_tradingview_analysis(symbol_pair, interval_str):
+    """
+    Obtiene análisis técnico básico usando la librería tradingview-ta.
+    Actúa como fallback si la API de Binance falla o no tiene el par.
+    """
+    interval_map = {
+        "1m": Interval.INTERVAL_1_MINUTE, "5m": Interval.INTERVAL_5_MINUTES,
+        "15m": Interval.INTERVAL_15_MINUTES, "1h": Interval.INTERVAL_1_HOUR,
+        "4h": Interval.INTERVAL_4_HOURS, "1d": Interval.INTERVAL_1_DAY,
+        "1w": Interval.INTERVAL_1_WEEK, "1M": Interval.INTERVAL_1_MONTH
+    }
+    tv_interval = interval_map.get(interval_str, Interval.INTERVAL_1_HOUR)
+    
+    try:
+        # Primer intento: Binance
+        handler = TA_Handler(symbol=symbol_pair, screener="crypto", exchange="BINANCE", interval=tv_interval)
+        analysis = handler.get_analysis()
+    except Exception:
+        try:
+            # Segundo intento: GateIO (alternativa común)
+            handler = TA_Handler(symbol=symbol_pair, screener="crypto", exchange="GATEIO", interval=tv_interval)
+            analysis = handler.get_analysis()
+        except Exception:
+            return None
+
+    if not analysis: return None
+
+    ind = analysis.indicators
+    
+    # Normalizamos la respuesta para que coincida con la estructura que espera el comando
+    return {
+        'source': 'TradingView',
+        'close': ind.get('close', 0),
+        'open': ind.get('open', 0),
+        'high': ind.get('high', 0),
+        'low': ind.get('low', 0),
+        'volume': ind.get('volume', 0),
+        'RSI': ind.get('RSI', 0),
+        'MACD_hist': ind.get('MACD.hist', 0) or ind.get('MACD_hist', 0),
+        'MOM': ind.get('Mom', 0),
+        'ATR': ind.get('ATR', 0),
+        'CCI': ind.get('CCI20', 0),
+        'ADX': ind.get('ADX', 0),
+        'WR': ind.get('W.R', 0),
+        'SMA_50': ind.get('SMA50', 0),
+        'PSAR_val': ind.get('P.SAR', 0), # Guardamos directo en PSAR_val
+        'Pivot': ind.get('Pivot.M.Classic.Middle', (ind['high'] + ind['low'] + ind['close'])/3),
+        'R1': ind.get('Pivot.M.Classic.R1', 0),
+        'R2': ind.get('Pivot.M.Classic.R2', 0),
+        'S1': ind.get('Pivot.M.Classic.S1', 0),
+        'S2': ind.get('Pivot.M.Classic.S2', 0),
+    }
+
+async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /ta <SYMBOL> [PAIR] [TIME] [TV]
+    """
+    user_id = update.effective_user.id
+    message = update.effective_message 
+
+    if not context.args:
+        await message.reply_text(_("⚠️ Uso: `/ta <SYMBOL> [PAR] [TIME] [TV]`", user_id), parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Parseo de argumentos
+    raw_args = [arg.upper() for arg in context.args]
+    force_tv = False
+    if 'TV' in raw_args:
+        force_tv = True
+        raw_args.remove('TV')
+    
+    symbol_base = raw_args[0]
+    pair = "USDT"
+    timeframe = "1h"
+    
+    if len(raw_args) > 1:
+        for arg in raw_args[1:]:
+            if arg[-1].lower() in ['m', 'h', 'd', 'w']:
+                timeframe = arg.lower()
+            else:
+                pair = arg
+
+    full_symbol = f"{symbol_base}{pair}"
+    
+    msg_wait = await message.reply_text(f"⏳ _Analizando {full_symbol} ({timeframe})..._", parse_mode=ParseMode.MARKDOWN)
+    loop = asyncio.get_running_loop()
+
+    final_data = {}
+    data_source = ""
+    divergences_list = []
+
+    # --- 1. INTENTO CON BINANCE ---
+    df_result = None
+    if not force_tv:
+        try:
+            df_result = await loop.run_in_executor(None, get_binance_klines, full_symbol, timeframe)
+        except Exception:
+            df_result = None
+    
+    if df_result is not None and not df_result.empty:
+        data_source = "Binance"
+        try:
+            last_3_rows, divergences_list = await loop.run_in_executor(None, calculate_indicators_binance, df_result)
+            
+            curr = last_3_rows.iloc[-1]
+            prev = last_3_rows.iloc[-2]
+            pprev = last_3_rows.iloc[-3]
+            
+            p_close, p_high, p_low = curr['close'], curr['high'], curr['low']
+            pivot = (p_high + p_low + p_close) / 3
+            
+            final_data = {
+                'close': curr['close'],
+                'volume': curr['volume'],
+                'ATR': curr.get('ATR', 0),
+                'RSI_list': [curr.get('RSI', 0), prev.get('RSI', 0), pprev.get('RSI', 0)],
+                'MFI_list': [curr.get('MFI', 0), prev.get('MFI', 0), pprev.get('MFI', 0)],
+                'CCI_list': [curr.get('CCI', 0), prev.get('CCI', 0), pprev.get('CCI', 0)],
+                'ADX_list': [curr.get('ADX_14', 0), prev.get('ADX_14', 0), pprev.get('ADX_14', 0)],
+                'WR_list':  [curr.get('WILLR', 0), prev.get('WILLR', 0), pprev.get('WILLR', 0)],
+                'OBV_list': [curr.get('OBV', 0), prev.get('OBV', 0), pprev.get('OBV', 0)],
+                'MACD_hist': curr.get('MACDh_12_26_9', 0),
+                'SMA_50': curr.get('SMA_50', 0),
+                'MOM': curr.get('MOM', 0),
+                'PSAR_val': 0, 
+                'Pivot': pivot,
+                'R1': (2*pivot) - p_low, 'R2': pivot + (p_high - p_low),
+                'S1': (2*pivot) - p_high, 'S2': pivot - (p_high - p_low)
+            }
+            
+            for col in curr.index:
+                if str(col).startswith('PSAR'):
+                    final_data['PSAR_val'] = curr[col]
+                    break
+        except Exception:
+            df_result = None
+
+    # --- 2. FALLBACK TRADINGVIEW ---
+    if df_result is None or df_result.empty:
+        if not force_tv:
+            try:
+                await msg_wait.edit_text(_("⚠️ Binance sin datos. Probando TradingView...", user_id), parse_mode=ParseMode.MARKDOWN)
+            except: pass
+        
+        try:
+            tv_data = await loop.run_in_executor(None, get_tradingview_analysis, full_symbol, timeframe)
+        except Exception:
+            tv_data = None
+        
+        if tv_data:
+            data_source = f"{tv_data['source']} (Fallback)"
+            final_data = tv_data
+            
+            # --- CORRECCIÓN AQUÍ ---
+            # Rellenamos con [val, 0, 0] para que salga "Valor | N/A | N/A"
+            for k in ['RSI', 'MFI', 'CCI', 'ADX', 'WR']:
+                val = final_data.get(k, 0) or 0
+                final_data[f'{k}_list'] = [val, 0, 0] 
+            
+            final_data['OBV_list'] = [0, 0, 0]
+            
+            # Recalcular pivotes si TV devolvió 0
+            if final_data.get('Pivot', 0) == 0 and final_data.get('close', 0) > 0:
+                 p = (final_data['high'] + final_data['low'] + final_data['close']) / 3
+                 final_data['Pivot'] = p
+                 final_data['R1'] = (2*p) - final_data['low']
+                 final_data['S1'] = (2*p) - final_data['high']
+            
+            divergences_list = ["⚠️ TV no entrega historial (solo Actual)."]
+        else:
+            await msg_wait.edit_text(_("❌ No se encontraron datos para *{s}*.".format(s=full_symbol), user_id), parse_mode=ParseMode.MARKDOWN)
+            return
+
+    # --- 3. GENERACIÓN DEL MENSAJE ---
+    try:
+        def fmt_cols(key_list, decimals=2, divisor=1):
+            vals = final_data.get(key_list, [0, 0, 0]) # Default 3 ceros si falla
+            if not vals: vals = [0, 0, 0]
+            fmt_vals = []
+            for v in vals:
+                # Si es 0, None o Nan, mostramos N/A (indicando que no hay historial)
+                if v is None or pd.isna(v) or v == 0: 
+                    fmt_vals.append("N/A") 
+                else:
+                    try:
+                        if divisor > 1: v = float(v) / divisor
+                        fmt_vals.append(f"{float(v):.{decimals}f}")
+                    except:
+                        fmt_vals.append("N/A")
+            return "| ".join(fmt_vals)
+
+        def get_icon(val, type_):
+            try:
+                if val is None or pd.isna(val) or val == 0: return "⚪️"
+                val = float(val)
+                if type_ == 'RSI': return "❌" if val > 70 else "✅" if val < 30 else "⚪️"
+                if type_ == 'MACD': return "✅" if val > 0 else "❌"
+                if type_ == 'MOM': return "✅" if val > 0 else "❌"
+            except: return "⚪️"
+            return "⚪️"
+
+        curr_rsi = final_data.get('RSI_list', [0])[0]
+        curr_macd = final_data.get('MACD_hist', 0)
+        curr_mom = final_data.get('MOM', 0)
+        price = final_data.get('close', 0)
+        
+        # SMA
+        sma_50 = final_data.get('SMA_50', 0)
+        sma_str = "N/A"
+        if sma_50 and sma_50 > 0:
+            sma_str = 'Price > SMA (Bull)' if price > sma_50 else 'Price < SMA (Bear)'
+
+        # PSAR
+        psar_val = final_data.get('PSAR_val', 0)
+        psar_str = "Neutral"
+        psar_icon = "⚪️"
+        if psar_val and not pd.isna(psar_val) and psar_val != 0:
+            psar_str = "Bullish" if psar_val < price else "Bearish"
+            psar_icon = "✅" if psar_str == "Bullish" else "❌"
+            
+        # OBV
+        obv_val = final_data.get('OBV_list', [0])[0]
+        obv_str = "N/A"
+        if obv_val and obv_val != 0:
+            obv_str = fmt_cols('OBV_list', 1, 1000000) + " M" if abs(obv_val) > 1000000 else fmt_cols('OBV_list', 0)
+
+        msg = (
+            f"📊 *Exchange {full_symbol} {timeframe}* ({data_source})\n"
+            f"—————————————————\n"
+            f"💰 *Precio:* `{price:,.4f}`\n"
+            f"📉 *ATR:* `{final_data.get('ATR', 0) or 0:.4f}`\n\n"
+            
+            f"❌*OBV:* `{obv_str}`\n"
+            f"{get_icon(curr_rsi, 'RSI')}*RSI:* `{fmt_cols('RSI_list')}`\n"
+            f"⚪️*MFI:* `{fmt_cols('MFI_list')}`\n"
+            f"⚪️*CCI:* `{fmt_cols('CCI_list')}`\n"
+            f"❌*WR%:* `{fmt_cols('WR_list')}`\n"
+            f"⚪️*ADX:* `{fmt_cols('ADX_list')}`\n\n"
+
+            f"{get_icon(curr_mom, 'MOM')}*MOM:* {'Bullish' if (curr_mom or 0) > 0 else 'Bearish' if (curr_mom or 0) < 0 else 'Neutral'}\n"
+            f"⚪️*SMA (50):* {sma_str}\n"
+            f"{get_icon(curr_macd, 'MACD')}*MACD:* {'Bullish' if (curr_macd or 0) > 0 else 'Bearish'}\n"
+            f"{psar_icon}*PSAR:* {psar_str}\n\n"
+            
+            f"🛡 *Support And Resistance*\n"
+            f"R2: `${final_data.get('R2', 0) or 0:.4f}`\n"
+            f"R1: `${final_data.get('R1', 0) or 0:.4f}`\n"
+            f"🎯 Pivot: `${final_data.get('Pivot', 0) or 0:.4f}`\n"
+            f"S1: `${final_data.get('S1', 0) or 0:.4f}`\n"
+            f"S2: `${final_data.get('S2', 0) or 0:.4f}`\n"
+        )
+
+        msg += "\nEXPERIMENTAL 🧪\n"
+        if divergences_list:
+            for div in divergences_list:
+                msg += f"{div}\n"
+        else:
+            msg += "⚪️ No major divergences detected\n"
+
+        msg += get_random_ad_text()
+        
+        await msg_wait.edit_text(msg, parse_mode=ParseMode.MARKDOWN)
+
+    except Exception as e:
+        error_text = _("❌ Error inesperado generando gráfico: {e}", user_id).format(e=e)
+        try:
+            await msg_wait.edit_text(error_text)
+        except:
+            await message.reply_text(error_text)

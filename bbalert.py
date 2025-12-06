@@ -16,7 +16,6 @@ from core.loops import (
 )
 from core.i18n import _ # <-- Importar _
 
-
 # --- Importación de Handlers y Utilidades ---
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, tasaimg_command, ad_command
@@ -30,9 +29,8 @@ from handlers.alerts import (
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
     
-
 )
-from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback, mk_command
+from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback, mk_command, ta_command
 
 
 async def post_init(app: Application):
@@ -149,6 +147,7 @@ def main():
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("ver", ver))
     app.add_handler(CommandHandler("mk", mk_command))
+    app.add_handler(CommandHandler("ta", ta_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("users", users))
     app.add_handler(CommandHandler("logs", logs_command))
