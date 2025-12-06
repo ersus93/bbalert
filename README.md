@@ -181,6 +181,8 @@ sequenceDiagram
     JobQ->>Users: 📊 SEND PERIODIC REPORT
 ```
 #### C. MS Command (Mermaid)
+
+```mermaid
 stateDiagram-v2
     [*] --> Command_MS: /ms (Admin Only)
     Command_MS --> AwaitingContent: Ask for Text/Photo
@@ -209,9 +211,11 @@ stateDiagram-v2
     }
     
     BroadcastLoop --> Report: Send Summary to Admin
+```
 
 #### D. Image Generation
 
+```mermaid
 flowchart LR
     A[User /tasaimg] --> B(Admin Handler)
     B --> C{Data Exists?}
@@ -227,6 +231,7 @@ flowchart LR
     end
     
     J --> K[Send Photo to Telegram]
+```
 
 -----
 
