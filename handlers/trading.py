@@ -756,76 +756,105 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- 3. GENERACIÓN DEL MENSAJE ---
     try:
-        def fmt_cols(key_list, decimals=2, divisor=1):
-            vals = final_data.get(key_list, [0, 0, 0]) # Default 3 ceros si falla
-            if not vals: vals = [0, 0, 0]
-            fmt_vals = []
-            for v in vals:
-                # Si es 0, None o Nan, mostramos N/A (indicando que no hay historial)
-                if v is None or pd.isna(v) or v == 0: 
-                    fmt_vals.append("N/A") 
-                else:
-                    try:
-                        if divisor > 1: v = float(v) / divisor
-                        fmt_vals.append(f"{float(v):.{decimals}f}")
-                    except:
-                        fmt_vals.append("N/A")
-            return "| ".join(fmt_vals)
-
-        def get_icon(val, type_):
+        # --- NUEVA LÓGICA DE TABLA ---
+        
+        # Función auxiliar para formatear celdas de la tabla (ancho fijo)
+        def fmt_cell(val, width=7):
+            """Formatea un valor para que ocupe exactamente 'width' espacios."""
+            if val is None or pd.isna(val) or val == 0:
+                return "   --  ".center(width)
             try:
-                if val is None or pd.isna(val) or val == 0: return "⚪️"
-                val = float(val)
-                if type_ == 'RSI': return "❌" if val > 70 else "✅" if val < 30 else "⚪️"
-                if type_ == 'MACD': return "✅" if val > 0 else "❌"
-                if type_ == 'MOM': return "✅" if val > 0 else "❌"
-            except: return "⚪️"
-            return "⚪️"
+                f = float(val)
+                # Si el número es muy grande (ej: CCI o OBV > 1000), usar notación 'k'
+                if abs(f) > 10000: # 10k
+                    return f"{f/1000:.1f}k".rjust(width)
+                elif abs(f) > 999: # 3 digitos enteros, quitamos decimales
+                    return f"{f:.0f}".rjust(width)
+                else:
+                    return f"{f:.2f}".rjust(width)
+            except:
+                return "   --  ".center(width)
 
+        # Preparamos las filas para la tabla
+        # (Nombre Indicador, Clave del diccionario)
+        rows_config = [
+            ("RSI", 'RSI_list'),
+            ("MFI", 'MFI_list'),
+            ("CCI", 'CCI_list'),
+            ("WR%", 'WR_list'),
+            ("ADX", 'ADX_list'),
+            ("OBV", 'OBV_list')
+        ]
+
+        # Construimos la tabla usando Markdown de bloque de código (```) para alineación perfecta
+        # Cabecera
+        table_msg = "```text\n"
+        table_msg += "IND     ACTUAL   PREVIO     ANT.\n"
+        table_msg += "──────  ───────  ───────  ───────\n"
+
+        for label, key in rows_config:
+            vals = final_data.get(key, [0, 0, 0])
+            # Aseguramos que haya 3 valores
+            if not vals or len(vals) < 3: vals = [0, 0, 0]
+            
+            # Formateamos cada celda
+            c_act = fmt_cell(vals[0])
+            c_pre = fmt_cell(vals[1])
+            c_ant = fmt_cell(vals[2])
+            
+            table_msg += f"{label:<6} {c_act}  {c_pre}  {c_ant}\n"
+        
+        table_msg += "```"
+        # -----------------------------
+
+        # Recuperamos valores individuales para el resumen inferior
         curr_rsi = final_data.get('RSI_list', [0])[0]
         curr_macd = final_data.get('MACD_hist', 0)
         curr_mom = final_data.get('MOM', 0)
         price = final_data.get('close', 0)
         
-        # SMA
+        # SMA Logic
         sma_50 = final_data.get('SMA_50', 0)
         sma_str = "N/A"
         if sma_50 and sma_50 > 0:
             sma_str = 'Price > SMA (Bull)' if price > sma_50 else 'Price < SMA (Bear)'
 
-        # PSAR
+        # PSAR Logic
         psar_val = final_data.get('PSAR_val', 0)
         psar_str = "Neutral"
         psar_icon = "⚪️"
         if psar_val and not pd.isna(psar_val) and psar_val != 0:
             psar_str = "Bullish" if psar_val < price else "Bearish"
             psar_icon = "✅" if psar_str == "Bullish" else "❌"
-            
-        # OBV
-        obv_val = final_data.get('OBV_list', [0])[0]
-        obv_str = "N/A"
-        if obv_val and obv_val != 0:
-            obv_str = fmt_cols('OBV_list', 1, 1000000) + " M" if abs(obv_val) > 1000000 else fmt_cols('OBV_list', 0)
 
+        # Función simple para iconos (ya no se usan dentro de la tabla, pero sí abajo)
+        def get_icon_simple(val, type_):
+            try:
+                if val is None or pd.isna(val) or val == 0: return "⚪️"
+                val = float(val)
+                if type_ == 'RSI': return "⚠️" if val > 70 or val < 30 else "✅"
+                if type_ == 'MACD': return "✅" if val > 0 else "🔻"
+                if type_ == 'MOM': return "✅" if val > 0 else "🔻"
+            except: return "⚪️"
+            return "⚪️"
+
+        # Armado del mensaje final
         msg = (
-            f"📊 *Exchange {full_symbol} {timeframe}* ({data_source})\n"
+            f"📊 *Análisis Técnico: {full_symbol}* ({timeframe}) "
+            f"_{data_source}_\n"
             f"—————————————————\n"
-            f"💰 *Precio:* `{price:,.4f}`\n"
+            f"💰 *Precio:* `${price:,.4f}`\n"
             f"📉 *ATR:* `{final_data.get('ATR', 0) or 0:.4f}`\n\n"
             
-            f"❌*OBV:* `{obv_str}`\n"
-            f"{get_icon(curr_rsi, 'RSI')}*RSI:* `{fmt_cols('RSI_list')}`\n"
-            f"⚪️*MFI:* `{fmt_cols('MFI_list')}`\n"
-            f"⚪️*CCI:* `{fmt_cols('CCI_list')}`\n"
-            f"❌*WR%:* `{fmt_cols('WR_list')}`\n"
-            f"⚪️*ADX:* `{fmt_cols('ADX_list')}`\n\n"
-
-            f"{get_icon(curr_mom, 'MOM')}*MOM:* {'Bullish' if (curr_mom or 0) > 0 else 'Bearish' if (curr_mom or 0) < 0 else 'Neutral'}\n"
-            f"⚪️*SMA (50):* {sma_str}\n"
-            f"{get_icon(curr_macd, 'MACD')}*MACD:* {'Bullish' if (curr_macd or 0) > 0 else 'Bearish'}\n"
-            f"{psar_icon}*PSAR:* {psar_str}\n\n"
+            f"{table_msg}\n" # <--- Aquí insertamos la tabla generada arriba
             
-            f"🛡 *Support And Resistance*\n"
+            f"🧐 *Tendencia y Momentum*\n"
+            f"{get_icon_simple(curr_mom, 'MOM')} *MOM:* {'Bullish' if (curr_mom or 0) > 0 else 'Bearish'}\n"
+            f"📊 *SMA (50):* {sma_str}\n"
+            f"{get_icon_simple(curr_macd, 'MACD')} *MACD:* {'Bullish' if (curr_macd or 0) > 0 else 'Bearish'}\n"
+            f"{psar_icon} *PSAR:* {psar_str}\n\n"
+            
+            f"🛡 *Soportes y Resistencias*\n"
             f"R2: `${final_data.get('R2', 0) or 0:.4f}`\n"
             f"R1: `${final_data.get('R1', 0) or 0:.4f}`\n"
             f"🎯 Pivot: `${final_data.get('Pivot', 0) or 0:.4f}`\n"
@@ -845,6 +874,8 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await msg_wait.edit_text(msg, parse_mode=ParseMode.MARKDOWN)
 
     except Exception as e:
+        # Es bueno imprimir el error en consola para depurar
+        print(f"Error en TA Command Formating: {e}") 
         error_text = _("❌ Error inesperado generando gráfico: {e}", user_id).format(e=e)
         try:
             await msg_wait.edit_text(error_text)
