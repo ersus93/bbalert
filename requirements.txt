@@ -1,4 +1,5 @@
 python-telegram-bot
+python-telegram-bot[job-queue]
 requests
 python-dotenv
 openpyxl
@@ -7,3 +8,4 @@ Pillow
 pytz
 pandas 
 pandas_ta
+tradingview-ta
