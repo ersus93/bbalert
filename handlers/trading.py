@@ -230,35 +230,36 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Muestra las tasas de cambio de eltoque.com combinando TEXTO e IMAGEN.
-    1. Obtiene datos API.
-    2. Guarda en JSON.
-    3. Genera Imagen usando el JSON actualizado.
-    4. Envía todo junto.
+    Mejora de UX: Muestra estados de carga (Conectando -> Generando -> Resultado).
     """
     user_id = update.effective_user.id
     
-    # 1. Intentos de conexión
+    # 1. FEEDBACK INICIAL: Enviamos mensaje de espera INMEDIATAMENTE
+    # Esto le confirma al usuario que el bot recibió la orden.
+    msg_estado = await update.message.reply_text(_("⏳ Conectando con elToque...", user_id))
+    
+    # 2. Intentos de conexión
     tasas_data = obtener_tasas_eltoque()
-    mensaje_espera = None 
 
+    # Si falla a la primera, entramos en reintentos
     if not tasas_data:
-        texto_conectando = _("⏳ Conectando con elToque...", user_id)
-        mensaje_espera = await update.message.reply_text(texto_conectando)
-        
         MAX_RETRIES = 3
         for i in range(MAX_RETRIES):
+            # Opcional: Actualizar texto para mostrar esfuerzo
+            try:
+                await msg_estado.edit_text(_("⏳ Reintentando conexión ({i}/{max})...", user_id).format(i=i+1, max=MAX_RETRIES))
+            except: pass # Ignoramos errores de edición (si el mensaje no cambió)
+            
             await asyncio.sleep(2)
             tasas_data = obtener_tasas_eltoque()
             if tasas_data:
                 break
     
-    # 2. Manejo de Errores de Conexión
+    # 3. Manejo de Fallo Total de Conexión
     if not tasas_data:
         mensaje_error_usuario = _("⚠️ *Error de Conexión con elToque*.\nInténtalo más tarde.", user_id)
-        if mensaje_espera:
-            await mensaje_espera.edit_text(mensaje_error_usuario, parse_mode=ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text(mensaje_error_usuario, parse_mode=ParseMode.MARKDOWN)
+        # En lugar de enviar uno nuevo, editamos el de estado
+        await msg_estado.edit_text(mensaje_error_usuario, parse_mode=ParseMode.MARKDOWN)
         
         # Alerta Admin
         for admin_id in ADMIN_CHAT_IDS:
@@ -269,18 +270,23 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # --- ÉXITO: PROCESAMIENTO ---
     try:
+        # 4. FEEDBACK INTERMEDIO: Datos obtenidos, ahora generamos imagen
+        # Editamos el mensaje para informar del cambio de etapa
+        try:
+            await msg_estado.edit_text(_("🎨 Generando imagen de tasas...", user_id))
+        except: pass
+
         tasas_actuales = tasas_data.get('tasas')
-        # Cargamos historial ANTES de guardar el nuevo, para calcular diferencias
         tasas_anteriores = load_eltoque_history() 
 
-        # 3. Guardado CRÍTICO de datos nuevos para que la imagen salga actualizada
+        # Guardado CRÍTICO
         save_eltoque_history(tasas_actuales) 
 
         if not tasas_actuales or not isinstance(tasas_actuales, dict):
-            await update.message.reply_text(_("😕 Error de formato en datos.", user_id))
+            await msg_estado.edit_text(_("😕 Error de formato en datos.", user_id))
             return
 
-        # Construcción del mensaje de TEXTO
+        # --- Construcción del mensaje de TEXTO (Lógica intacta) ---
         fecha = tasas_data.get('date', '')
         hora = tasas_data.get('hour', 0)
         minutos = tasas_data.get('minutes', 0)
@@ -317,32 +323,31 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mensaje_texto_final += f"\n\n—————————————————\n_{actualizado_label} {timestamp_str}_"
         mensaje_texto_final += get_random_ad_text()
 
-        # 4. GENERACIÓN DE LA IMAGEN (Usando los datos recién guardados)
-        # Si había mensaje de espera, lo editamos para decir "Generando imagen..." o lo borramos
-        if mensaje_espera:
-            try:
-                await mensaje_espera.delete()
-            except: pass
-            
-        # Generamos la imagen en un hilo aparte
+        # 5. GENERACIÓN DE LA IMAGEN
+        # Se ejecuta en hilo aparte para no bloquear
         image_bio = await asyncio.to_thread(generar_imagen_tasas_eltoque)
 
-        # 5. ENVÍO DEL MENSAJE FINAL
+        # 6. ENVÍO FINAL Y LIMPIEZA
         if image_bio:
-            # Enviamos Foto + Caption (Texto completo)
+            # Primero borramos el mensaje de "Generando..."
+            await msg_estado.delete()
+            
+            # Enviamos el resultado final
             await update.message.reply_photo(
                 photo=image_bio,
                 caption=mensaje_texto_final,
                 parse_mode=ParseMode.MARKDOWN
             )
         else:
-            # Fallback: Si falla la imagen, enviamos solo el texto
+            # Fallback: Si falla la imagen, editamos el mensaje de estado con el texto final
             add_log_line("⚠️ Falló generación imagen ElToque, enviando solo texto.")
-            await update.message.reply_text(mensaje_texto_final, parse_mode=ParseMode.MARKDOWN)
+            await msg_estado.edit_text(mensaje_texto_final, parse_mode=ParseMode.MARKDOWN)
 
     except Exception as e:
         add_log_line(f"Error fatal en /tasa: {e}.")
-        await update.message.reply_text(_("❌ Ocurrió un error inesperado.", user_id), parse_mode=ParseMode.MARKDOWN)
+        try:
+            await msg_estado.edit_text(_("❌ Ocurrió un error inesperado procesando la solicitud.", user_id), parse_mode=ParseMode.MARKDOWN)
+        except: pass
 
 # === NUEVA LÓGICA PARA /MK ===
 
