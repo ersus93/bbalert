@@ -7,8 +7,8 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-12-05 18:51-0500\n"
-"PO-Revision-Date: 2025-12-05 18:58-0500\n"
+"POT-Creation-Date: 2025-12-06 22:50-0500\n"
+"PO-Revision-Date: 2025-12-06 22:57-0500\n"
 "Last-Translator: \n"
 "Language-Team: en <LL@li.org>\n"
 "Language: en\n"
@@ -19,7 +19,7 @@ msgstr ""
 "Generated-By: Babel 2.17.0\n"
 "X-Generator: Poedit 3.8\n"
 
-#: bbalert.py:66
+#: bbalert.py:64
 #, python-brace-format
 msgid ""
 "🚀 *¡Bot en línea!* 🚀\n"
@@ -51,7 +51,7 @@ msgstr ""
 #: core/api_client.py:104
 #, python-brace-format
 msgid "🚀 HBD acaba de *tocar o superar* los *${precio}*."
-msgstr "🚀 HBD just *hit or went above* *${precio}*."
+msgstr "🚀 HBD just *hit or crossed above* *${precio}*."
 
 #: core/api_client.py:110
 #, python-brace-format
@@ -72,7 +72,7 @@ msgstr ""
 "📊 *Current Prices:*\n"
 "•\n"
 
-#: core/loops.py:134
+#: core/loops.py:172
 #, python-brace-format
 msgid ""
 "📈 ¡Alerta de Precio! 📈\n"
@@ -89,7 +89,7 @@ msgstr ""
 "\n"
 "Current price: *${current_price:,.4f}*"
 
-#: core/loops.py:148
+#: core/loops.py:186
 #, python-brace-format
 msgid ""
 "📉 ¡Alerta de Precio! 📉\n"
@@ -106,15 +106,15 @@ msgstr ""
 "\n"
 "Current price: *${current_price:,.4f}*"
 
-#: core/loops.py:166
+#: core/loops.py:204
 msgid "🗑️ Borrar esta alerta"
 msgstr "🗑️ Delete this alert"
 
-#: core/loops.py:222 handlers/user_settings.py:364
+#: core/loops.py:260 handlers/user_settings.py:364
 msgid "🔕 Desactivar estas alertas"
 msgstr "🔕 Disable these alerts"
 
-#: core/loops.py:278
+#: core/loops.py:316
 #, python-brace-format
 msgid ""
 "📊 *Alerta de tus monedas ({intervalo_h}h):*\n"
@@ -125,7 +125,7 @@ msgstr ""
 "—————————————————\n"
 "\n"
 
-#: core/loops.py:296
+#: core/loops.py:333
 #, python-brace-format
 msgid ""
 "\n"
@@ -253,23 +253,23 @@ msgstr "😕 You aren't registered in the system."
 msgid ""
 "👤 *Tu Perfil Registrado*\n"
 "—————————————————\n"
-"  - Nombre: {nombre_completo}\n"
-"  - 🪪 ID: `{user_id}`\n"
-"  - 👤 Usuario: {username_str}\n"
-"  - 🪙 Monedas: `{monedas_str}`\n"
-"  - ⏰ Alerta cada: {intervalo_h}h\n"
-"  - 🔔 Alertas cruce activas: {alertas_activas}\n"
+"  - Nombre: {nombre_completo}\n"
+"  - 🪪 ID: `{user_id}`\n"
+"  - 👤 Usuario: {username_str}\n"
+"  - 🪙 Monedas: `{monedas_str}`\n"
+"  - ⏰ Alerta cada: {intervalo_h}h\n"
+"  - 🔔 Alertas cruce activas: {alertas_activas}\n"
 "—————————————————\n"
 "_Solo puedes ver tu propia información 🙂_"
 msgstr ""
 "👤 *Your Registered Profile*\n"
 "—————————————————\n"
-"  - Name: {nombre_completo}\n"
-"  - 🪪 ID: `{user_id}`\n"
-"  - 👤 Username: {username_str}\n"
-"  - 🪙 Watchlist: `{monedas_str}`\n"
-"  - ⏰ Alert Interval: {intervalo_h}h\n"
-"  - 🔔 Active Cross Alerts: {alertas_activas}\n"
+"  - Name: {nombre_completo}\n"
+"  - 🪪 ID: `{user_id}`\n"
+"  - 👤 Username: {username_str}\n"
+"  - 🪙 Watchlist: `{monedas_str}`\n"
+"  - ⏰ Alert Interval: {intervalo_h}h\n"
+"  - 🔔 Active Cross Alerts: {alertas_activas}\n"
 "—————————————————\n"
 "_You can only view your own info 🙂_"
 
@@ -467,7 +467,7 @@ msgstr ""
 "Username: {usuario}\n"
 "ID: `{id_chat}`"
 
-#: handlers/trading.py:70
+#: handlers/trading.py:74
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -483,7 +483,7 @@ msgstr ""
 "`/graf BTC 15m`\n"
 "`/graf BTC USDT 1h`"
 
-#: handlers/trading.py:98
+#: handlers/trading.py:102
 msgid ""
 "⚠️ *Temporalidad no válida*.\n"
 "\n"
@@ -493,12 +493,12 @@ msgstr ""
 "\n"
 "Use: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 
-#: handlers/trading.py:112
+#: handlers/trading.py:116
 #, python-brace-format
 msgid "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})..."
 msgstr "⏳ Generating chart for *{base}/{quote}* ({temporalidad})..."
 
-#: handlers/trading.py:124
+#: handlers/trading.py:128
 #, python-brace-format
 msgid ""
 "📈 *Gráfico de {base}/{quote} ({temporalidad})*\n"
@@ -509,7 +509,7 @@ msgstr ""
 "\n"
 "[View on TradingView]({url})"
 
-#: handlers/trading.py:136
+#: handlers/trading.py:140
 msgid ""
 "❌ Lo siento, no pude generar la captura del gráfico en este momento. Inténtalo "
 "de nuevo más tarde."
@@ -517,7 +517,7 @@ msgstr ""
 "❌ Sorry, I couldn't generate the chart screenshot right now. Please try again "
 "later."
 
-#: handlers/trading.py:154
+#: handlers/trading.py:158
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -529,57 +529,58 @@ msgstr ""
 "Usage: `/p <COIN>`\n"
 "Example: `/p BTC`"
 
-#: handlers/trading.py:169
+#: handlers/trading.py:173
 #, python-brace-format
 msgid "😕 No se pudieron obtener los datos para *{moneda}*."
 msgstr "😕 Couldn't get data for *{moneda}*."
 
-#: handlers/trading.py:186
+#: handlers/trading.py:190
 msgid "Ξ:"
 msgstr "Ξ:"
 
-#: handlers/trading.py:187
+#: handlers/trading.py:191
 msgid "₿:"
 msgstr "₿:"
 
-#: handlers/trading.py:188
+#: handlers/trading.py:192
 msgid "Cap:"
 msgstr "Cap:"
 
-#: handlers/trading.py:189
+#: handlers/trading.py:193
 msgid "Vol:"
 msgstr "Vol:"
 
-#: handlers/trading.py:207
+#: handlers/trading.py:211
 #, python-brace-format
 msgid "🔄 Actualizar /p {symbol}"
 msgstr "🔄 Refresh /p {symbol}"
 
-#: handlers/trading.py:241
-msgid "⏳ Estamos conectando con elToque..."
+#: handlers/trading.py:239
+msgid "⏳ Conectando con elToque..."
 msgstr "⏳ Connecting to elToque..."
+
+#: handlers/trading.py:250
+#, python-brace-format
+msgid "⏳ Reintentando conexión ({i}/{max})..."
+msgstr "⏳ Retrying connection ({i}/{max})..."
 
 #: handlers/trading.py:260
 msgid ""
-"⚠️ *Error de Conexión*\n"
-"\n"
-"No pudimos conectar con elToque en este momento.\n"
-"Posiblemente su servidor esté saturado o caído.\n"
-"\n"
-"👮‍♂️ _Los administradores han sido notificados._"
+"⚠️ *Error de Conexión con elToque*.\n"
+"Inténtalo más tarde."
 msgstr ""
-"⚠️ *Connection Error*\n"
-"\n"
-"We couldn't connect to elToque right now.\n"
-"Their server might be overloaded or down.\n"
-"\n"
-"👮‍♂️ _Admins have been notified._"
+"⚠️ *Connection Error with elToque*.\n"
+"Please try again later."
 
-#: handlers/trading.py:305
-msgid "😕 Error de formato en datos de ElToque."
-msgstr "😕 Format error in ElToque data."
+#: handlers/trading.py:276
+msgid "🎨 Generando imagen de tasas..."
+msgstr "🎨 Generating rates image..."
 
-#: handlers/trading.py:313
+#: handlers/trading.py:286
+msgid "😕 Error de formato en datos."
+msgstr "😕 Data format error."
+
+#: handlers/trading.py:295
 msgid ""
 "🏦 *Tasas de Cambio* (Informal)\n"
 "—————————————————\n"
@@ -589,19 +590,15 @@ msgstr ""
 "—————————————————\n"
 "\n"
 
-#: handlers/trading.py:355
+#: handlers/trading.py:322
 msgid "Actualizado:"
 msgstr "Updated:"
 
-#: handlers/trading.py:356
-msgid "Fuente: elTOQUE.com"
-msgstr "Source: elTOQUE.com"
+#: handlers/trading.py:349
+msgid "❌ Ocurrió un error inesperado procesando la solicitud."
+msgstr "❌ An unexpected error occurred while processing the request."
 
-#: handlers/trading.py:370
-msgid "❌ Ocurrió un error inesperado procesando los datos."
-msgstr "❌ An unexpected error occurred while processing data."
-
-#: handlers/trading.py:467
+#: handlers/trading.py:446
 msgid ""
 "🌍 *Estado de Mercados Globales*\n"
 "—————————————————\n"
@@ -610,6 +607,24 @@ msgstr ""
 "🌍 *Global Market Status*\n"
 "—————————————————\n"
 "\n"
+
+#: handlers/trading.py:621
+msgid "⚠️ Uso: `/ta <SYMBOL> [PAR] [TIME] [TV]`"
+msgstr "⚠️ Usage: `/ta <SYMBOL> [PAIR] [TIME] [TV]`"
+
+#: handlers/trading.py:701
+msgid "⚠️ Binance sin datos. Probando TradingView..."
+msgstr "⚠️ No data from Binance. Trying TradingView..."
+
+#: handlers/trading.py:730
+#, python-brace-format
+msgid "❌ No se encontraron datos para *{s}*."
+msgstr "❌ No data found for *{s}*."
+
+#: handlers/trading.py:854
+#, python-brace-format
+msgid "❌ Error inesperado generando gráfico: {e}"
+msgstr "❌ Unexpected error generating chart: {e}"
 
 #: handlers/user_settings.py:60
 #, python-brace-format
@@ -834,3 +849,21 @@ msgstr ""
 #: handlers/user_settings.py:437
 msgid "⚠️ Idioma no soportado."
 msgstr "⚠️ Language not supported."
+
+#~ msgid ""
+#~ "⚠️ *Error de Conexión*\n"
+#~ "\n"
+#~ "No pudimos conectar con elToque en este momento.\n"
+#~ "Posiblemente su servidor esté saturado o caído.\n"
+#~ "\n"
+#~ "👮‍♂️ _Los administradores han sido notificados._"
+#~ msgstr ""
+#~ "⚠️ *Connection Error*\n"
+#~ "\n"
+#~ "We couldn't connect to elToque right now.\n"
+#~ "Their server might be overloaded or down.\n"
+#~ "\n"
+#~ "👮‍♂️ _Admins have been notified._"
+
+#~ msgid "Fuente: elTOQUE.com"
+#~ msgstr "Source: elTOQUE.com"
