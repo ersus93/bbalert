@@ -313,7 +313,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         mensaje_texto_final = mensaje_titulo + "\n".join(mensaje_lineas)
         actualizado_label = _("Actualizado:", user_id)
-        mensaje_texto_final += f"\n\n—————————————————\n_{actualizado_label} {timestamp_str}_"
+        mensaje_texto_final += f"\n\n—————————————————\n_{actualizado_label} {timestamp_str}\nFuente: elToque.com_"
         mensaje_texto_final += get_random_ad_text()
 
         image_bio = await asyncio.to_thread(generar_imagen_tasas_eltoque)
