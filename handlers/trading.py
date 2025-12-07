@@ -840,26 +840,25 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         # Armado del mensaje final
         msg = (
-            f"📊 *Análisis Técnico: {full_symbol}* ({timeframe}) "
-            f"_{data_source}_\n"
+            f"📊 *Análisis Técnico:  {full_symbol}\n*"
             f"—————————————————\n"
+            f"*Temporalidad:*  {timeframe}\n"
+            f"*Fuente:*  _{data_source}_\n"
+            f"•\n"
             f"💰 *Precio:* `${price:,.4f}`\n"
-            f"📉 *ATR:* `{final_data.get('ATR', 0) or 0:.4f}`\n\n"
-            
-            f"{table_msg}\n" # <--- Aquí insertamos la tabla generada arriba
-            
+            f"📉 *ATR:* `{final_data.get('ATR', 0) or 0:.4f}`\n•\n"
+            f"{table_msg}\n•\n"            
             f"🧐 *Tendencia y Momentum*\n"
             f"{get_icon_simple(curr_mom, 'MOM')} *MOM:* {'Bullish' if (curr_mom or 0) > 0 else 'Bearish'}\n"
             f"📊 *SMA (50):* {sma_str}\n"
             f"{get_icon_simple(curr_macd, 'MACD')} *MACD:* {'Bullish' if (curr_macd or 0) > 0 else 'Bearish'}\n"
-            f"{psar_icon} *PSAR:* {psar_str}\n\n"
-            
+            f"{psar_icon} *PSAR:* {psar_str}\n•\n"
             f"🛡 *Soportes y Resistencias*\n"
             f"R2: `${final_data.get('R2', 0) or 0:.4f}`\n"
             f"R1: `${final_data.get('R1', 0) or 0:.4f}`\n"
             f"🎯 Pivot: `${final_data.get('Pivot', 0) or 0:.4f}`\n"
             f"S1: `${final_data.get('S1', 0) or 0:.4f}`\n"
-            f"S2: `${final_data.get('S2', 0) or 0:.4f}`\n"
+            f"S2: `${final_data.get('S2', 0) or 0:.4f}`\n•"
         )
 
         msg += "\nEXPERIMENTAL 🧪\n"
