@@ -16,6 +16,7 @@ from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS # <--- IMPORTANTE: A�
 from core.api_client import obtener_datos_moneda, obtener_tasas_eltoque
 from utils.file_manager import add_log_line, load_eltoque_history, save_eltoque_history
 from utils.ads_manager import get_random_ad_text
+from utils.image_generator import generar_imagen_tasas_eltoque
 from core.i18n import _
 
 def _take_screenshot_sync(url: str) -> BytesIO | None:
@@ -225,89 +226,61 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
     context.args = [moneda]
     await p_command(update, context)
 
-
-# Nuevo comando para mostrar tasas de ElToque con Lógica de Reintento
+# === COMANDO ELTOQUE FUSIONADO (/tasa) ===
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Muestra las tasas de cambio de eltoque.com.
-    Maneja reintentos si la API está saturada.
+    Muestra las tasas de cambio de eltoque.com combinando TEXTO e IMAGEN.
+    1. Obtiene datos API.
+    2. Guarda en JSON.
+    3. Genera Imagen usando el JSON actualizado.
+    4. Envía todo junto.
     """
     user_id = update.effective_user.id
     
-    # 1. Primer intento de llamada a la API
+    # 1. Intentos de conexión
     tasas_data = obtener_tasas_eltoque()
-    mensaje_espera = None # Variable para guardar el mensaje temporal
+    mensaje_espera = None 
 
-    # 2. ### NUEVO: Si falla el primer intento, entramos en modo reintento
     if not tasas_data:
-        # Enviamos mensaje de "Conectando..."
-        texto_conectando = _("⏳ Estamos conectando con elToque...", user_id)
+        texto_conectando = _("⏳ Conectando con elToque...", user_id)
         mensaje_espera = await update.message.reply_text(texto_conectando)
         
-        # Intentamos 3 veces más, esperando 2 segundos entre cada una
         MAX_RETRIES = 3
         for i in range(MAX_RETRIES):
-            await asyncio.sleep(2) # Espera 2 segundos
+            await asyncio.sleep(2)
             tasas_data = obtener_tasas_eltoque()
-            
-            # Si obtenemos datos, rompemos el bucle
             if tasas_data:
                 break
     
-    # 3. ### NUEVO: Evaluación Final tras los intentos
+    # 2. Manejo de Errores de Conexión
     if not tasas_data:
-        # --- CASO DE FALLO TOTAL ---
-        
-        # Mensaje amigable para el usuario
-        mensaje_error_usuario = _(
-            "⚠️ *Error de Conexión*\n\n"
-            "No pudimos conectar con elToque en este momento.\n"
-            "Posiblemente su servidor esté saturado o caído.\n\n"
-            "👮‍♂️ _Los administradores han sido notificados._",
-            user_id
-        )
-        
-        # Si ya había mensaje de espera, lo editamos. Si no, enviamos uno nuevo.
+        mensaje_error_usuario = _("⚠️ *Error de Conexión con elToque*.\nInténtalo más tarde.", user_id)
         if mensaje_espera:
             await mensaje_espera.edit_text(mensaje_error_usuario, parse_mode=ParseMode.MARKDOWN)
         else:
             await update.message.reply_text(mensaje_error_usuario, parse_mode=ParseMode.MARKDOWN)
-
-        # Mensaje Técnico para los ADMINISTRADORES
-        mensaje_admin = (
-            f"⚠️ *Alerta de API ElToque*\n\n"
-            f"El usuario `{user_id}` intentó usar /tasa y falló tras 4 intentos (1 inicial + 3 reintentos).\n"
-            f"Causa probable: API caída, Timeout o Rate Limit."
-        )
         
-        # Enviar alerta a todos los admins
+        # Alerta Admin
         for admin_id in ADMIN_CHAT_IDS:
             try:
-                await context.bot.send_message(chat_id=admin_id, text=mensaje_admin, parse_mode=ParseMode.MARKDOWN)
-            except Exception:
-                pass # Si falla enviar al admin, no detenemos el flujo
-        
-        return # Terminamos aquí si falló
+                await context.bot.send_message(chat_id=admin_id, text=f"⚠️ API ElToque falló para user `{user_id}`.", parse_mode=ParseMode.MARKDOWN)
+            except: pass
+        return 
 
-    # --- CASO DE ÉXITO ---
-    
-    # Si teníamos un mensaje de "Conectando...", lo borramos para limpiar el chat
-    if mensaje_espera:
-        try:
-            await mensaje_espera.delete()
-        except Exception:
-            pass # Si no se puede borrar (raro), no importa
-
-    # A partir de aquí sigue la lógica normal de formateo y guardado
+    # --- ÉXITO: PROCESAMIENTO ---
     try:
         tasas_actuales = tasas_data.get('tasas')
-        tasas_anteriores = load_eltoque_history()
+        # Cargamos historial ANTES de guardar el nuevo, para calcular diferencias
+        tasas_anteriores = load_eltoque_history() 
+
+        # 3. Guardado CRÍTICO de datos nuevos para que la imagen salga actualizada
+        save_eltoque_history(tasas_actuales) 
 
         if not tasas_actuales or not isinstance(tasas_actuales, dict):
-            # Error de formato en la respuesta JSON
-            await update.message.reply_text(_("😕 Error de formato en datos de ElToque.", user_id))
+            await update.message.reply_text(_("😕 Error de formato en datos.", user_id))
             return
 
+        # Construcción del mensaje de TEXTO
         fecha = tasas_data.get('date', '')
         hora = tasas_data.get('hour', 0)
         minutos = tasas_data.get('minutes', 0)
@@ -315,29 +288,18 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         mensaje_titulo = _("🏦 *Tasas de Cambio* (Informal)\n—————————————————\n\n", user_id)
         mensaje_lineas = []
-            
-        monedas_ordenadas = [
-              'ECU', 'USD', 'MLC', 'ZELLE', 'CLA', 
-              'CAD', 'MXN', 'BRL', 'BTC', 'TRX', 'USDT_TRC20'
-          ]
-            
+        monedas_ordenadas = ['ECU', 'USD', 'MLC', 'ZELLE', 'CLA', 'CAD', 'MXN', 'BRL', 'BTC', 'TRX', 'USDT_TRC20']
         TOLERANCIA = 0.0001
             
         for moneda_key in monedas_ordenadas:
             if moneda_key in tasas_actuales:
                 tasa_actual = tasas_actuales[moneda_key]
                 tasa_anterior = tasas_anteriores.get(moneda_key)
-                    
-                if moneda_key == 'USDT_TRC20':
-                 moneda_display = 'USDT'
-                elif moneda_key == 'ECU':
-                    moneda_display = 'EUR'
-                else:
-                    moneda_display = moneda_key
-                    
+                
+                moneda_display = 'USDT' if moneda_key == 'USDT_TRC20' else ('EUR' if moneda_key == 'ECU' else moneda_key)
+                
                 indicador = ""
                 cambio_str = ""
-
                 if tasa_anterior is not None:
                     diferencia = tasa_actual - tasa_anterior
                     if diferencia > TOLERANCIA:
@@ -350,28 +312,37 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 linea = f"*{moneda_display}*:  `{tasa_actual:,.2f}`  CUP  {indicador}{cambio_str}"
                 mensaje_lineas.append(linea)
 
-        if not mensaje_lineas:
-            return
-
-        mensaje_final = mensaje_titulo + "\n".join(mensaje_lineas)
-
+        mensaje_texto_final = mensaje_titulo + "\n".join(mensaje_lineas)
         actualizado_label = _("Actualizado:", user_id)
-        fuente_label = _("Fuente: elTOQUE.com", user_id)
+        mensaje_texto_final += f"\n\n—————————————————\n_{actualizado_label} {timestamp_str}_"
+        mensaje_texto_final += get_random_ad_text()
 
-        mensaje_final += f"\n\n—————————————————\n_{actualizado_label} {timestamp_str}_\n_{fuente_label}_"
-        
-        # --- INYECCIÓN DE ANUNCIO ---
-        mensaje_final += get_random_ad_text()
-        # ----------------------------
+        # 4. GENERACIÓN DE LA IMAGEN (Usando los datos recién guardados)
+        # Si había mensaje de espera, lo editamos para decir "Generando imagen..." o lo borramos
+        if mensaje_espera:
+            try:
+                await mensaje_espera.delete()
+            except: pass
+            
+        # Generamos la imagen en un hilo aparte
+        image_bio = await asyncio.to_thread(generar_imagen_tasas_eltoque)
 
-        await update.message.reply_text(mensaje_final, parse_mode=ParseMode.MARKDOWN)
-
-        save_eltoque_history(tasas_actuales)
+        # 5. ENVÍO DEL MENSAJE FINAL
+        if image_bio:
+            # Enviamos Foto + Caption (Texto completo)
+            await update.message.reply_photo(
+                photo=image_bio,
+                caption=mensaje_texto_final,
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            # Fallback: Si falla la imagen, enviamos solo el texto
+            add_log_line("⚠️ Falló generación imagen ElToque, enviando solo texto.")
+            await update.message.reply_text(mensaje_texto_final, parse_mode=ParseMode.MARKDOWN)
 
     except Exception as e:
-        add_log_line(f"Error fatal procesando datos de ElToque con historial: {e}.")
-        mensaje_error_inesperado = _("❌ Ocurrió un error inesperado procesando los datos.", user_id)
-        await update.message.reply_text(mensaje_error_inesperado, parse_mode=ParseMode.MARKDOWN)
+        add_log_line(f"Error fatal en /tasa: {e}.")
+        await update.message.reply_text(_("❌ Ocurrió un error inesperado.", user_id), parse_mode=ParseMode.MARKDOWN)
 
 # === NUEVA LÓGICA PARA /MK ===
 
@@ -477,7 +448,7 @@ async def mk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 # === NUEVO COMANDO /ta (Análisis Técnico) ===
-def get_binance_klines(symbol, interval, limit=1000): 
+def get_binance_klines(symbol, interval, limit=10000): 
     """Obtiene velas de Binance (Global o US)."""
     endpoints = [
         "https://api.binance.com/api/v3/klines", 
