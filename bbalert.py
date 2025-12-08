@@ -2,7 +2,7 @@
 
 import asyncio
 from telegram import Update
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes
+from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
 from telegram.constants import ParseMode
 from utils.file_manager import add_log_line, cargar_usuarios
 from utils.file_manager import guardar_usuarios
@@ -14,11 +14,9 @@ from core.loops import (
     get_logs_data, 
     set_enviar_mensaje_telegram_async
 )
-from core.i18n import _ # <-- Importar _
-
-# --- Importación de Handlers y Utilidades ---
+from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
-from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, tasaimg_command, ad_command
+from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command, # <-- CAMBIADO
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
@@ -31,6 +29,7 @@ from handlers.alerts import (
     
 )
 from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback, mk_command, ta_command
+from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
 
 
 async def post_init(app: Application):
@@ -143,6 +142,8 @@ def main():
     set_enviar_mensaje_telegram_async(enviar_mensajes, app) # Se pasa también la app
     
     # 3. REGISTRO DE HANDLERS
+    app.add_handler(CommandHandler("shop", shop_command))
+    app.add_handler(CallbackQueryHandler(shop_callback, pattern="^buy_"))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("ver", ver))
@@ -163,8 +164,10 @@ def main():
     app.add_handler(CommandHandler("graf", graf_command)) 
     app.add_handler(CommandHandler("p", p_command))       
     app.add_handler(CommandHandler("tasa", eltoque_command))
-    app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(CommandHandler("monedas", set_monedas_command))
+    app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
+    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
     app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
     app.add_handler(CallbackQueryHandler(set_language_callback, pattern="^set_lang_"))

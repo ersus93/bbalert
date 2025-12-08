@@ -2,46 +2,43 @@
 
 import os
 import json
-from datetime import datetime
+import shutil
+from datetime import datetime, timedelta
 import time 
 import uuid # Para generar IDs únicos si es necesario
 import openpyxl
 from core.config import (
     USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, 
     PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH, 
-    LAST_PRICES_PATH, HBD_THRESHOLDS_PATH
+    LAST_PRICES_PATH, HBD_THRESHOLDS_PATH, ADMIN_CHAT_IDS, USUARIOS_PATH
 )
+
+_USUARIOS_CACHE = None
 
 # === Inicialización de Archivos ===
 def inicializar_archivos():
     """Crea los archivos si no existen."""
-    
     try:
         if not os.path.exists(CUSTOM_ALERT_HISTORY_PATH):
             with open(CUSTOM_ALERT_HISTORY_PATH, 'w', encoding='utf-8') as f:
-                json.dump({}, f, indent=4) # Guardar un diccionario vacío
+                json.dump({}, f, indent=4)
             add_log_line(f"✅ Archivo de historial de alertas creado en: {CUSTOM_ALERT_HISTORY_PATH}")
     except Exception as e:
         add_log_line(f"❌ ERROR al inicializar el archivo de historial de alertas: {e}")
 
-# --- NUEVO BLOQUE ---
     try:
         if not os.path.exists(HBD_THRESHOLDS_PATH):
-            # Inicializamos con algunos valores por defecto si quieres
             default_thresholds = {"1.00": True, "1.10": True, "0.95": True} 
             with open(HBD_THRESHOLDS_PATH, 'w', encoding='utf-8') as f:
                 json.dump(default_thresholds, f, indent=4)
             add_log_line(f"✅ Archivo de umbrales HBD creado en: {HBD_THRESHOLDS_PATH}")
     except Exception as e:
         add_log_line(f"❌ ERROR al inicializar umbrales HBD: {e}")
-    # --------------------
-
 
 
 MAX_HISTORY_ENTRIES = 2 # Limita el archivo para que no crezca indefinidamente
 
 def load_hbd_history():
-    """Carga el historial de precios desde el archivo JSON."""
     if not os.path.exists(HBD_HISTORY_PATH):
         return []
     try:
@@ -51,7 +48,6 @@ def load_hbd_history():
         return []
 
 def save_hbd_history(history):
-    """Guarda el historial de precios en el archivo JSON."""
     try:
         with open(HBD_HISTORY_PATH, "w", encoding='utf-8') as f:
             json.dump(history, f, indent=4)
@@ -59,18 +55,13 @@ def save_hbd_history(history):
         print(f"Error al guardar el historial de HBD: {e}") # O usar add_log_line
 
 def leer_precio_anterior_alerta():
-    """Lee el precio anterior de HBD del historial JSON."""
     history = load_hbd_history()
     if not history:
         return None
-    # El último registro en la lista es el más reciente
     return history[-1].get("hbd")
 
 def guardar_precios_alerta(precios):
-    """Guarda los precios actuales en el historial JSON."""
     history = load_hbd_history()
-
-    # Prepara el nuevo registro
     nuevo_registro = {
         "timestamp": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "btc": precios.get('BTC'),
@@ -78,37 +69,21 @@ def guardar_precios_alerta(precios):
         "hbd": precios.get('HBD'),
         "ton": precios.get('TON')
     }
-    
     history.append(nuevo_registro)
-
-    # Mantiene el archivo con un tamaño manejable
     if len(history) > MAX_HISTORY_ENTRIES:
         history = history[-MAX_HISTORY_ENTRIES:]
-
     save_hbd_history(history)
     add_log_line("✅ Precios de alerta guardados en hbd_price_history.json")
 
-
-# === Funciones Auxiliares ===
-
 def add_log_line(linea):
-    """Añade una línea al log en memoria, manteniendo el tamaño máximo LOG_MAX."""
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    # Corregimos el formato para que tenga el separador " | " que esperas en cmdt.py
     LOG_LINES.append(f"[{timestamp}] | {linea}") 
-    
-    # 💡 CORRECCIÓN CRÍTICA: Aseguramos que la lista no exceda LOG_MAX (20)
     if len(LOG_LINES) > LOG_MAX:
         del LOG_LINES[0]
-    
-    # Añadido: Imprimir a la consola para depuración
-    print(LOG_LINES[-1]) 
+    print(LOG_LINES[-1])
 
-
-# === NUEVAS FUNCIONES PARA GESTIÓN DE UMBRALES HBD ===
-
+# === FUNCIONES DE UMBRALES HBD ===
 def load_hbd_thresholds():
-    """Carga los umbrales de HBD (Precio: Estado)."""
     if not os.path.exists(HBD_THRESHOLDS_PATH):
         return {}
     try:
@@ -118,33 +93,20 @@ def load_hbd_thresholds():
         return {}
 
 def save_hbd_thresholds(thresholds):
-    """Guarda los umbrales de HBD."""
     try:
         with open(HBD_THRESHOLDS_PATH, "w", encoding='utf-8') as f:
-            json.dump(thresholds, f, indent=4, sort_keys=True) # sort_keys para mantener orden
+            json.dump(thresholds, f, indent=4, sort_keys=True)
     except Exception as e:
         add_log_line(f"Error al guardar umbrales HBD: {e}")
 
 def modify_hbd_threshold(price: float, action: str):
-    """
-    Modifica los umbrales.
-    action: 'add', 'del', 'run', 'stop'
-    Maneja la búsqueda de claves de forma flexible (float vs string).
-    """
     thresholds = load_hbd_thresholds()
-    
-    # Clave estandarizada para NUEVAS entradas
     target_key = f"{price:.4f}"
-    
-    # --- BUSQUEDA INTELIGENTE DE CLAVE EXISTENTE ---
-    # Buscamos si ya existe el precio, independientemente del formato ("1.00", "1.0", "1.0000")
     existing_key = None
     
-    # 1. Intento directo
     if target_key in thresholds:
         existing_key = target_key
     else:
-        # 2. Búsqueda por valor numérico (Tolerancia epsilon pequeña)
         for key in thresholds.keys():
             try:
                 if abs(float(key) - price) < 0.00001:
@@ -152,31 +114,24 @@ def modify_hbd_threshold(price: float, action: str):
                     break
             except ValueError:
                 continue
-    # -----------------------------------------------
 
     if action == 'add':
-        # Siempre usamos el formato estándar para nuevas entradas, 
-        # a menos que ya exista (para no duplicar)
         key_to_use = existing_key if existing_key else target_key
-        thresholds[key_to_use] = True # True = Running
+        thresholds[key_to_use] = True
         msg = f"✅ Alerta HBD para ${key_to_use} añadida y activada."
-        
     elif action == 'del':
         if existing_key:
             del thresholds[existing_key]
             msg = f"🗑️ Alerta HBD para ${existing_key} eliminada."
         else:
             msg = f"⚠️ No existe alerta para ${target_key}."
-            
     elif action == 'run':
         if existing_key:
             thresholds[existing_key] = True
             msg = f"▶️ Alerta HBD para ${existing_key} activada (Running)."
         else:
-            # Si no existe, la creamos
             thresholds[target_key] = True
             msg = f"▶️ Alerta HBD para ${target_key} creada y activada."
-            
     elif action == 'stop':
         if existing_key:
             thresholds[existing_key] = False
@@ -190,112 +145,360 @@ def modify_hbd_threshold(price: float, action: str):
     add_log_line(msg)
     return True, msg
 
-# === Funciones para Historial de Precios por Usuario (Persistencia) ===
 def load_last_prices_status():
-    """Carga el diccionario de últimos precios enviados a cada usuario."""
     if not os.path.exists(LAST_PRICES_PATH):
         return {}
     try:
         with open(LAST_PRICES_PATH, "r", encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
-        add_log_line("⚠️ Error cargando last_prices.json. Se inicia vacío.")
         return {}
 
 def save_last_prices_status(data: dict):
-    """Guarda el diccionario de últimos precios."""
     try:
         with open(LAST_PRICES_PATH, "w", encoding='utf-8') as f:
             json.dump(data, f, indent=4)
     except Exception as e:
         add_log_line(f"❌ Error guardando last_prices.json: {e}")
 
-# === Funciones para manejar el historial de alertas personalizadas ===
 def cargar_custom_alert_history():
-    """Carga el historial de precios de alertas personalizadas desde el JSON."""
     try:
         if os.path.exists(CUSTOM_ALERT_HISTORY_PATH):
             with open(CUSTOM_ALERT_HISTORY_PATH, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-                add_log_line("✅ Historial de alertas personalizadas cargado exitosamente.")
-                return history
+                return json.load(f)
         else:
-            return {} # Retorna vacío si el archivo no se ha creado aún
-    except json.JSONDecodeError:
-        add_log_line("❌ ERROR: El archivo de historial no es un JSON válido. Se inicializa un diccionario vacío.")
-        return {}
+            return {}
     except Exception as e:
-        add_log_line(f"❌ ERROR al cargar el historial de alertas: {e}. Se inicializa un diccionario vacío.")
         return {}
 
 def guardar_custom_alert_history(history_data: dict):
-    """Guarda el historial de precios de alertas personalizadas en el JSON."""
     try:
-        # Usamos un bloque with para garantizar que el archivo se cierre
         with open(CUSTOM_ALERT_HISTORY_PATH, 'w', encoding='utf-8') as f:
             json.dump(history_data, f, indent=4)
     except Exception as e:
         add_log_line(f"❌ ERROR al guardar el historial de alertas: {e}")
 
-
 def delete_all_alerts(user_id: int) -> bool:
-    """
-    Elimina todas las alertas de precio del usuario.
-    Devuelve True si se eliminó al menos una alerta.
-    """
     user_alerts = get_user_alerts(user_id)
     if not user_alerts:
         return False
-
     for alert in user_alerts:
         delete_price_alert(user_id, alert['alert_id'])
-        add_log_line(f"🗑️ Alerta {alert['alert_id']} eliminada para el usuario {user_id}.")
-
     return True
 
-# Llamar a la inicialización al importar el módulo
 inicializar_archivos()
 
-# === Funciones de Gestión de Usuarios ===
+# === GESTIÓN DE USUARIOS ===
 
 def cargar_usuarios():
-    """Carga el diccionario de usuarios desde users.json."""
+    global _USUARIOS_CACHE
+    
+    # Si ya está en memoria, usar memoria (rápido y seguro)
+    if _USUARIOS_CACHE is not None:
+        return _USUARIOS_CACHE
+
+    if not os.path.exists(USUARIOS_PATH):
+        _USUARIOS_CACHE = {}
+        return _USUARIOS_CACHE
+
     try:
-        if not os.path.exists(USUARIOS_PATH):
-            return {}
         with open(USUARIOS_PATH, 'r', encoding='utf-8') as f:
-            usuarios = json.load(f)
-            # Asegurarse de que todos los usuarios tienen los campos necesarios
-            for chat_id, data in usuarios.items():
-                if 'intervalo_alerta_h' not in data:
-                    data['intervalo_alerta_h'] = 1.0 # Valor por defecto: 1.0 hora
-                if 'monedas' not in data:
-                    data['monedas'] = [] # Valor por defecto
-            return usuarios
-    except (FileNotFoundError, json.JSONDecodeError) as e:
-        add_log_line(f"❌ ERROR: Falló la carga o decodificación de usuarios.json: {e}")
+            _USUARIOS_CACHE = json.load(f)
+            return _USUARIOS_CACHE
+    except json.JSONDecodeError:
+        # Si el archivo está roto, intentamos recuperar backup o iniciar vacío
+        if os.path.exists(USUARIOS_PATH):
+            shutil.copy(USUARIOS_PATH, f"{USUARIOS_PATH}.corrupto")
+        _USUARIOS_CACHE = {}
+        return _USUARIOS_CACHE
+    except Exception:
         return {}
 
+def guardar_usuarios(usuarios_data=None):
+    global _USUARIOS_CACHE
+    
+    if usuarios_data is not None:
+        _USUARIOS_CACHE = usuarios_data
+    
+    if _USUARIOS_CACHE is None:
+        return
+
+    try:
+        # Guardado atómico: escribe en .tmp y renombra (evita corrupción)
+        temp_path = f"{USUARIOS_PATH}.tmp"
+        with open(temp_path, "w", encoding='utf-8') as f:
+            json.dump(_USUARIOS_CACHE, f, indent=4)
+        os.replace(temp_path, USUARIOS_PATH)
+    except Exception as e:
+        add_log_line(f"❌ Error al guardar usuarios: {e}")
+
+# --- FASE 1: NUEVAS FUNCIONES DE SUSCRIPCIÓN Y LÍMITES ---
+def obtener_datos_usuario_seguro(chat_id):
+    """
+    Obtiene los datos del usuario asegurando que existan los campos de suscripción
+    y uso diario. Si faltan claves, las crea.
+    """
+    usuarios = cargar_usuarios()
+    chat_id_str = str(chat_id)
+    
+    if chat_id_str not in usuarios:
+        return None 
+
+    usuario = usuarios[chat_id_str]
+    guardar = False
+    
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    
+    # 1. Estructura de Uso Diario (Inicialización y Reinicio)
+    if 'daily_usage' not in usuario or usuario['daily_usage'].get('date') != today_str:
+        # Si no existe o es un día nuevo, reiniciamos todo a 0
+        usuario['daily_usage'] = {
+            'date': today_str,
+            'ver': 0,
+            'tasa': 0,
+            'ta': 0,
+            'temp_changes': 0
+        }
+        guardar = True
+    else:
+        # IMPORTANTE: Si ya existe el registro de hoy, verificamos que tenga TODAS las claves nuevas.
+        # Esto soluciona el bug de usuarios antiguos que tienen acceso ilimitado.
+        keys_necesarias = ['ver', 'tasa', 'ta', 'temp_changes']
+        for key in keys_necesarias:
+            if key not in usuario['daily_usage']:
+                usuario['daily_usage'][key] = 0
+                guardar = True
+
+    # 2. Suscripciones (Relleno de estructura si falta)
+    if 'subscriptions' not in usuario:
+        usuario['subscriptions'] = {
+            'alerts_extra': {'qty': 0, 'expires': None}, 
+            'coins_extra': {'qty': 0, 'expires': None},  
+            'watchlist_bundle': {'active': False, 'expires': None}, 
+            'tasa_vip': {'active': False, 'expires': None}, 
+            'ta_vip': {'active': False, 'expires': None}    
+        }
+        guardar = True
+        
+    if guardar:
+        guardar_usuarios(usuarios)
+        
+    return usuario
+
+def check_feature_access(chat_id, feature_type, current_count=None):
+    """
+    Verifica si el usuario tiene permiso o si alcanzó su límite.
+    Retorna: (Bool, Mensaje) -> (True, "OK") o (False, "Razón")
+    """
+    # 1. Los Admins siempre tienen pase VIP (Ilimitado)
+    if str(chat_id) in ADMIN_CHAT_IDS:
+        if feature_type == 'temp_min_val': return 0.25, "Admin Mode" # Mínimo flexible
+        return True, "Admin Mode"
+
+    user_data = obtener_datos_usuario_seguro(chat_id)
+    if not user_data:
+        return False, "Usuario no registrado. Usa /start."
+
+    subs = user_data['subscriptions']
+    daily = user_data['daily_usage']
+    now = datetime.now()
+
+    # Helper para verificar si una subscripción está activa y vigente
+    def is_active(sub_key):
+        if not subs.get(sub_key): return False
+        if not subs[sub_key]['active']: return False
+        if not subs[sub_key]['expires']: return False
+        try:
+            exp_date = datetime.strptime(subs[sub_key]['expires'], '%Y-%m-%d %H:%M:%S')
+            return exp_date > now
+        except ValueError:
+            return False
+
+    # --- REGLA 1: Comando /ver ---
+    if feature_type == 'ver_limit':
+        limit = 4  # Gratis
+        if is_active('watchlist_bundle'):
+            limit = 24 # Pago (Pack Control Total)
+        
+        if daily['ver'] >= limit:
+            return False, (
+                f"🔒 *Límite Diario Alcanzado ({limit}/{limit})*\n—————————————————\n\n"
+                f"Has usado tus {limit} consultas gratuitas de /ver por hoy.\n\n—————————————————\n"
+                f"Adquiere el 'Pack Control Total' en /shop para aumentar a 24 consultas diarias, entre otras funciones"
+                )
+        return True, "OK"
+
+    # --- REGLA 2: Comando /tasa ---
+    if feature_type == 'tasa_limit':
+        limit = 4 # Gratis
+        if is_active('tasa_vip'):
+            limit = 24 # Pago (Tasa VIP)
+        
+        if daily['tasa'] >= limit:
+            return False, (
+                f"🔒 *Límite Diario Alcanzado ({limit}/{limit})*\n—————————————————\n\n"
+                f"Has usado tus {limit} consultas de /tasa por hoy.\n\n—————————————————\n"
+                f"Adquiere 'Tasa VIP' en /shop para aumentar a 24 consultas diarias durante 30 días."
+                )
+        return True, "OK"
+
+    # --- REGLA 3: Comando /ta ---
+    if feature_type == 'ta_limit':
+        limit = 20 # Gratis
+        if is_active('ta_vip'):
+            limit = 999999 # Pago (Ilimitado)
+            
+        if daily['ta'] >= limit:
+            return False, (
+                f"🔒 *Límite Diario Alcanzado ({limit}/{limit})*\n—————————————————\n\n"
+                f"Has realizado {limit} análisis técnicos hoy.\n\n—————————————————\n"
+                f"Adquiere 'TA Pro' en /shop para uso ILIMITADO por 30 días."
+                )
+        return True, "OK"
+    
+    # --- REGLA 4: Cambios de Temporalidad ---    
+    if feature_type == 'temp_min_val':
+        min_val = 4.0
+        if is_active('watchlist_bundle'):
+            min_val = 0.25
+        return min_val, "Valor Mínimo"
+    
+    # --- REGLA 5: Cambios de Temporalidad ---
+    if feature_type == 'temp_change_limit':
+        if is_active('watchlist_bundle'):
+            return True, "OK" # Ilimitado con el pack
+        
+        # Plan Gratis: Solo 1 cambio al día
+        if daily.get('temp_changes', 0) >= 1:
+            return False, (
+                f"🔒 *Límite Diario Alcanzado*\n—————————————————\n\n"
+                f"Solo puedes cambiar la temporalidad 1 vez al día en el plan gratuito.\n"
+                f"Adquiere el 'Pack Control Total' para cambios ilimitados durante 30 días, entre otras finciones."
+                )
+        return True, "OK"
+
+    # --- REGLA 6: Capacidad de Lista de Monedas (/monedas) ---
+    if feature_type == 'coins_capacity':
+        # current_count es la cantidad de monedas que el usuario INTENTA guardar
+        base_capacity = 5
+        
+        # Verificamos extras comprados
+        extra_capacity = 0
+        if is_active('coins_extra'):
+            extra_capacity = subs['coins_extra']['qty']
+            
+        total_capacity = base_capacity + extra_capacity
+        
+        if current_count > total_capacity:
+            return False, (
+                f"🔒 *Capacidad Excedida ({current_count}/{total_capacity})*\n—————————————————\n\n"
+                f"Tu límite actual es de {total_capacity} monedas.\n"
+                f"Has intentado guardar {current_count}.\n\n—————————————————\n"
+                f"🛒 Ve a /shop para comprar '+1 Espacio Moneda'."
+            )
+        return True, "OK"
+
+    # --- REGLA 7: Capacidad de Alertas de Cruce (/alerta) ---
+    if feature_type == 'alerts_capacity':
+        # current_count aquí será el total de alertas ACTIVAS en la BD
+        # Recordar: 1 alerta de usuario = 2 registros en BD (Arriba + Abajo)
+        
+        base_pairs = 10  # 10 alertas del usuario (20 registros)
+        extra_pairs = 0
+        
+        if is_active('alerts_extra'):
+            extra_pairs = subs['alerts_extra']['qty']
+            
+        total_pairs = base_pairs + extra_pairs
+        total_slots_db = total_pairs * 2 # Capacidad real en base de datos
+        
+        # Al crear una alerta nueva, se suman 2 slots. Verificamos si caben.
+        if (current_count + 2) > total_slots_db:
+            return False, (
+                f"🔒 *Capacidad de Alertas Llena*\n—————————————————\n\n"
+                f"Tienes ocupados tus {total_pairs} espacios para alertas.\n"
+                f"Elimina alguna con /misalertas o compra '+1 Alerta Cruce' en /shop."
+            )
+        return True, "OK"
+
+    return True, "OK"
+
+def registrar_uso_comando(chat_id, comando):
+    """Incrementa el contador de uso para un comando específico."""
+    # Los admins no registran uso (son ilimitados)
+    if str(chat_id) in ADMIN_CHAT_IDS:
+        return 
+
+    # Aseguramos que la estructura exista antes de escribir
+    obtener_datos_usuario_seguro(chat_id) 
+    
+    usuarios = cargar_usuarios()
+    chat_id_str = str(chat_id)
+    
+    if chat_id_str in usuarios:
+        daily = usuarios[chat_id_str].get('daily_usage', {})
+        
+        # Incrementamos de forma segura (creando la clave si por alguna razón no está)
+        actual = daily.get(comando, 0)
+        daily[comando] = actual + 1
+        
+        usuarios[chat_id_str]['daily_usage'] = daily # Asegurar asignación
+        guardar_usuarios(usuarios)
+        
+        # LOG DE DEBUG (Opcional: te ayudará a ver en consola si cuenta)
+        print(f"DEBUG: Usuario {chat_id} usó {comando}. Nuevo total: {daily[comando]}")
+
+def add_subscription_days(chat_id, sub_type, days=30, quantity=0):
+    usuarios = cargar_usuarios()
+    obtener_datos_usuario_seguro(chat_id)
+    usuarios = cargar_usuarios()
+    
+    chat_id_str = str(chat_id)
+    user = usuarios[chat_id_str]
+    subs = user['subscriptions']
+    now = datetime.now()
+    
+    if sub_type in ['watchlist_bundle', 'tasa_vip', 'ta_vip']:
+        current_exp_str = subs[sub_type]['expires']
+        if current_exp_str:
+            current_exp = datetime.strptime(current_exp_str, '%Y-%m-%d %H:%M:%S')
+            new_exp = (current_exp if current_exp > now else now) + timedelta(days=days)
+        else:
+            new_exp = now + timedelta(days=days)
+            
+        subs[sub_type]['active'] = True
+        subs[sub_type]['expires'] = new_exp.strftime('%Y-%m-%d %H:%M:%S')
+        add_log_line(f"💰 Usuario {chat_id} compró {sub_type}. Expira: {subs[sub_type]['expires']}")
+
+    elif sub_type in ['coins_extra', 'alerts_extra']:
+        subs[sub_type]['qty'] += quantity
+        current_exp_str = subs[sub_type]['expires']
+        if current_exp_str:
+            current_exp = datetime.strptime(current_exp_str, '%Y-%m-%d %H:%M:%S')
+            new_exp = (current_exp if current_exp > now else now) + timedelta(days=days)
+        else:
+            new_exp = now + timedelta(days=days)
+            
+        subs[sub_type]['expires'] = new_exp.strftime('%Y-%m-%d %H:%M:%S')
+        add_log_line(f"💰 Usuario {chat_id} añadió +{quantity} a {sub_type}.")
+
+    guardar_usuarios(usuarios)
+# ------------------------------------------------------------------
 
 def set_user_language(chat_id: int, lang_code: str):
-    """Guarda el código de idioma para un usuario."""
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
     if chat_id_str in usuarios:
         usuarios[chat_id_str]['language'] = lang_code
         guardar_usuarios(usuarios)
-        add_log_line(f"Idioma de usuario {chat_id_str} cambiado a: {lang_code}")
 
 def get_user_language(chat_id: int) -> str:
-    """Obtiene el código de idioma de un usuario, por defecto 'es' (español)."""
     usuarios = cargar_usuarios()
-    return usuarios.get(str(chat_id), {}).get('language', 'es') # 'es' como valor predeterminado
+    return usuarios.get(str(chat_id), {}).get('language', 'es')
 
 
-# === Funciones de Gestión de Alertas de Precio ===
-
+# === GESTIÓN DE ALERTAS DE PRECIO ===
 def load_price_alerts():
-    """Carga todas las alertas de precio desde price_alerts.json."""
     if not os.path.exists(PRICE_ALERTS_PATH):
         return {}
     try:
@@ -305,7 +508,6 @@ def load_price_alerts():
         return {}
 
 def save_price_alerts(alerts):
-    """Guarda el diccionario completo de alertas de precio."""
     try:
         with open(PRICE_ALERTS_PATH, "w") as f:
             json.dump(alerts, f, indent=4)
@@ -313,17 +515,11 @@ def save_price_alerts(alerts):
         add_log_line(f"Error al guardar alertas de precio: {e}")
 
 def add_price_alert(user_id, coin, target_price):
-    """
-    Añade automáticamente DOS alertas para un usuario (una para 'ABOVE' y otra para 'BELOW')
-    y devuelve un mensaje de estado.
-    """
     alerts = load_price_alerts()
     user_id_str = str(user_id)
-
     if user_id_str not in alerts:
         alerts[user_id_str] = []
     
-    # Alerta 1: Cuando el precio sube por encima del objetivo
     alert_above = {
         "alert_id": str(uuid.uuid4())[:8],
         "coin": coin.upper(),
@@ -331,8 +527,6 @@ def add_price_alert(user_id, coin, target_price):
         "condition": "ABOVE",
         "status": "ACTIVE"
     }
-
-    # Alerta 2: Cuando el precio baja por debajo del objetivo
     alert_below = {
         "alert_id": str(uuid.uuid4())[:8],
         "coin": coin.upper(),
@@ -340,21 +534,16 @@ def add_price_alert(user_id, coin, target_price):
         "condition": "BELOW",
         "status": "ACTIVE"
     }
-
     alerts[user_id_str].append(alert_above)
     alerts[user_id_str].append(alert_below)
     save_price_alerts(alerts)
-    add_log_line(f"✅ Nuevas alertas creadas para el usuario {user_id_str}: {alert_above['alert_id']} (ABOVE), {alert_below['alert_id']} (BELOW)")
-    return (f"✅ ¡Alertas creadas! Te avisaré cuando *{coin.upper()}* cruce por encima o por debajo de *${target_price:,.4f}*.")
-
+    return (f"✅ ¡Alertas creadas!")
 
 def get_user_alerts(user_id):
-    """Obtiene todas las alertas activas de un usuario."""
     alerts = load_price_alerts()
     return [a for a in alerts.get(str(user_id), []) if a['status'] == 'ACTIVE']
 
 def delete_price_alert(user_id, alert_id):
-    """Elimina una alerta específica por su ID."""
     alerts = load_price_alerts()
     user_id_str = str(user_id)
     if user_id_str in alerts:
@@ -366,7 +555,6 @@ def delete_price_alert(user_id, alert_id):
     return False
 
 def update_alert_status(user_id, alert_id, new_status):
-    """Actualiza el estado de una alerta (ej. a 'TRIGGERED')."""
     alerts = load_price_alerts()
     user_id_str = str(user_id)
     if user_id_str in alerts:
@@ -377,154 +565,85 @@ def update_alert_status(user_id, alert_id, new_status):
                 return True
     return False
 
-# 💡 NUEVA FUNCIÓN: para actualizar el intervalo
 def actualizar_intervalo_alerta(chat_id, new_interval_h):
-    """Actualiza el intervalo de alerta (en horas) para un usuario específico y guarda los cambios."""
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
     if chat_id_str in usuarios:
         try:
             usuarios[chat_id_str]['intervalo_alerta_h'] = float(new_interval_h)
             guardar_usuarios(usuarios)
-            add_log_line(f"✅ Intervalo de alerta actualizado para {chat_id_str} a {new_interval_h} horas.")
             return True
         except ValueError:
-            # Esto no debería pasar si la validación en cmdt.py es correcta, pero es un buen control
-            add_log_line(f"❌ ERROR: El valor {new_interval_h} no es un flotante válido.")
             return False
-    else:
-        add_log_line(f"❌ ERROR: Intento de actualizar intervalo para usuario no registrado: {chat_id_str}")
-        return False
-    
-# === Gestión de Usuarios (JSON) ===
+    return False
 
 def update_last_alert_timestamp(chat_id):
-    """
-    Actualiza el campo 'last_alert_timestamp' del usuario con la hora actual.
-    Esto permite mantener el ciclo de alertas incluso si el bot se reinicia.
-    """
-    usuarios = cargar_usuarios() #
+    usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
-    
     if chat_id_str in usuarios:
-        # Guardamos el timestamp actual en formato string ISO
         usuarios[chat_id_str]['last_alert_timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        guardar_usuarios(usuarios) #
-
-def cargar_usuarios():
-    """Carga el diccionario de usuarios."""
-    if not os.path.exists(USUARIOS_PATH):
-        return {}
-    try:
-        with open(USUARIOS_PATH, "r") as f:
-            return json.load(f)
-    except Exception as e:
-        add_log_line(f"Error al cargar usuarios: {e}")
-        return {}
-
-def guardar_usuarios(usuarios):
-    """Guarda el diccionario de usuarios."""
-    try:
-        with open(USUARIOS_PATH, "w") as f:
-            json.dump(usuarios, f, indent=4)
-    except Exception as e:
-        add_log_line(f"Error al guardar usuarios: {e}")
+        guardar_usuarios(usuarios)
 
 def registrar_usuario(chat_id, user_lang_code: str = 'es'):
-    """Registra un nuevo usuario si no existe."""
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
-    
     if chat_id_str not in usuarios: 
-
-        # --- INICIO DE LA CORRECCIÓN DE IDIOMA ---
-        lang_to_save = 'es' # Por defecto (Español)
-        
-        if user_lang_code:
-            # Solo comprobamos si es inglés.
-            # Si era 'pt' o 'de', caerá en el valor por defecto 'es'.
-            if user_lang_code.startswith('en'):
-                lang_to_save = 'en'
-        # --- FIN DE LA CORRECCIÓN DE IDIOMA ---
-
+        lang_to_save = 'es'
+        if user_lang_code and user_lang_code.startswith('en'):
+            lang_to_save = 'en'
         usuarios[chat_id_str] = {
-            "monedas": ["BTC", "HIVE", "HBD", "TON"], # Monedas por defecto
-            "hbd_alerts": False,  # Activar alertas de HBD por defecto
-            "language": lang_to_save, # <-- ¡ESTA LÍNEA ES LA SOLUCIÓN!
-            "intervalo_alerta_h": 1.0 # <-- Añadir esto también es buena idea
+            "monedas": ["BTC", "HIVE", "HBD", "TON"],
+            "hbd_alerts": False,
+            "language": lang_to_save,
+            "intervalo_alerta_h": 1.0
         }
-     
-
         guardar_usuarios(usuarios)
-        add_log_line(f"Nuevo usuario registrado: {chat_id} con idioma: {lang_to_save}") # Log mejorado
 
 def actualizar_monedas(chat_id, lista_monedas):
-    """Actualiza la lista de monedas de un usuario sin borrar otras configuraciones."""
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
-    
     if chat_id_str not in usuarios:
         usuarios[chat_id_str] = {}
-        
     usuarios[chat_id_str]["monedas"] = lista_monedas
-    
     guardar_usuarios(usuarios)
 
 def obtener_monedas_usuario(chat_id):
-    """Obtiene la lista de monedas de un usuario."""
     usuarios = cargar_usuarios()
     return usuarios.get(str(chat_id), {}).get("monedas", [])
 
 def obtener_datos_usuario(chat_id):
-    """Obtiene el diccionario de datos de un usuario específico."""
     usuarios = cargar_usuarios()
     return usuarios.get(str(chat_id), {})
 
 def toggle_hbd_alert_status(user_id: int) -> bool:
-    """
-    Cambia el estado de las alertas HBD para un usuario (de true a false y viceversa).
-    Devuelve el nuevo estado (True si están activadas, False si no).
-    """
     usuarios = cargar_usuarios()
     user_id_str = str(user_id)
     if user_id_str in usuarios:
-        # Si la clave no existe, por defecto es True, así que al negarla se vuelve False
         current_status = usuarios[user_id_str].get('hbd_alerts', False)
         new_status = not current_status
         usuarios[user_id_str]['hbd_alerts'] = new_status
         guardar_usuarios(usuarios)
-        add_log_line(f"Estado de alertas HBD para {user_id_str} cambiado a: {new_status}")
         return new_status
-    return False # Devuelve False si el usuario no existe
-
+    return False
 
 def get_hbd_alert_recipients() -> list:
-    """
-    Devuelve una lista de IDs de chat de los usuarios que tienen las alertas HBD activadas.
-    """
     usuarios = cargar_usuarios()
     recipients = []
     for chat_id, data in usuarios.items():
-        # Si la clave 'hbd_alerts' no existe, se asume que es True por retrocompatibilidad
         if data.get('hbd_alerts', False):
             recipients.append(chat_id)
     return recipients
 
-# === Funciones para manejar el historial de ElToque ===
-
 def load_eltoque_history():
-    """Carga el historial de tasas de ElToque desde el JSON."""
     if not os.path.exists(ELTOQUE_HISTORY_PATH):
         return {}
     try:
         with open(ELTOQUE_HISTORY_PATH, "r", encoding='utf-8') as f:
             return json.load(f)
     except (json.JSONDecodeError, FileNotFoundError):
-        add_log_line("⚠️ Error cargando el historial de ElToque. Se retorna vacío.")
         return {}
 
 def save_eltoque_history(tasas_dict: dict):
-    """Guarda el diccionario de tasas actual de ElToque en el JSON."""
     try:
         with open(ELTOQUE_HISTORY_PATH, "w", encoding='utf-8') as f:
             json.dump(tasas_dict, f, indent=4)

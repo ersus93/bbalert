@@ -14,7 +14,10 @@ from tradingview_ta import TA_Handler, Interval, Exchange
 from datetime import timedelta, datetime
 from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS # <--- IMPORTANTE: AÑADIDO ADMIN_CHAT_IDS
 from core.api_client import obtener_datos_moneda, obtener_tasas_eltoque
-from utils.file_manager import add_log_line, load_eltoque_history, save_eltoque_history
+from utils.file_manager import (
+    add_log_line, load_eltoque_history, save_eltoque_history, 
+    check_feature_access, registrar_uso_comando
+    )
 from utils.ads_manager import get_random_ad_text
 from utils.image_generator import generar_imagen_tasas_eltoque
 from core.i18n import _
@@ -228,10 +231,17 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
 
 # === COMANDO ELTOQUE FUSIONADO (/tasa) ===
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Muestra las tasas de cambio de eltoque.com combinando TEXTO e IMAGEN.
-    """
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id 
+
+    # === GUARDIA DE PAGO ===
+    acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
+    if not acceso:
+        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    registrar_uso_comando(chat_id, 'tasa')
+    # =======================
     
     # DEBUG: Si ves esto en la consola, el comando está bien registrado.
     print(f"DEBUG: Comando eltoque ejecutado por {user_id}") 
@@ -594,11 +604,18 @@ def get_tradingview_analysis(symbol_pair, interval_str):
     }
 
 async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    /ta <SYMBOL> [PAIR] [TIME] [TV]
-    """
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id # Usamos chat_id para verificar uso
     message = update.effective_message 
+
+    # === GUARDIA DE PAGO ===
+    acceso, mensaje = check_feature_access(chat_id, 'ta_limit')
+    if not acceso:
+        await message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    registrar_uso_comando(chat_id, 'ta')
+    # =======================
 
     if not context.args:
         await message.reply_text(_("⚠️ Uso: `/ta <SYMBOL> [PAR] [TIME] [TV]`", user_id), parse_mode=ParseMode.MARKDOWN)

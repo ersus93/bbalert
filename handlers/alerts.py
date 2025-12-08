@@ -16,9 +16,11 @@ from core.api_client import obtener_precios_control
 from core.loops import set_custom_alert_history_util # Nueva importación
 from core.config import ADMIN_CHAT_IDS
 from utils.file_manager import(\
-     delete_all_alerts, add_price_alert, get_user_alerts,\
-        delete_price_alert, cargar_usuarios, guardar_usuarios, registrar_usuario,\
-            actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, add_log_line, load_price_alerts, update_alert_status\
+     delete_all_alerts, add_price_alert, get_user_alerts,
+        delete_price_alert, cargar_usuarios, guardar_usuarios, registrar_usuario,
+            actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, 
+            add_log_line, load_price_alerts, update_alert_status,
+            check_feature_access, get_user_alerts
 )
 from core.i18n import _
 # ------------------------------------------------------------------
@@ -88,9 +90,19 @@ async def alerta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Aunque no se pudo obtener el precio, la alerta se crea de todas formas
         add_log_line(f"❌ Falló consulta de precio inicial de {coin} al crear alerta.")
 
+    # === GUARDIA DE CAPACIDAD ===
+    # Contamos cuántas alertas tiene activas actualmente
+    alertas_actuales = get_user_alerts(user_id) # Devuelve lista de diccionarios
+    num_alertas_db = len(alertas_actuales)
+    # Verificamos si caben 2 más (una arriba, una abajo)
+    acceso, mensaje = check_feature_access(user_id, 'alerts_capacity', current_count=num_alertas_db)
+    
+    if not acceso:
+        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        return
+    # ============================
+
     # 4. Crear la alerta
-    # --- MODIFICACIÓN ---
-    # Ya no capturamos el mensaje de add_price_alert, solo la ejecutamos.
     add_price_alert(user_id, coin, target_price)
 
     # Creamos el mensaje de confirmación aquí para poder traducirlo.

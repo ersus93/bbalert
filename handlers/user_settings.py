@@ -18,7 +18,8 @@ from utils.file_manager import(cargar_usuarios, guardar_usuarios, registrar_usua
                                actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, add_log_line,\
                                 add_price_alert, get_user_alerts, delete_price_alert,delete_all_alerts,\
                                       toggle_hbd_alert_status, set_user_language, get_user_language,\
-                                      toggle_hbd_alert_status, modify_hbd_threshold, load_hbd_thresholds
+                                      toggle_hbd_alert_status, modify_hbd_threshold, load_hbd_thresholds,\
+                                        check_feature_access, registrar_uso_comando
                                 ) 
 from core.api_client import obtener_precios_control
 from core.loops import set_custom_alert_history_util # Nueva importación
@@ -53,6 +54,14 @@ async def manejar_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     monedas_limpias = [m.strip() for m in texto.split(',') if m.strip()]
     
     if monedas_limpias:
+        # === GUARDIA DE CAPACIDAD ===
+        # Verificamos si la longitud de la nueva lista está permitida
+        acceso, mensaje = check_feature_access(update.effective_chat.id, 'coins_capacity', current_count=len(monedas_limpias))
+        
+        if not acceso:
+            await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+            return
+        # ============================
         actualizar_monedas(chat_id, monedas_limpias)
         
         # Mensaje 1 (Éxito) - Requiere formateo
@@ -116,69 +125,90 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     user_input = context.args[0] if context.args else None
     
+    # 1. Obtener el límite permitido para este usuario
+    # NOTA: Usamos 'msg_status' en lugar de '_' para no romper la función de traducción
+    min_val, msg_status = check_feature_access(chat_id, 'temp_min_val')
+
     if not user_input:
         # Mostrar configuración actual
         usuarios = cargar_usuarios()
         intervalo_actual = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 1.0)
         
-        # Mensaje 1: Configuración actual (requiere formateo)
         mensaje_base = _(
             "⚙️ *Configuración de Temporalidad*\n"
             "Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n\n"
-            "Para cambiarlo, envía el comando con las horas deseadas (desde 1h hasta 12h).\n"
-            "Ejemplo: `/temp 2.5` (para 2 horas y 30 minutos).",
+            "Tu plan actual permite un mínimo de: *{min_val} horas*.\n"
+            "Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 2.5`).",
             user_id
         )
-        mensaje = mensaje_base.format(intervalo_actual=intervalo_actual)
+        mensaje = mensaje_base.format(intervalo_actual=intervalo_actual, min_val=min_val)
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
     try:
-        interval_h = float(user_input)
-        
-        # Validar el rango de horas (0.5h a 24.0h)
-        if not (0.02 <= interval_h <= 24.0):
-            # Mensaje 2: Rango inválido
-            mensaje_rango_invalido = _("⚠️ El valor debe ser un número entre *0.5* (30min) y *24.0* horas. Ejemplo: `2.5`", chat_id)
-            await update.message.reply_text(mensaje_rango_invalido, parse_mode=ParseMode.MARKDOWN)
-            return
+        # Reemplazar coma por punto para decimales (ej: 2,5 -> 2.5)
+        interval_h = float(user_input.replace(',', '.'))
 
+        # === GUARDIA 1: VALOR MÍNIMO PERMITIDO ===
+        # Si intenta poner un valor menor al permitido (ej: pone 1.0 pero su mínimo es 4.0)
+        if interval_h < min_val:
+            mensaje_rango = _(
+                f"🔒 *Función Premium*\n—————————————————\n\n"
+                f"Has intentado configurar *{interval_h} horas*, pero tu plan actual solo permite un mínimo de *{min_val} horas*.\n\n"
+                f"—————————————————\n"
+                f"🚀 Adquiere el 'Pack Control Total' en /shop para desbloquear alertas rápidas (hasta 0.25h), estre otras funciones.",
+                user_id
+            )
+            await update.message.reply_text(mensaje_rango, parse_mode=ParseMode.MARKDOWN)
+            return
+        
+        # Validar el rango máximo lógico (24 horas)
+        if interval_h > 24.0:
+             await update.message.reply_text(_("⚠️ El máximo permitido es 24 horas.", user_id), parse_mode=ParseMode.MARKDOWN)
+             return
+        # ========================================
+
+        # === GUARDIA 2: LÍMITE DE CAMBIOS DIARIOS ===
+        acceso_cambio, msg_cambio = check_feature_access(chat_id, 'temp_change_limit')
+        if not acceso_cambio:
+            await update.message.reply_text(msg_cambio, parse_mode=ParseMode.MARKDOWN)
+            return
+        # ============================================
+        
         # 1. Guardar el nuevo intervalo
         if not actualizar_intervalo_alerta(chat_id, interval_h):
-            # Mensaje 3: Error al guardar
             mensaje_error_guardar = _("❌ No se pudo guardar tu configuración. ¿Estás registrado con /start?", chat_id)
             await update.message.reply_text(mensaje_error_guardar, parse_mode=ParseMode.MARKDOWN)
             return
             
-        # 2. Reprogramar la alerta (usando la función inyectada)
+        # === REGISTRAR EL USO ===
+        registrar_uso_comando(chat_id, 'temp_changes')
+        # ========================
+            
+        # 2. Reprogramar la alerta
+        msg_extra = ""
         if _reprogramar_alerta_ref:
-            # Mensaje 4: Éxito con reprogramación (requiere formateo)
-            _reprogramar_alerta_ref(chat_id, interval_h)
-            mensaje_base_final = _(
-                "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
-                "La alerta con tus monedas ha sido *reprogramada* para ejecutarse cada {interval_h} horas.",
-                user_id
-            )
-            mensaje_final = mensaje_base_final.format(interval_h=interval_h)
-        else:
-            # Mensaje 5: Éxito sin reprogramación (requiere formateo)
-            mensaje_base_final = _(
-                "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
-                "⚠️ Pero hubo un error al reprogramar la alerta. Intenta enviar /temp nuevamente.",
-                user_id
-            )
-            mensaje_final = mensaje_base_final.format(interval_h=interval_h)
+            try:
+                _reprogramar_alerta_ref(chat_id, interval_h)
+            except Exception as e:
+                msg_extra = "\n⚠️ (Alerta guardada, se aplicará en el próximo ciclo)"
+        
+        mensaje_base_final = _(
+            "✅ ¡Temporalidad actualizada a *{interval_h} horas*!\n"
+            "Tus alertas llegarán con esta frecuencia.{extra}",
+            user_id
+        )
+        mensaje_final = mensaje_base_final.format(interval_h=interval_h, extra=msg_extra)
 
         await update.message.reply_text(mensaje_final, parse_mode=ParseMode.MARKDOWN)
 
     except ValueError:
-        # Mensaje 6: Formato de hora inválido
-        mensaje_error_valor = _("⚠️ Formato de hora inválido. Usa un número como `2` o `2.5` (minimo 0.5)(máximo 24.0).", user_id)
+        mensaje_error_valor = _("⚠️ Formato inválido. Usa un número. Ejemplo: `/temp 4` o `/temp 2.5`", user_id)
         await update.message.reply_text(mensaje_error_valor, parse_mode=ParseMode.MARKDOWN)
     except IndexError:
-        # Mensaje 7: Falta el argumento
-        mensaje_error_indice = _("⚠️ Debes especificar el número de horas. Ejemplo: `/temp 2.5`", user_id)
+        mensaje_error_indice = _("⚠️ Debes especificar las horas. Ejemplo: `/temp 4`", user_id)
         await update.message.reply_text(mensaje_error_indice, parse_mode=ParseMode.MARKDOWN)
+
 
 # === LÓGICA DE JOBQUEUE PARA ALERTAS DE TEMPORALIDAD ===
 async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -216,6 +246,13 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         mensaje_error_vacio = _("⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo.", user_id)
         await update.message.reply_text(mensaje_error_vacio, parse_mode=ParseMode.MARKDOWN)
         return
+    
+    # === GUARDIA DE CAPACIDAD ===
+    acceso, mensaje = check_feature_access(chat_id, 'coins_capacity', current_count=len(monedas))
+    if not acceso:
+        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        return
+    # ============================
 
     # 3. Guardar la nueva lista de monedas
     actualizar_monedas(chat_id, monedas)

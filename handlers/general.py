@@ -9,7 +9,9 @@ from utils.file_manager import (
     registrar_usuario, 
     obtener_monedas_usuario, 
     load_last_prices_status,
-    obtener_datos_usuario
+    obtener_datos_usuario,
+    check_feature_access,
+    registrar_uso_comando
 )
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text
@@ -45,13 +47,21 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # COMANDO /ver REFACTORIZADO
 async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """
-    Muestra los precios actuales de la lista de monedas del usuario.
-    No afecta al cronómetro de la alerta periódica.
-    """
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
+    # === GUARDIA DE PAGO ===
+    # 1. Verificar acceso
+    acceso, mensaje = check_feature_access(chat_id, 'ver_limit')
+    if not acceso:
+        # Si no tiene acceso, enviamos el mensaje de error (que contiene la info de venta) y paramos.
+        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # 2. Registrar el uso (se descuenta 1 del contador)
+    registrar_uso_comando(chat_id, 'ver')
+    # =======================
+    # === LÓGICA DEL COMANDO /ver ====    
     # 1. Obtener las monedas configuradas por el usuario
     monedas = obtener_monedas_usuario(chat_id)
     

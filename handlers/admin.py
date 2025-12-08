@@ -317,12 +317,12 @@ def set_logs_util(func):
     global _get_logs_data_ref
     _get_logs_data_ref = func
 
-# COMANDO /users mejorado
+# COMANDO /users 
 async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comando /users mejorado. 
     - Usuarios normales: Ven su propio perfil.
-    - Admins: Ven estadísticas globales y los últimos 5 registros.
+    - Admins: Ven estadísticas globales, desglose VIP y últimos registros.
     """
     current_chat_id = update.effective_chat.id
     current_chat_id_str = str(current_chat_id)
@@ -377,23 +377,78 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
-    # --- VISTA DE ADMINISTRADOR (NUEVA LÓGICA) ---
+    # --- VISTA DE ADMINISTRADOR (NUEVA LÓGICA VIP) ---
+    msg_procesando = await update.message.reply_text("⏳ Calculando estadísticas...")
     
-    # 1. Cálculos Estadísticos
+    # 1. Cálculos Estadísticos Generales
     total_usuarios = len(usuarios)
     
-    # Calcular total de alertas de cruce (Price Alerts) activas en todo el sistema
+    # Alertas de cruce activas
     total_alertas_cruce = sum(
         len([a for a in alerts if a['status'] == 'ACTIVE']) 
         for alerts in all_alerts.values()
     )
     
-    # Calcular usuarios con alertas HBD activadas
-    # (Asumimos True si no existe la clave, o False si está explícito, según tu lógica de file_manager)
+    # Alertas HBD
     total_hbd_users = sum(1 for u in usuarios.values() if u.get('hbd_alerts', False))
     porcentaje_hbd = (total_hbd_users / total_usuarios * 100) if total_usuarios > 0 else 0
 
-    # Calcular Top 5 Monedas más seguidas
+    # --- 2. CÁLCULO DE SUSCRIPCIONES PREMIUM (VIP) ---
+    # Contadores inicializados
+    vip_stats = {
+        'watchlist_bundle': 0, # Pack Control Total
+        'tasa_vip': 0,         # Tasa VIP
+        'ta_vip': 0,           # TA Pro
+        'coins_extra': 0,      # Espacios Moneda Extra (Usuarios que tienen > 0)
+        'alerts_extra': 0      # Alertas Cruce Extra (Usuarios que tienen > 0)
+    }
+
+    now = datetime.now()
+
+    for u in usuarios.values():
+        subs = u.get('subscriptions', {})
+        
+        # Verificar Pack Control Total
+        wb = subs.get('watchlist_bundle', {})
+        if wb.get('active') and wb.get('expires'):
+            try:
+                if datetime.strptime(wb['expires'], '%Y-%m-%d %H:%M:%S') > now:
+                    vip_stats['watchlist_bundle'] += 1
+            except ValueError: pass
+
+        # Verificar Tasa VIP
+        tv = subs.get('tasa_vip', {})
+        if tv.get('active') and tv.get('expires'):
+            try:
+                if datetime.strptime(tv['expires'], '%Y-%m-%d %H:%M:%S') > now:
+                    vip_stats['tasa_vip'] += 1
+            except ValueError: pass
+
+        # Verificar TA Pro
+        tav = subs.get('ta_vip', {})
+        if tav.get('active') and tav.get('expires'):
+            try:
+                if datetime.strptime(tav['expires'], '%Y-%m-%d %H:%M:%S') > now:
+                    vip_stats['ta_vip'] += 1
+            except ValueError: pass
+
+        # Verificar Extras (Monedas)
+        ce = subs.get('coins_extra', {})
+        if ce.get('qty', 0) > 0:
+            # Aquí podríamos contar usuarios O contar total de slots vendidos. 
+            # Contaremos usuarios que han comprado al menos 1 slot.
+            vip_stats['coins_extra'] += 1
+
+        # Verificar Extras (Alertas)
+        ae = subs.get('alerts_extra', {})
+        if ae.get('qty', 0) > 0:
+            vip_stats['alerts_extra'] += 1
+
+    # Total de usuarios únicos con ALGO pagado (aprox)
+    # Nota: Es una aproximación simple, un usuario puede tener varios packs.
+    # Para ser exacto habría que usar un set de IDs.
+    
+    # --- 3. Top Monedas y Usuarios Pesados ---
     todas_monedas = []
     for u in usuarios.values():
         todas_monedas.extend(u.get('monedas', []))
@@ -401,78 +456,75 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     top_5_monedas = conteo_monedas.most_common(5)
     top_5_monedas_str = ", ".join([f"{m} ({c})" for m, c in top_5_monedas])
 
-    # Calcular "Usuarios más pesados" (Proxy de actividad: quién tiene más alertas configuradas)
-    # Creamos una lista de tuplas (user_id, num_alertas)
+    # Usuarios más pesados
     users_by_alerts = []
     for uid, alerts in all_alerts.items():
         active_count = len([a for a in alerts if a['status'] == 'ACTIVE'])
         if active_count > 0:
             users_by_alerts.append((uid, active_count))
     
-    # Ordenamos descendente y tomamos los top 3
     users_by_alerts.sort(key=lambda x: x[1], reverse=True)
     top_3_users_data = users_by_alerts[:3]
     
     top_3_str = ""
     for idx, (uid, count) in enumerate(top_3_users_data):
-        # Intentamos obtener nombre del diccionario de usuarios si existe
         u_data = usuarios.get(uid, {})
-        # Nombre fallback si no tenemos datos de Telegram frescos aquí
         name_display = u_data.get('username', uid) 
         top_3_str += f"{idx+1}. {name_display}: {count} alertas\n"
+    if not top_3_str: top_3_str = "N/A"
 
-    if not top_3_str:
-        top_3_str = "N/A"
-
-    # 2. Obtener los últimos 5 usuarios registrados
-    # Los diccionarios en Python 3.7+ mantienen orden de inserción, así que tomamos los últimos.
+    # --- 4. Últimos Registros ---
     lista_ids_usuarios = list(usuarios.keys())
     ultimos_5_ids = lista_ids_usuarios[-5:]
-    ultimos_5_ids.reverse() # Invertimos para ver el más nuevo arriba
+    ultimos_5_ids.reverse()
 
     detalles_ultimos = []
-    
-    msg_procesando = await update.message.reply_text("⏳ Recopilando datos de Telegram...")
-
     for chat_id_str in ultimos_5_ids:
         data = usuarios[chat_id_str]
         chat_id = int(chat_id_str)
         monedas_user = ', '.join(data.get('monedas', []))
-        
         try:
             chat_info = await context.bot.get_chat(chat_id)
             nombre_completo = chat_info.full_name or "N/A"
             username_str = f"@{chat_info.username}" if chat_info.username else "N/A"
         except Exception:
-            nombre_completo = "Desconocido/Bloqueado"
+            nombre_completo = "Desconocido"
             username_str = "N/A"
 
         detalles_ultimos.append(
-            f" 🔹 {nombre_completo} ({username_str}) | ID: {chat_id}\n"
-            f"Monedas: {monedas_user}"
+            f"🔹 {nombre_completo} ({username_str}) | ID: {chat_id}\n"
+            f"   Monedas: {monedas_user}"
         )
 
-    # 3. Construir Mensaje Final
+    # --- 5. Construcción del Mensaje ---
     mensaje_admin = (
-        f"📊 **ESTADÍSTICAS GENERALES** (v{VERSION})\n"
-        f"—————————————————\n"
-        f"👥 **Usuarios Totales:** `{total_usuarios}`\n"
-        f"🔔 **Alertas Cruce Activas:** `{total_alertas_cruce}`\n"
-        f"📢 **Suscritos a HBD:** `{total_hbd_users}` ({porcentaje_hbd:.1f}%)\n\n"
+        f"📊 *ESTADÍSTICAS GENERALES\n🤖 BitBread Alert* (v{VERSION})\n"
+        f"—————————————————\n" 
+        f"👥 *Usuarios Totales:* `{total_usuarios}`\n"
+        f"🔔 *Alertas Cruce:* `{total_alertas_cruce}` activas\n"
+        f"📢 *Subs HBD:* `{total_hbd_users}` ({porcentaje_hbd:.1f}%)\n•\n"
         
-        f"🏆 **Top 5 Monedas:**\n"
-        f"`{top_5_monedas_str}`\n\n"
+        f"💎 *ESTADÍSTICAS PREMIUM (Activos)*\n"
+        f"📦 Pack Control Total: `{vip_stats['watchlist_bundle']}`\n"
+        f"💱 Tasa VIP: `{vip_stats['tasa_vip']}`\n"
+        f"📈 TA Pro: `{vip_stats['ta_vip']}`\n"
+        f"🪙 Extra Monedas: `{vip_stats['coins_extra']}` usuarios\n"
+        f"🔔 Extra Alertas: `{vip_stats['alerts_extra']}` usuarios\n•\n"
         
-        f"⚡ **Usuarios con más alertas (Top 3):**\n"
+        f"🏆 *Top 5 Monedas:*\n"
+        f"`{top_5_monedas_str}`\n•\n"
+        
+        f"⚡ *Top 3 Heavy Users (Alertas):*\n"
         f"{top_3_str}\n"
         
-        f"🆕 **Últimos 5 Usuarios Registrados:**\n"
+        f"🆕 *Últimos 5 Registrados:*\n"
         f"—————————————————\n"
         f"```{chr(10).join(detalles_ultimos)}```"
     )
 
-    await msg_procesando.delete() # Borrar mensaje de espera
+    await msg_procesando.delete() 
     await update.message.reply_text(mensaje_admin, parse_mode=ParseMode.MARKDOWN)
+
 
 
 # COMANDO /logs para ver las últimas líneas del log
