@@ -23,7 +23,7 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     obtener_datos_usuario_seguro(user_id)
     
     # Textos (puedes ajustarlos a tu gusto)
-    titulo = "🛒 *Tienda de BitBread* 🛒\n—————————————————\n\nMejora tu experiencia adquiriendo capacidades extra con *Telegram Stars* ⭐.\n\n—————————————————\n*Selecciona una opción 👇*"
+    titulo = "🛒 *Tienda de BitBread Alert* 🛒\n—————————————————\n\nMejora tu experiencia adquiriendo capacidades extra con *Telegram Stars* ⭐.\n\n—————————————————\n*Selecciona una opción 👇*"
     
     keyboard = [
         [InlineKeyboardButton(f"📦 Pack Control Total - {PRICE_BUNDLE} ⭐️", callback_data="buy_bundle")],
@@ -160,7 +160,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     # --- NOTIFICACIÓN AL ADMINISTRADOR ---
     # Construimos el mensaje de reporte
     reporte_admin = (
-        f"💰 *¡NUEVA VENTA REALIZADA!* 💰\n—————————————————\n\n"
+        f"💰 *¡NUEVA VENTA REALIZADA!* 💰\n—————————————————\n"
         f"👤 *Usuario:* {user.first_name} (@{user.username or 'SinAlias'})\n"
         f"🆔 *ID:* `{user.id}`\n"
         f"🛒 *Producto:* {item_name}\n"
