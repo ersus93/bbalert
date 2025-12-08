@@ -321,25 +321,25 @@ def set_logs_util(func):
 async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Comando /users mejorado. 
-    - Usuarios normales: Ven su propio perfil.
-    - Admins: Ven estadísticas globales, desglose VIP y últimos registros.
+    - Usuarios normales: Ven su perfil y sus SUSCRIPCIONES detalladas.
+    - Admins: Ven estadísticas globales (sin cambios).
     """
     current_chat_id = update.effective_chat.id
     current_chat_id_str = str(current_chat_id)
     usuarios = cargar_usuarios() # Carga users.json
     all_alerts = load_price_alerts() # Carga price_alerts.json
 
-    # --- VISTA DE USUARIO NORMAL (Sin cambios) ---
+    # --- VISTA DE USUARIO NORMAL ---
     if current_chat_id_str not in ADMIN_CHAT_IDS:
         data = usuarios.get(current_chat_id_str)
         if not data:
             await update.message.reply_text(_("😕 No estás registrado en el sistema.", current_chat_id))
             return
 
+        # 1. Datos básicos
         monedas_str = ', '.join(data.get('monedas', []))
         intervalo_h = data.get('intervalo_alerta_h', 1.0)
         user_id = int(current_chat_id_str)
-        # Contamos alertas activas específicas de este usuario
         user_alerts = [a for a in all_alerts.get(current_chat_id_str, []) if a['status'] == 'ACTIVE']
         alertas_activas = len(user_alerts)
 
@@ -353,26 +353,83 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if 'Bot blocked' in str(e):
                 nombre_completo += " (Bloqueado)"
         
+        # --- 2. NUEVA LÓGICA DE SUSCRIPCIONES ---
+        subs = data.get('subscriptions', {})
+        subs_lines = []
+        now = datetime.now()
+
+        # Diccionario para nombres bonitos
+        nombres_subs = {
+            'watchlist_bundle': '📦 Pack Control Total',
+            'tasa_vip': '💱 Tasa VIP',
+            'ta_vip': '📈 TA Pro',
+            'coins_extra': '🪙 Moneda Extra',
+            'alerts_extra': '🔔 Alerta Cruce Extra'
+        }
+
+        # A) Procesar Suscripciones de Tiempo (active/expires)
+        for key in ['watchlist_bundle', 'tasa_vip', 'ta_vip']:
+            s_data = subs.get(key, {})
+            # Verificamos si está activa Y si tiene fecha de expiración futura
+            if s_data.get('active'):
+                exp_str = s_data.get('expires')
+                time_msg = ""
+                
+                if exp_str:
+                    try:
+                        exp_date = datetime.strptime(exp_str, '%Y-%m-%d %H:%M:%S')
+                        if exp_date > now:
+                            diff = exp_date - now
+                            if diff.days > 0:
+                                time_msg = f"Vence en {diff.days} días"
+                            else:
+                                horas = int(diff.seconds / 3600)
+                                time_msg = f"Vence en {horas} horas"
+                        else:
+                            continue # Si ya venció, no la mostramos como activa
+                    except ValueError:
+                        time_msg = "Fecha inválida"
+                
+                subs_lines.append(f"• *{nombres_subs.get(key, key)}*: ✅ ({time_msg})")
+
+        # B) Procesar Suscripciones de Cantidad (qty)
+        for key in ['coins_extra', 'alerts_extra']:
+            qty = subs.get(key, {}).get('qty', 0)
+            if qty > 0:
+                subs_lines.append(f"• *{nombres_subs.get(key, key)}*: +{qty} slots")
+
+        # Generar el string final de suscripciones
+        if not subs_lines:
+            suscripciones_str = "_No tienes suscripciones activas_"
+        else:
+            suscripciones_str = "\n".join(subs_lines)
+        # ----------------------------------------
+
         mensaje_template = _(
             "👤 *Tu Perfil Registrado*\n"
             "—————————————————\n"
+            "📋 *Datos Generales:*\n"
             "  - Nombre: {nombre_completo}\n"
-            "  - 🪪 ID: `{user_id}`\n"
-            "  - 👤 Usuario: {username_str}\n"
-            "  - 🪙 Monedas: `{monedas_str}`\n"
-            "  - ⏰ Alerta cada: {intervalo_h}h\n"
-            "  - 🔔 Alertas cruce activas: {alertas_activas}\n"
+            "  - ID: `{user_id}`\n"
+            "  - Usuario: {username_str}\n"
+            "  - Monedas: `{monedas_str}`\n"
+            "  - Alerta Temp: cada {intervalo_h}h\n"
+            "  - Alertas Cruce: {alertas_activas} activas\n\n"
+            "✨ *Tus Suscripciones:*\n"
+            "{suscripciones_str}\n"
             "—————————————————\n"
             "_Solo puedes ver tu propia información 🙂_",
             current_chat_id
         )
+        
         mensaje = mensaje_template.format(
             nombre_completo=nombre_completo,
             user_id=user_id,
             username_str=username_str,
             monedas_str=monedas_str,
             intervalo_h=intervalo_h,
-            alertas_activas=alertas_activas
+            alertas_activas=alertas_activas,
+            suscripciones_str=suscripciones_str # <--- Nueva variable insertada
         )
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return

@@ -158,7 +158,6 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     )
 
     # --- NOTIFICACIÓN AL ADMINISTRADOR ---
-    # Construimos el mensaje de reporte
     reporte_admin = (
         f"💰 *¡NUEVA VENTA REALIZADA!* 💰\n—————————————————\n"
         f"👤 *Usuario:* {user.first_name} (@{user.username or 'SinAlias'})\n"
