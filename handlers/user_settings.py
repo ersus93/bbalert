@@ -138,7 +138,7 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "⚙️ *Configuración de Temporalidad*\n"
             "Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n\n"
             "Tu plan actual permite un mínimo de: *{min_val} horas*.\n"
-            "Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 2.5`).",
+            "Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 8`).",
             user_id
         )
         mensaje = mensaje_base.format(intervalo_actual=intervalo_actual, min_val=min_val)

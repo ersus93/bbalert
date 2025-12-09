@@ -316,21 +316,21 @@ def check_feature_access(chat_id, feature_type, current_count=None):
 
     # --- REGLA 1: Comando /ver ---
     if feature_type == 'ver_limit':
-        limit = 4  # Gratis
+        limit = 8  # Gratis
         if is_active('watchlist_bundle'):
-            limit = 24 # Pago (Pack Control Total)
+            limit = 48 # Pago (Pack Control Total)
         
         if daily['ver'] >= limit:
             return False, (
                 f"🔒 *Límite Diario Alcanzado ({limit}/{limit})*\n—————————————————\n\n"
                 f"Has usado tus {limit} consultas gratuitas de /ver por hoy.\n\n—————————————————\n"
-                f"Adquiere el 'Pack Control Total' en /shop para aumentar a 24 consultas diarias, entre otras funciones"
+                f"Adquiere el 'Pack Control Total' en /shop para aumentar a 48 consultas diarias, entre otras funciones"
                 )
         return True, "OK"
 
     # --- REGLA 2: Comando /tasa ---
     if feature_type == 'tasa_limit':
-        limit = 4 # Gratis
+        limit = 8 # Gratis
         if is_active('tasa_vip'):
             limit = 24 # Pago (Tasa VIP)
         
@@ -344,7 +344,7 @@ def check_feature_access(chat_id, feature_type, current_count=None):
 
     # --- REGLA 3: Comando /ta ---
     if feature_type == 'ta_limit':
-        limit = 20 # Gratis
+        limit = 21 # Gratis
         if is_active('ta_vip'):
             limit = 999999 # Pago (Ilimitado)
             
@@ -358,7 +358,7 @@ def check_feature_access(chat_id, feature_type, current_count=None):
     
     # --- REGLA 4: Cambios de Temporalidad ---    
     if feature_type == 'temp_min_val':
-        min_val = 4.0
+        min_val = 8.0
         if is_active('watchlist_bundle'):
             min_val = 0.25
         return min_val, "Valor Mínimo"
