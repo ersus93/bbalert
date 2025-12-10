@@ -227,7 +227,7 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         t_temp = item['main']['temp']
                         t_desc = item['weather'][0]['description']
                         t_emoji = get_weather_emoji(t_desc)
-                        msg += f"  `{t_str}`: {t_temp:.0f}°C {t_emoji} {t_desc}"
+                        msg += f"  `{t_str}`: {t_temp:.0f}°C {t_emoji} {t_desc}\n"
                 
                 msg += ""
                 msg += get_random_ad_text() # Publicidad
