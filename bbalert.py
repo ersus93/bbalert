@@ -33,6 +33,11 @@ from handlers.alerts import (
 )
 from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback, mk_command, ta_command
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
+# === INICIO DE INTEGRACIÓN VALERTS (CORRECCIÓN IMPORTACIÓN) ===
+from handlers.valerts_handlers import valerts_handlers_list
+# Importación corregida: 'enviar_mensaje_seguro' no está definida aquí, la función a inyectar es local ('enviar_mensajes')
+from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
+# === FIN DE INTEGRACIÓN VALERTS ===
 
 # --- CORRECCIÓN IMPORTANTE: Solo importamos lo que realmente existe en weather.py ---
 from handlers.weather import (
@@ -94,7 +99,12 @@ async def post_init(app: Application):
         add_log_line("📬 Notificación de inicio enviada a los administradores.")
     except Exception as e:
         add_log_line(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
+        
+    # Inicio de Loops de Monitoreo (BTC y VALERTS)
     asyncio.create_task(btc_monitor_loop(app.bot))
+    # === INICIO DE INTEGRACIÓN VALERTS (AÑADIR LOOP) ===
+    asyncio.create_task(valerts_monitor_loop(app.bot))
+    # === FIN DE INTEGRACIÓN VALERTS ===
     
 
 def main():
@@ -155,6 +165,10 @@ def main():
     set_reprogramar_alerta_util(programar_alerta_usuario)
     set_enviar_mensaje_telegram_async(enviar_mensajes, app)
     set_btc_sender(enviar_mensajes)
+    # === INICIO DE INTEGRACIÓN VALERTS (CORRECCIÓN SENDER) ===
+    # Usamos la función local 'enviar_mensajes' que es la que maneja los errores y las bajas
+    set_valerts_sender(enviar_mensajes) 
+    # === FIN DE INTEGRACIÓN VALERTS ===
     
     # 3. REGISTRO DE HANDLERS
     app.add_handler(CommandHandler("shop", shop_command))
@@ -169,6 +183,10 @@ def main():
     app.add_handler(CommandHandler("logs", logs_command))    
     app.add_handler(CommandHandler("ad", ad_command))
     app.add_handler(ms_conversation_handler)  
+    # === INICIO DE INTEGRACIÓN VALERTS (REGISTRO) ===
+    # El registro de la lista de handlers ya estaba aquí y es correcto
+    app.add_handlers(valerts_handlers_list)
+    # === FIN DE INTEGRACIÓN VALERTS ===
     app.add_handler(CommandHandler("mismonedas", mismonedas))
     app.add_handler(CommandHandler("parar", parar))
     app.add_handler(CommandHandler("temp", cmd_temp))

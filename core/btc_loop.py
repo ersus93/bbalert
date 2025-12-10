@@ -98,7 +98,7 @@ async def btc_monitor_loop(bot: Bot):
                 # --- NOTIFICACIÓN DE RECÁLCULO (Tu nueva solicitud) ---
                 if subs and _enviar_msg_func:
                     msg_recalc = (
-                        "🔄 *Actualización de Niveles (4H)*\n"
+                        "🔄 *Actualización de Niveles *BTCUSDT* (4H)*\n"
                         "—————————————————\n"
                         "La vela de 4 horas ha cerrado. El sistema ha *recalculado* los soportes y resistencias basándose en la volatilidad reciente.\n\n"
                         f"⚖️ *Nuevo Pivot:* ${P:,.2f}\n"
@@ -138,28 +138,28 @@ async def btc_monitor_loop(bot: Bot):
                         trigger_level = "R3"
                         next_level = "Discovery"
                         msg_emoji = "🚀"
-                        msg_title = "Máxima Volatilidad Alcista"
+                        msg_title = "Máxima Volatilidad Alcista *BTCUSDT*"
                         msg_body = "El precio ha entrado en zona de extensión extrema, superando la resistencia R3."
                     
                     elif current_price > levels['R2'] * (1 + threshold) and "R2" not in alerted:
                         trigger_level = "R2"
                         next_level = "R3"
                         msg_emoji = "🌊"
-                        msg_title = "Impulso Alcista Fuerte"
+                        msg_title = "Impulso Alcista Fuerte *BTCUSDT*"
                         msg_body = "Ruptura confirmada del segundo nivel de resistencia (R2). Presión de compra significativa."
 
                     elif current_price > levels['R1'] * (1 + threshold) and "R1" not in alerted:
                         trigger_level = "R1"
                         next_level = "R2"
                         msg_emoji = "📈"
-                        msg_title = "Resistencia Superada"
+                        msg_title = "Resistencia Superada *BTCUSDT*"
                         msg_body = "BTC ha logrado perforar la primera resistencia (R1). El mercado busca consolidar niveles superiores."
 
                     elif current_price > levels['P'] * (1 + threshold) and "P_UP" not in alerted:
                         trigger_level = "P_UP"
                         next_level = "R1"
                         msg_emoji = "⚖️"
-                        msg_title = "Recuperación de Pivot"
+                        msg_title = "Recuperación de Pivot *BTCUSDT*"
                         msg_body = "El precio se sitúa por encima del Punto de Equilibrio (Pivot). Sesgo intradía ligeramente positivo."
 
                     # --- SOPORTES (Bajista) ---
@@ -167,28 +167,28 @@ async def btc_monitor_loop(bot: Bot):
                         trigger_level = "S3"
                         next_level = "Discovery"
                         msg_emoji = "🕳️"
-                        msg_title = "Caída Extrema"
+                        msg_title = "Caída Extrema *BTCUSDT*"
                         msg_body = "Soporte crítico S3 perforado. Condiciones de sobreventa o volatilidad bajista muy alta."
 
                     elif current_price < levels['S2'] * (1 - threshold) and "S2" not in alerted:
                         trigger_level = "S2"
                         next_level = "S3"
                         msg_emoji = "📉"
-                        msg_title = "Presión de Venta"
+                        msg_title = "Presión de Venta *BTCUSDT*"
                         msg_body = "El precio pierde el nivel S2. La estructura técnica muestra debilidad considerable."
 
                     elif current_price < levels['S1'] * (1 - threshold) and "S1" not in alerted:
                         trigger_level = "S1"
                         next_level = "S2"
                         msg_emoji = "⚠️"
-                        msg_title = "Testeo de Soporte"
+                        msg_title = "Testeo de Soporte *BTCUSDT*"
                         msg_body = "BTC ha perdido el primer nivel de soporte (S1). Atención a posible continuidad bajista."
 
                     elif current_price < levels['P'] * (1 - threshold) and "P_DOWN" not in alerted:
                         trigger_level = "P_DOWN"
                         next_level = "S1"
                         msg_emoji = "⚖️"
-                        msg_title = "Pivot Perdido"
+                        msg_title = "Pivot Perdido *BTCUSDT*"
                         msg_body = "El precio cae por debajo del Punto de Equilibrio (Pivot). El sesgo intradía se torna negativo."
 
                     # --- ENVIAR ALERTA ---
