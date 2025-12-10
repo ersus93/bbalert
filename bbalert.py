@@ -6,19 +6,22 @@ from telegram.ext import Application, ApplicationBuilder, CommandHandler, Messag
 from telegram.constants import ParseMode
 from utils.file_manager import add_log_line, cargar_usuarios
 from utils.file_manager import guardar_usuarios
+from core.btc_loop import btc_monitor_loop, set_btc_sender
+from handlers.btc_handlers import btc_handlers_list
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, VERSION, PID, PYTHON_VERSION, STATE
 from core.loops import (
     alerta_loop, 
     check_custom_price_alerts,
     programar_alerta_usuario, 
     get_logs_data, 
-    set_enviar_mensaje_telegram_async
+    set_enviar_mensaje_telegram_async,
+    weather_alerts_loop
 )
 from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
 from handlers.user_settings import (
-    mismonedas, parar, cmd_temp, set_monedas_command, # <-- CAMBIADO
+    mismonedas, parar, cmd_temp, set_monedas_command,
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
 )
 from handlers.alerts import (
@@ -31,6 +34,14 @@ from handlers.alerts import (
 from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback, mk_command, ta_command
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
 
+# --- CORRECCIÓN IMPORTANTE: Solo importamos lo que realmente existe en weather.py ---
+from handlers.weather import (
+    weather_command, 
+    weather_subscribe_command, 
+    weather_settings_command, 
+    weather_conversation_handler, 
+    weather_callback_handlers
+)
 
 async def post_init(app: Application):
     """
@@ -38,6 +49,10 @@ async def post_init(app: Application):
     Inicia los bucles de fondo y programa las alertas para todos los usuarios existentes.
     """
     add_log_line("🤖 Bot inicializado. Iniciando tareas de fondo...")
+
+    # Iniciar bucle de clima
+    asyncio.create_task(weather_alerts_loop(app.bot))
+    add_log_line("✅ Bucle de alertas de clima iniciado.")
     
     # 1. Iniciar los bucles de fondo globales
     asyncio.create_task(alerta_loop(app.bot))
@@ -57,15 +72,14 @@ async def post_init(app: Application):
     add_log_line("✅ Todas las tareas de fondo han sido iniciadas.")
 
     try:
-        # --- PLANTILLA ENVUELTA ---
-        # (Se usa _() sin chat_id para que envíe en el idioma por defecto, español)
+        # Mensaje de inicio para administradores usando idioma por defecto (español)
         startup_message_template = _(
             "🚀 *¡Bot en línea!* 🚀\n\n"
             "🤖 `BitBread Alert v{version}`\n"
             "🪪 `PID: {pid}`\n"
             "🐍 `Python: v{python_version}`\n\n"
             "✅ Ejecutado y funcionando perfectamente.",
-            user_id 
+            None  # Sin chat_id específico, usa español por defecto
         )
         startup_message = startup_message_template.format(
             version=VERSION,
@@ -80,8 +94,8 @@ async def post_init(app: Application):
         add_log_line("📬 Notificación de inicio enviada a los administradores.")
     except Exception as e:
         add_log_line(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
+    asyncio.create_task(btc_monitor_loop(app.bot))
     
-
 
 def main():
     """Inicia el bot y configura todos los handlers."""
@@ -139,7 +153,8 @@ def main():
     set_admin_util(enviar_mensajes)
     set_logs_util(get_logs_data)
     set_reprogramar_alerta_util(programar_alerta_usuario)
-    set_enviar_mensaje_telegram_async(enviar_mensajes, app) # Se pasa también la app
+    set_enviar_mensaje_telegram_async(enviar_mensajes, app)
+    set_btc_sender(enviar_mensajes)
     
     # 3. REGISTRO DE HANDLERS
     app.add_handler(CommandHandler("shop", shop_command))
@@ -165,6 +180,29 @@ def main():
     app.add_handler(CommandHandler("p", p_command))       
     app.add_handler(CommandHandler("tasa", eltoque_command))
     app.add_handler(CommandHandler("monedas", set_monedas_command))
+    for handler in btc_handlers_list:
+        app.add_handler(handler)
+    
+    # --- REGISTRO DE HANDLERS DE CLIMA (Corregido) ---
+    app.add_handler(CommandHandler("w", weather_command))
+    app.add_handler(CommandHandler("weather_sub", weather_subscribe_command))
+    app.add_handler(CommandHandler("weather_settings", weather_settings_command))
+    
+    # La conversación debe tener prioridad alta en ciertos casos, pero aquí está bien
+    app.add_handler(weather_conversation_handler)
+    
+    # Registramos TODOS los callbacks de clima usando la lista que viene de weather.py
+    if weather_callback_handlers:
+        if isinstance(weather_callback_handlers, list):
+            for handler in weather_callback_handlers:
+                app.add_handler(handler)
+        else:
+            app.add_handler(weather_callback_handlers)
+            
+    # NOTA: Eliminamos los registros manuales de callbacks (weather_alerttime_callback, etc.)
+    # porque ya están incluidos dentro de 'weather_callback_handlers'.
+    
+    # Otros handlers
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
@@ -172,7 +210,6 @@ def main():
     app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
     app.add_handler(CallbackQueryHandler(set_language_callback, pattern="^set_lang_"))
     app.add_handler(CallbackQueryHandler(borrar_todas_alertas_callback, pattern="^delete_all_alerts$"))
-    # app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, actualizar_monedas_texto))
     
     # 4. Asignar la función post_init
     app.post_init = post_init

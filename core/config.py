@@ -17,6 +17,7 @@ CMC_API_KEY_ALERTA = os.environ.get("CMC_API_KEY_ALERTA")
 CMC_API_KEY_CONTROL = os.environ.get("CMC_API_KEY_CONTROL")
 SCREENSHOT_API_KEY = os.environ.get("SCREENSHOT_API_KEY")
 ELTOQUE_API_KEY = os.environ.get("ELTOQUE_API_KEY")
+OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Construye las rutas a los archivos dentro de la carpeta /data
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -29,9 +30,11 @@ LAST_PRICES_PATH = os.path.join(DATA_DIR, "last_prices.json")
 TEMPLATE_PATH = os.path.join(DATA_DIR, "img.png")
 ADS_PATH = os.path.join(DATA_DIR, "ads.json")
 HBD_THRESHOLDS_PATH = os.path.join(DATA_DIR, "hbd_thresholds.json")
+WEATHER_SUBS_PATH = os.path.join(DATA_DIR, "weather_subs.json")
+WEATHER_LAST_ALERTS_PATH = os.path.join(DATA_DIR, "weather_last_alerts.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.025-beta"
+VERSION = "0.1.028-beta"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---
