@@ -24,6 +24,41 @@ WEATHER_EMOJIS = {
     "ash": "🌋", "squall": "💨", "tornado": "🌪️"
 }
 
+# === NUEVA FUNCIÓN AUXILIAR PARA CONSEJOS INTELIGENTES ===
+def get_daily_advice(min_temp, max_temp, weather_ids, uv_max):
+    """Genera consejos basados en el pronóstico del día."""
+    advice = []
+    
+    # 1. Ropa (Basado en sensación térmica aprox)
+    if max_temp >= 30:
+        advice.append("👕 *Ropa:* Usa ropa ligera y transpirable. ¡Hace calor!")
+    elif max_temp >= 20:
+        advice.append("👕 *Ropa:* Camiseta o camisa ligera está bien.")
+    elif max_temp >= 15:
+        advice.append("🧥 *Ropa:* Lleva una chaqueta ligera o sudadera.")
+    elif max_temp >= 10:
+        advice.append("🧥 *Ropa:* Abrigo necesario, refresca bastante.")
+    else:
+        advice.append("🧣 *Ropa:* ¡Abrígate bien! Bufanda y abrigo grueso.")
+
+    # 2. Lluvia / Paraguas
+    # Códigos 2xx (Tormenta), 3xx (Llovizna), 5xx (Lluvia)
+    is_rainy = any(200 <= wid < 600 for wid in weather_ids)
+    if is_rainy:
+        advice.append("☔ *Accesorio:* No olvides el paraguas o chubasquero.")
+    
+    # 3. UV (Protección)
+    if uv_max >= 6:
+        advice.append("🧴 *Salud:* Índice UV alto. Usa protector solar si sales.")
+
+    # 4. Coche / Tender ropa
+    if is_rainy:
+        advice.append("🚗 *Coche:* No es buen día para lavarlo (lluvia probable).")
+    elif uv_max > 3 and not is_rainy:
+        advice.append("🧺 *Hogar:* Buen día para secar ropa al aire libre.")
+
+    return "\n".join(advice)
+
 def get_weather_emoji(condition):
     condition_lower = condition.lower()
     for key, emoji in WEATHER_EMOJIS.items():

@@ -81,88 +81,107 @@ def save_btc_state(data):
         print(f"❌ Error crítico guardando estado BTC: {e}")
 
 async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el estado de alertas BTC y niveles actuales."""
+    """Muestra el estado de alertas BTC y niveles actuales con R3/S3."""
     
-    # Manejo si viene de botón o comando
+    # Detectar origen
     if update.callback_query:
+        # Si viene de botón, queremos ENVIAR UN MENSAJE NUEVO, no editar.
+        # Necesitamos chat_id del mensaje original
         user_id = update.callback_query.from_user.id
-        msg_func = update.callback_query.edit_message_text
+        chat_id = update.callback_query.message.chat_id
+        is_callback = True
     else:
+        # Si viene de comando /btcalerts
         user_id = update.effective_user.id
-        msg_func = update.message.reply_text
+        chat_id = update.effective_chat.id
+        is_callback = False
 
     subscribed = is_btc_subscribed(user_id)
     state = load_btc_state()
     levels = state.get('levels', {})
 
-    # Icono de estado
     status_icon = "✅ ACTIVADAS" if subscribed else "☑️ DESACTIVADAS"
     
-    # Construir Tabla de Niveles "Pro"
+    # Construcción de la tabla PRO con R3 y S3
     if levels:
         price_now = levels.get('current_price', 0)
         p = levels.get('P', 0)
         
-        # Determinar zona
-        zone = "Neutral"
-        if price_now > levels.get('R1', 0): zone = "🐂 Bullish (Sobre R1)"
-        elif price_now < levels.get('S1', 0): zone = "🐻 Bearish (Bajo S1)"
+        # Determinar zona textual
+        zone = "Neutral (Pivot)"
+        if price_now > levels.get('R2', 0): zone = "🚀 Zona de Extensión (Sobre R2)"
+        elif price_now > levels.get('R1', 0): zone = "🐂 Zona Alcista (Sobre R1)"
+        elif price_now < levels.get('S2', 0): zone = "🩸 Zona de Extensión (Bajo S2)"
+        elif price_now < levels.get('S1', 0): zone = "🐻 Zona Bajista (Bajo S1)"
         
         levels_msg = (
-            f"📊 *Niveles Clave (4H)*\n"
-            f"⚡ *Zona:* {zone}\n\n"
-            f"🟥 *R2:* `${levels.get('R2',0):,.0f}` (Target Extendido)\n"
-            f"🟧 *R1:* `${levels.get('R1',0):,.0f}` (Resistencia Clave)\n"
-            f"🎯 *PIVOT:* `${p:,.0f}` (Punto de Equilibrio)\n"
-            f"🟦 *S1:* `${levels.get('S1',0):,.0f}` (Soporte Clave)\n"
-            f"🟩 *S2:* `${levels.get('S2',0):,.0f}` (Soporte Crítico)\n"
+            f"📊 *Estructura de Mercado (4H)*\n"
+            f"⚡ *Estado:* {zone}\n\n"
+            f"🧗 *R3:* `${levels.get('R3',0):,.0f}` _(Máximo)_\n"
+            f"🟥 *R2:* `${levels.get('R2',0):,.0f}` _(Extensión)_\n"
+            f"🟧 *R1:* `${levels.get('R1',0):,.0f}` _(Resistencia)_\n"
+            f"⚖️ *PIVOT:* `${p:,.0f}` _(Equilibrio)_\n"
+            f"🟦 *S1:* `${levels.get('S1',0):,.0f}` _(Soporte)_\n"
+            f"🟩 *S2:* `${levels.get('S2',0):,.0f}` _(Extensión)_\n"
+            f"🕳️ *S3:* `${levels.get('S3',0):,.0f}` _(Mínimo)_"
         )
     else:
-        levels_msg = "⏳ _Calculando niveles de mercado... intenta en unos minutos._"
+        levels_msg = "⏳ _Calculando niveles de mercado... espera al próximo cierre de vela._"
 
     msg = _(
-        "🦁 *Monitor de Volatilidad BTC Pro*\n"
+        "🦁 *Monitor BTC Pro*\n"
         "—————————————————\n"
         "{levels_msg}\n"
         "—————————————————\n"
-        "🔔 *Estado:* {status_icon}\n\n"
-        "Recibe alertas en tiempo real cuando BTC rompa soportes o resistencias clave.",
+        "🔔 *Suscripción:* {status_icon}\n\n"
+        "Alertas automáticas de cruces de niveles clave.",
         user_id
     ).format(levels_msg=levels_msg, status_icon=status_icon)
 
     # Botón Toggle
-    btn_text = _("🔕 Desactivar", user_id) if subscribed else _("🔔 Activar Alertas BTC", user_id)
+    btn_text = _("🔕 Desactivar", user_id) if subscribed else _("🔔 Activar Alertas", user_id)
     kb = [[InlineKeyboardButton(btn_text, callback_data="toggle_btc_alerts")]]
     
-    # Si estamos en callback (botón "Ver Niveles"), añadir botón de "Actualizar" para refrescar precios
-    if update.callback_query:
-        kb.append([InlineKeyboardButton("🔄 Actualizar", callback_data="btcalerts_view")])
-
-    if update.callback_query:
-        # Usamos edit_message_text pero aseguramos que el contenido sea distinto o atrapamos el error si es igual
-        try:
-            await msg_func(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
-        except Exception:
-            pass # Si el mensaje es idéntico (spam click), telegram da error, lo ignoramos.
+    # Enviar mensaje
+    if is_callback:
+        # Respondemos al callback para quitar el "relojito" de carga
+        await update.callback_query.answer()
+        # Enviamos MENSAJE NUEVO
+        await context.bot.send_message(chat_id=chat_id, text=msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
     else:
-        await msg_func(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        # Respondemos al comando
+        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
 async def btc_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    toggle_btc_subscription(query.from_user.id)
-    # Recargamos el menú
-    await btc_alerts_command(update, context)
+    
+    # Cambiar estado
+    new_status = toggle_btc_subscription(query.from_user.id)
+    
+    # Actualizar solo el teclado y mostrar notificación flotante
+    user_id = query.from_user.id
+    btn_text = _("🔕 Desactivar", user_id) if new_status else _("🔔 Activar Alertas", user_id)
+    kb = [[InlineKeyboardButton(btn_text, callback_data="toggle_btc_alerts")]]
+    
+    try:
+        # Editamos solo el botón, no generamos un mensaje nuevo ni recargamos todo el texto para no ser intrusivos
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(kb))
+        
+        status_text = "✅ Alertas ACTIVADAS" if new_status else "🔕 Alertas DESACTIVADAS"
+        await query.answer(status_text, show_alert=False)
+    except:
+        pass
 
 async def btc_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Manejador específico para el botón 'Ver Niveles'."""
-    query = update.callback_query
-    await query.answer() # Importante: Detiene la animación de carga del botón
+    """Callback para el botón 'Ver Niveles'."""
+    # Simplemente llamamos al comando principal, que detectará que es un callback
+    # y enviará un mensaje nuevo.
     await btc_alerts_command(update, context)
 
-# Exportar handler para registrarlo en bbalert.py
+# Lista de handlers para importar en bbalert.py
 btc_handlers_list = [
     CommandHandler("btcalerts", btc_alerts_command),
     CallbackQueryHandler(btc_toggle_callback, pattern="^toggle_btc_alerts$"),
-    CallbackQueryHandler(btc_view_callback, pattern="^btcalerts_view$") # <--- AÑADIDO
+    CallbackQueryHandler(btc_view_callback, pattern="^btcalerts_view$") 
 ]

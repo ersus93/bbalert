@@ -1,7 +1,7 @@
 # core/loops.py
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram import Bot, Update
@@ -17,7 +17,8 @@ from utils.file_manager import (
     cargar_custom_alert_history, guardar_custom_alert_history, get_hbd_alert_recipients,
     load_last_prices_status, save_last_prices_status, update_last_alert_timestamp
 )
-from handlers.weather import get_weather_emoji
+from handlers.weather import get_current_weather, get_forecast, get_uv_index, get_weather_emoji, get_daily_advice
+from utils.weather_manager import load_weather_subscriptions, update_last_alert_time, should_send_alert
 from core.i18n import _ # <-- Importar _
 
 # Variable global para guardar la función de envío de mensajes y la app
@@ -359,170 +360,221 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
         add_log_line(f"❌ ERROR: Referencia de envío no disponible o fallo para {chat_id_str}.")
 
 
-# Weather alert manager
+# === BUCLE DE CLIMA REESCRITO ===
 async def weather_alerts_loop(bot: Bot):
-    """Bucle de fondo para alertas de clima."""
-    from utils.weather_manager import load_weather_subscriptions, update_last_alert_time, should_send_alert
-    from handlers.weather import get_current_weather, get_forecast, get_uv_index
+    """Bucle inteligente de alertas de clima (Alertas escalonadas + Resumen Pro)."""
     
+    add_log_line("🌦️ Iniciando Bucle de Clima Inteligente...")
+
     while True:
         try:
             subs = load_weather_subscriptions()
             if not subs:
-                await asyncio.sleep(1800)  # 30 minutos
+                await asyncio.sleep(1800)  # Si no hay nadie, dormir 30 min
                 continue
             
+            # Recorremos usuarios
             for user_id_str, sub in subs.items():
                 if not sub.get('alerts_enabled', True):
                     continue
                 
                 user_id = int(user_id_str)
                 alert_types = sub.get('alert_types', {})
-                
-                # Obtener ubicación
                 city = sub['city']
-                country = sub['country']
                 
-                # Geocodificar (simplificado - en producción cachear)
+                # 1. Obtener Datos
+                # Nota: En producción idealmente cachearíamos esto para no llamar a la API por cada usuario de la misma ciudad
                 from handlers.weather import geocode_location
-                location = geocode_location(f"{city}, {country}")
+                # Usamos location guardada si existe para ahorrar geocoding, sino buscamos
+                lat = sub.get('lat')
+                lon = sub.get('lon')
                 
-                if not location:
+                if not lat or not lon:
+                    loc_data = geocode_location(f"{city}, {sub['country']}")
+                    if loc_data:
+                        lat, lon = loc_data['lat'], loc_data['lon']
+                    else:
+                        continue
+
+                forecast = get_forecast(lat, lon)
+                current = get_current_weather(lat, lon)
+                
+                if not forecast or not current:
                     continue
+
+                # Calcular offset horario del usuario
+                utc_now = datetime.now(timezone.utc)
+                tz_offset_sec = current.get("timezone", 0)
+                user_now = utc_now + timedelta(seconds=tz_offset_sec)
                 
-                # Obtener datos del clima
-                current = get_current_weather(location['lat'], location['lon'])
-                forecast = get_forecast(location['lat'], location['lon'])
-                uv_index = get_uv_index(location['lat'], location['lon'])
+                # ==========================================
+                # A) LÓGICA DE ALERTAS ESCALONADAS (Lluvia/Tormenta)
+                # ==========================================
                 
-                if not current or not forecast:
-                    continue
+                # Analizamos las próximas 8 horas (aprox 3 items del forecast, cada uno es 3h)
+                # forecast['list'] trae datos cada 3 horas.
                 
-                # Verificar lluvia
-                if alert_types.get('rain', True) and should_send_alert(user_id, 'rain'):
-                    for entry in forecast.get('list', [])[:4]:
-                        weather_code = entry['weather'][0]['id']
-                        if weather_code < 600:
-                            time_str = datetime.fromtimestamp(entry['dt']).strftime('%H:%M')
-                            message = _(
-                                f"🌧️ *Alerta de Lluvia en {city}*\n"
-                                f"—————————————————\n"
-                                f"Se espera lluvia alrededor de las {time_str}.\n"
-                                f"Intensidad: {entry['weather'][0]['description']}\n\n"
-                                f"☔ ¡Paraguas recomendado!",
-                                user_id
-                            )
-                            # --- INYECCIÓN DE ANUNCIO ---
-                            message += get_random_ad_text()
-                            # ----------------------------
+                check_rain = alert_types.get('rain', True)
+                check_storm = alert_types.get('storm', True)
+                
+                upcoming_weather_event = None
+                event_type = None
+                event_time_user = None
+                
+                # Buscamos el PRIMER evento significativo en las próximas 9 horas
+                for item in forecast.get('list', [])[:3]: 
+                    w_id = item['weather'][0]['id']
+                    dt_val = datetime.fromtimestamp(item['dt'], timezone.utc)
+                    
+                    # Filtro de tiempo: ¿Cuanto falta para este evento?
+                    hours_diff = (dt_val - utc_now).total_seconds() / 3600
+                    
+                    if hours_diff < 0: continue # Evento pasado
+
+                    # Detección
+                    if check_storm and 200 <= w_id < 300:
+                        upcoming_weather_event = item
+                        event_type = 'storm'
+                        event_time_user = dt_val + timedelta(seconds=tz_offset_sec)
+                        break # Encontramos el más próximo, paramos
+                    
+                    elif check_rain and (300 <= w_id < 600):
+                        upcoming_weather_event = item
+                        event_type = 'rain'
+                        event_time_user = dt_val + timedelta(seconds=tz_offset_sec)
+                        break
+                
+                # Si encontramos algo, decidimos si avisar
+                if upcoming_weather_event:
+                    event_dt = datetime.fromtimestamp(upcoming_weather_event['dt'], timezone.utc)
+                    hours_until = (event_dt - utc_now).total_seconds() / 3600
+                    
+                    desc = upcoming_weather_event['weather'][0]['description'].capitalize()
+                    time_str = event_time_user.strftime('%H:%M')
+                    
+                    # 1. Alerta TEMPRANA (Pre-Aviso 4h - 8h)
+                    # Usamos clave única 'rain_early' para el cooldown
+                    if 3.5 <= hours_until <= 8.5:
+                        alert_key = f"{event_type}_early"
+                        if should_send_alert(user_id, alert_key, cooldown_hours=12):
+                            emoji = "🌩️" if event_type == 'storm' else "🌦️"
+                            title = "Posible Tormenta" if event_type == 'storm' else "Pronóstico de Lluvia"
                             
-                            await _enviar_mensaje_telegram_async_ref(message, [user_id_str])
-                            update_last_alert_time(user_id, 'rain')
-                            break
-                
-                # Verificar UV
-                if alert_types.get('uv_high', True) and uv_index >= 6 and should_send_alert(user_id, 'uv_high'):
-                    message = _(
-                        f"☀️ *Alerta UV Alto en {city}*\n"
-                        f"—————————————————\n"
-                        f"Índice UV actual: {uv_index:.1f} (Alto)\n"
-                        f"🧴 Usa protector solar.",
-                        user_id
-                    )
-                    # --- INYECCIÓN DE ANUNCIO ---
-                    message += get_random_ad_text()
-                    # ----------------------------
-
-                    await _enviar_mensaje_telegram_async_ref(message, [user_id_str])
-                    update_last_alert_time(user_id, 'uv_high')
-
-                # Verificar Tormenta
-                if alert_types.get('storm', True) and should_send_alert(user_id, 'storm'):
-                    for entry in forecast.get('list', []):
-                        weather_code = entry['weather'][0]['id']
-                        if 200 <= weather_code < 300:
-                            message = _(
-                                f"⛈️ *Alerta de Tormenta en {city}*\n"
+                            msg = _(
+                                f"{emoji} *{title} (Pre-Aviso)*\n"
                                 f"—————————————————\n"
-                                f"Se acercan condiciones de tormenta.\n"
-                                f"⚠️ Toma precauciones.",
+                                f"Los modelos indican probabilidad de {desc} en tu zona.\n"
+                                f"🕐 *Hora estimada:* Alrededor de las {time_str}\n\n"
+                                f"💡 _Te aviso con tiempo para que tomes precauciones._",
                                 user_id
                             )
-                            # --- INYECCIÓN DE ANUNCIO ---
-                            message += get_random_ad_text()
-                            # ----------------------------
+                            await _enviar_mensaje_telegram_async_ref(msg, [user_id_str])
+                            update_last_alert_time(user_id, alert_key)
 
-                            await _enviar_mensaje_telegram_async_ref(message, [user_id_str])
-                            update_last_alert_time(user_id, 'storm')
-                            break
-                
-                # Enviar resumen diario a la hora configurada
-                alert_time = sub.get('alert_time', '07:00')
+                    # 2. Alerta INMINENTE (1h - 2.5h)
+                    # Usamos clave única 'rain_near'
+                    elif 0.5 <= hours_until < 2.5:
+                        alert_key = f"{event_type}_near"
+                        if should_send_alert(user_id, alert_key, cooldown_hours=4):
+                            emoji = "⛈️" if event_type == 'storm' else "☔"
+                            title = "Tormenta Inminente" if event_type == 'storm' else "Lluvia Inminente"
+                            
+                            msg = _(
+                                f"{emoji} *{title} (<2h)*\n"
+                                f"—————————————————\n"
+                                f"Se aproxima {desc} a {city}.\n"
+                                f"🕐 *Hora estimada:* {time_str} (Muy pronto)\n\n"
+                                f"⚠️ _El clima puede variar localmente, pero ten precaución._",
+                                user_id
+                            )
+                            await _enviar_mensaje_telegram_async_ref(msg, [user_id_str])
+                            update_last_alert_time(user_id, alert_key)
+
+                # ==========================================
+                # B) LÓGICA DE UV ALTO
+                # ==========================================
+                # Obtenemos UV solo si es de día para ahorrar API calls o si la alerta está activa
+                if alert_types.get('uv_high', True):
+                    # Check rápido: si es entre las 10am y 4pm del usuario
+                    if 10 <= user_now.hour <= 16:
+                         # Solo comprobamos cada cierto tiempo (manejado por should_send_alert)
+                         if should_send_alert(user_id, 'uv_high', cooldown_hours=4):
+                             uv_val = get_uv_index(lat, lon)
+                             if uv_val >= 6:
+                                 msg = _(
+                                     f"☀️ *Alerta UV Alto ({uv_val:.1f})*\n"
+                                     f"El índice de radiación es alto en este momento en {city}.\n"
+                                     f"🧴 Se recomienda usar protección solar.",
+                                     user_id
+                                 )
+                                 await _enviar_mensaje_telegram_async_ref(msg, [user_id_str])
+                                 update_last_alert_time(user_id, 'uv_high')
+
+                # ==========================================
+                # C) RESUMEN DIARIO INTELIGENTE
+                # ==========================================
+                alert_time_str = sub.get('alert_time', '07:00')
                 try:
-                    alert_hour, alert_minute = map(int, alert_time.split(':'))
+                    target_h, target_m = map(int, alert_time_str.split(':'))
                     
-                    # Obtener hora actual en UTC
-                    utc_now = datetime.utcnow()
-                    
-                    # Aplicar diferencia horaria (simplificado)
-                    timezone_str = sub.get('timezone', 'UTC+0')
-                    if timezone_str.startswith('UTC'):
-                        try:
-                            offset = int(timezone_str[3:])
-                            local_hour = (utc_now.hour + offset) % 24
+                    # Verificamos si es la hora exacta (con margen de 5 min)
+                    if user_now.hour == target_h and 0 <= user_now.minute < 5:
+                        # Para evitar enviar doble si el loop es muy rápido, usamos should_send_alert con cooldown de 20h
+                        if should_send_alert(user_id, 'daily_summary', cooldown_hours=20):
                             
-                            # Verificar si es hora de enviar resumen
-                            if local_hour == alert_hour and utc_now.minute < 5:
-                                # Crear resumen diario
-                                today_forecast = forecast.get('list', [])[:8]  # 24 horas
-                                
-                                message = _(
-                                    f"🌅 *Resumen Climático Diario - {city}*\n"
-                                    f"—————————————————\n"
-                                    f"Fecha: {utc_now.strftime('%Y-%m-%d')}\n"
-                                    f"Hora local: {alert_time}\n\n",
-                                    user_id
-                                )
-                                
-                                # Añadir condiciones principales
-                                message += f"*Condición actual:* {current['weather'][0]['description'].capitalize()}\n"
-                                message += f"*Temperatura:* {current['main']['temp']:.1f}°C\n"
-                                message += f"*Humedad:* {current['main']['humidity']}%\n"
-                                message += f"*Viento:* {current['wind']['speed']:.1f} m/s\n\n"
-                                
-                                message += _("*Pronóstico hoy:*\n", user_id)
-                                for i, entry in enumerate(today_forecast[:4]):  # Próximas 12 horas
-                                    time = datetime.fromtimestamp(entry['dt']).strftime('%H:%M')
-                                    temp = entry['main']['temp']
-                                    desc = entry['weather'][0]['description']
-                                    emoji = get_weather_emoji(desc)
-                                    message += f"  {time}: {temp:.0f}°C {emoji} {desc}\n"
-                                
-                                message += _("\n💡 *Recomendaciones del día:*\n", user_id)
-                                
-                                # Recomendaciones basadas en condiciones
-                                if uv_index > 6:
-                                    message += "• ☀️ Protector solar recomendado\n"
-                                if any('rain' in entry['weather'][0]['description'].lower() for entry in today_forecast):
-                                    message += "• 🌧️ Lleva paraguas\n"
-                                if current['main']['temp'] < 19:
-                                    message += "• 🧥 Abrígate bien\n"
-                                if current['main']['temp'] > 30:
-                                    message += "• 🥤 Mantente hidratado\n"
-                                
-                                message += get_random_ad_text()
-                                
-                                await _enviar_mensaje_telegram_async_ref(message, [user_id_str])
-                                
-                        except:
-                            pass
+                            # --- PROCESAMIENTO DE DATOS PARA EL RESUMEN ---
+                            # Tomamos las próximas 24h (8 items de 3h)
+                            next_24h = forecast.get('list', [])[:8]
                             
-                except:
-                    pass
-            
-            # Esperar 5 minutos antes de la siguiente verificación
+                            temps = [x['main']['temp'] for x in next_24h]
+                            w_ids = [x['weather'][0]['id'] for x in next_24h]
+                            
+                            min_temp = min(temps) if temps else current['main']['temp']
+                            max_temp = max(temps) if temps else current['main']['temp']
+                            
+                            # Obtenemos UV máximo estimado (mediodía)
+                            uv_today = get_uv_index(lat, lon) # Valor actual, aproximación
+                            
+                            # Generamos secciones del día
+                            morning_cast = next_24h[0] if len(next_24h) > 0 else None
+                            afternoon_cast = next_24h[2] if len(next_24h) > 2 else None # +6h
+                            night_cast = next_24h[4] if len(next_24h) > 4 else None # +12h
+
+                            def fmt_cast(item):
+                                if not item: return "Sin datos"
+                                t = item['main']['temp']
+                                e = get_weather_emoji(item['weather'][0]['description'])
+                                return f"{e} {t:.0f}°C"
+
+                            # Generamos consejos
+                            advice_text = get_daily_advice(min_temp, max_temp, w_ids, uv_today)
+
+                            msg = _(
+                                f"🌅 *Buenos Días, {city}*\n"
+                                f"📅 *Resumen para hoy: {user_now.strftime('%d/%m')}*\n"
+                                f"—————————————————\n\n"
+                                f"🌡️ *Temperaturas:*\n"
+                                f"   📉 Mín: *{min_temp:.0f}°C* |  📈 Máx: *{max_temp:.0f}°C*\n\n"
+                                f"🕒 *Evolución:*\n"
+                                f"   🌄 Mañana: {fmt_cast(morning_cast)}\n"
+                                f"   ☀️ Tarde:    {fmt_cast(afternoon_cast)}\n"
+                                f"   🌙 Noche:   {fmt_cast(night_cast)}\n\n"
+                                f"💡 *Recomendaciones:*\n"
+                                f"{advice_text}",
+                                user_id
+                            )
+                            
+                            msg += get_random_ad_text()
+                            
+                            await _enviar_mensaje_telegram_async_ref(msg, [user_id_str])
+                            update_last_alert_time(user_id, 'daily_summary')
+
+                except ValueError:
+                    pass # Error parseando hora
+
+            # Dormir 5 minutos (300 segundos) para ser precisos con las alertas
             await asyncio.sleep(300)
-            
+
         except Exception as e:
-            add_log_line(f"Error en weather_alerts_loop: {e}")
+            add_log_line(f"❌ Error en Loop Clima: {e}")
             await asyncio.sleep(60)
