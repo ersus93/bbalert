@@ -22,6 +22,12 @@ BitBread Alert es un bot de Telegram multifuncional que combina monitoreo de cri
 - Configuración personalizada de notificaciones
 - Resumen diario automatizado
 
+### 📰 **Gestión de Feeds RSS/Atom**
+- Configuración de múltiples fuentes RSS por usuario.
+- Personalización de plantillas de notificación con formato HTML.
+- Filtros por palabra clave para bloquear noticias.
+- Monitoreo en tiempo real.
+
 ### ⚙️ **Gestión Avanzada**
 - Multi-idioma (ES/EN)
 - Sistema de anuncios rotativos
@@ -97,6 +103,7 @@ Selecciona la opción **1** para instalación completa.
    alerta - Crear alerta personalizada
    weather_sub - Suscribirse a clima
    lang - Cambiar idioma
+   rss - Gestión de Feeds RSS
    ```
 
 ### Paso 4: Obtener Tu Chat ID
@@ -120,7 +127,7 @@ Selecciona la opción **1** para instalación completa.
 
 ## 📁 Estructura del Proyecto
 ```
-bbalert/
+bbbalert/
 ├── bbalert.py                       # Punto de entrada principal
 ├── bbalert.sh                       # Script de gestión
 ├── .env                             # Variables de entorno
@@ -132,6 +139,7 @@ bbalert/
 │   ├── loops.py                     # Bucles de fondo
 │   ├── api_client.py                # Gestion de api para alertas
 │   ├── i18n.py                      # Gestion de traduccion
+│   ├── rss_loop.py                  # Monitor RSS/Atom (¡NUEVO\!)
 │   └── config.py                    # Configuración
 │
 ├── handlers/                        # Manejadores de comandos
@@ -139,20 +147,23 @@ bbalert/
 │   ├── weather.py                   # Comandos clima
 │   ├── alerts.py                    # Alertas personalizadas
 │   ├── general.py                   # Comandos de uso general
-│   ├── pay.py                       # Gestion de pagos 
-│   ├── user_settings                # Comandos de ajustes 
+│   ├── pay.py                       # Gestion de pagos
+│   ├── user_settings                # Comandos de ajustes
 │   ├── admin.py                     # Comandos de administración
-│   └── trading.py                   # Herramientas trading
+│   ├── trading.py                   # Herramientas trading
+│   └── rss.py                       # Gestión de Feeds RSS 
 │
 ├── utils/                           # Utilidades
 │   ├── btc_manager.py               # Gestión BTC
 │   ├── weather_manager.py           # Gestión clima
 │   ├── ads_manager.py               # Gestion de ads
 │   ├── image_generator.py           # Gestion de generacion de imagen
-│   └── file_manager.py              # Gestión archivos
+│   ├── file_manager.py              # Gestión archivos
+│   └── rss_manager.py               # Gestión de datos RSS 
 │
 └── data/                            # Datos persistentes
     ├── users.json                   # Usuarios
+    ├── weather_subs.json            # Suscriptores clima
     ├── btc_subs.json                # Suscriptores BTC
     ├── ads.json                     # Anuncios
     ├── btc_alert_state.json         # Status de la slertas BTC
@@ -163,7 +174,8 @@ bbalert/
     ├── last_price.json              # Último precio de lista de monedas
     ├── img.png                      # Plantilla para imagen de tasas
     ├── weather_last_alerts.json     # Alertas de clima
-    └── weather_subs.json            # Suscriptores clima
+    ├── weather_subs.json            # Suscriptores clima
+    └── rss_data.json                # Datos de Feeds RSS 
 ```
 
 ---
@@ -177,6 +189,7 @@ bbalert/
 | `/lang` | Cambia idioma (ES/EN) |
 | `/myid` | Muestra tu ID de Telegram |
 | `/help` | Muestra ayuda general |
+| `/rss` | Gestión y configuración de tus Feeds RSS |
 
 ### 💰 **Criptomonedas y Trading**
 | Comando | Descripción |
@@ -493,4 +506,4 @@ Sí, bajo los términos de la licencia MIT.
 **📢 Únete a nuestro canal de Telegram para actualizaciones: [@bbalertchannel](https://t.me/bbalertchannel)**
 
 ---
-*Última actualización: 2025-12-09 21:16*
+*Última actualización: 2025-12-10 21:16*
