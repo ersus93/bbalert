@@ -34,7 +34,7 @@ WEATHER_SUBS_PATH = os.path.join(DATA_DIR, "weather_subs.json")
 WEATHER_LAST_ALERTS_PATH = os.path.join(DATA_DIR, "weather_last_alerts.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.029-beta"
+VERSION = "0.1.030-beta"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---

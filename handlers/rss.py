@@ -7,7 +7,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
-from core.rss_loop import render_notification, DEFAULT_TEMPLATE
+from core.rss_loop import render_notification, DEFAULT_TEMPLATE, TELEGRAM_STYLE
 from utils.rss_manager import (
     check_rss_limits, add_rss_channel, get_user_rss, add_rss_feed, 
     delete_rss_item, load_rss_data, save_rss_data, update_feed_template, 
@@ -141,57 +141,65 @@ async def process_feed_channel_select(update: Update, context: ContextTypes.DEFA
     query = update.callback_query
     ch_id = int(query.data.split('_')[-1])
     url = context.user_data.get('new_rss_url')
+    
     await query.edit_message_text("⏳ Verificando Feed...")
-    success, title_or_err = add_rss_feed(query.from_user.id, url, ch_id)
+    
+    # Llamamos a la función (que ahora devuelve el objeto feed si es exitoso)
+    success, result = add_rss_feed(query.from_user.id, url, ch_id)
+    
     if success:
-        await query.message.reply_text(f"✅ Feed *{title_or_err}* añadido.")
+        feed_data = result # Aquí tenemos el dict con 'id', 'title', etc.
+        feed_title = feed_data['title']
+        feed_id = feed_data['id']
+        
+        # Creamos el botón reutilizando tu lógica existente de forzar envío
+        kb = [[InlineKeyboardButton("⚡ Enviar Últimas Noticias", callback_data=f"rss_force_{feed_id}")]]
+        
+        await query.message.reply_text(
+            f"✅ Feed *{feed_title}* añadido correctamente.",
+            reply_markup=InlineKeyboardMarkup(kb),
+            parse_mode="Markdown"
+        )
     else:
-        await query.message.reply_text(f"❌ Error: {title_or_err}")
+        error_msg = result
+        await query.message.reply_text(f"❌ Error: {error_msg}")
+        
     return ConversationHandler.END
 
 # === EDICIÓN DE FEED ===
 async def edit_feed_menu(update: Update, context: ContextTypes.DEFAULT_TYPE, feed_id_override=None):
     query = update.callback_query
     feed_id = feed_id_override or query.data.split('_')[-1]
-    if not feed_id: feed_id = context.user_data.get('editing_feed_id')
-
     feed = get_feed_details(query.from_user.id, feed_id)
-    if not feed:
-        await query.answer("Feed no encontrado", show_alert=True)
-        return await menu_feeds(update, context)
+    
+    # Determinar estilo actual
+    current_style = feed.get('format', 'bitbread')
+    style_icon = "📱" if current_style == 'telegram' else "🍞"
+    style_name = "Estilo: Telegram" if current_style == 'telegram' else "Estilo: BitBread"
 
-    context.user_data['editing_feed_id'] = feed_id
-    
-    is_active = feed.get('active', True)
-    status_icon = "🟢" if is_active else "🔴"
-    status_text = "Pausar" if is_active else "Activar"
-    has_template = "✅" if feed.get('template') else "📝"
-    filter_count = len(feed.get('filters', []))
-    
-    # Menú
     kb = [
         [
-            InlineKeyboardButton(f"{status_icon} {status_text}", callback_data=f"rss_toggle_{feed_id}"),
-            InlineKeyboardButton(f"⚡ Forzar Envío", callback_data=f"rss_force_{feed_id}")
+            InlineKeyboardButton(f"{'🟢' if feed.get('active', True) else '🔴'} Estado", callback_data=f"rss_toggle_{feed_id}"),
+            InlineKeyboardButton(f"⚡ Probar", callback_data=f"rss_force_{feed_id}")
         ],
-        [InlineKeyboardButton(f"🚫 Filtros ({filter_count})", callback_data=f"rss_filters_menu_{feed_id}")],
-        [
-            InlineKeyboardButton(f"{has_template} Plantilla", callback_data=f"rss_template_{feed_id}"),
-            InlineKeyboardButton(f"⏰ {feed.get('frequency', 60)}min", callback_data=f"rss_set_freq_{feed_id}")
-        ],
-        [InlineKeyboardButton(f"🗑 ELIMINAR", callback_data=f"rss_delete_feed_{feed_id}")],
-        [InlineKeyboardButton("🔙 Volver", callback_data="rss_menu_feeds")]
+        [InlineKeyboardButton(f"{style_icon} {style_name}", callback_data=f"rss_switch_style_{feed_id}")],
+        [InlineKeyboardButton(f"🚫 Filtros", callback_data=f"rss_filters_menu_{feed_id}")],
     ]
-    
-    safe_title = feed['title'].replace("_", "\\_").replace("*", "\\*")
-    text = f"⚙️ *Ajustes de Feed*\n📌 *{safe_title}*\nEstado: {status_icon} {'Activo' if is_active else 'Pausado'}"
-    
-    try:
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
-    except:
-        pass
+
+    # Solo mostrar botón de "Personalizar" si el estilo es BitBread
+    if current_style == 'bitbread':
+        has_tpl = "✅" if feed.get('template') else "📝"
+        kb.append([InlineKeyboardButton(f"{has_tpl} Personalizar Plantilla", callback_data=f"rss_template_{feed_id}")])
+
+    kb.append([InlineKeyboardButton(f"⏰ {feed.get('frequency', 60)}min", callback_data=f"rss_set_freq_{feed_id}")])
+    kb.append([InlineKeyboardButton(f"🗑 ELIMINAR", callback_data=f"rss_delete_feed_{feed_id}")])
+    kb.append([InlineKeyboardButton("🔙 Volver", callback_data="rss_menu_feeds")])
+
+    await query.edit_message_text(f"⚙️ *Ajustes de Feed*\n📌 *{feed['title']}*", reply_markup=InlineKeyboardMarkup(kb), parse_mode="Markdown")
 
 # === PLANTILLA EXPLICATIVA CON GUÍA HTML ===
+# handlers/rss.py
+
 async def ask_for_template(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     feed_id = query.data.split('_')[-1]
@@ -202,7 +210,7 @@ async def ask_for_template(update: Update, context: ContextTypes.DEFAULT_TYPE):
     current_tpl = feed.get('template', DEFAULT_TEMPLATE)
     if not current_tpl: current_tpl = DEFAULT_TEMPLATE
 
-    # Texto explicativo detallado
+    # Texto explicativo detallado (TU VERSIÓN ORIGINAL)
     msg = (
         "📝 *Editor de Plantilla Avanzado*\n\n"
         "Configura cómo se ven tus noticias. Copia, edita y reenvía la plantilla de abajo.\n\n"
@@ -224,16 +232,30 @@ async def ask_for_template(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "👇 *TU PLANTILLA ACTUAL (Copia y edita):*"
     )
     
-    # Enviamos primero la instrucción
+    # Enviamos la instrucción
     await query.message.reply_text(msg, parse_mode="Markdown")
     
-    # Enviamos la plantilla actual en un bloque de código para fácil copia
-    # Usamos html.escape para que se vean los tags y no se rendericen
+    # Preparar el botón de Volver
+    kb = [[InlineKeyboardButton("🔙 Cancelar / Volver", callback_data=f"rss_back_edit_{feed_id}")]]
+    
+    # Enviamos la plantilla con el botón adjunto
     import html
     safe_tpl = html.escape(current_tpl)
-    await query.message.reply_text(f"<code>{safe_tpl}</code>", parse_mode="HTML")
+    await query.message.reply_text(f"<code>{safe_tpl}</code>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb))
     
     return EDIT_TEMPLATE_WAIT
+
+async def cancel_template_edit(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Cancela la edición de plantilla y vuelve al menú."""
+    query = update.callback_query
+    feed_id = query.data.split('_')[-1]
+    
+    await query.answer("Edición cancelada")
+    # Volvemos al menú de edición del feed
+    await edit_feed_menu(update, context, feed_id_override=feed_id)
+    
+    return ConversationHandler.END
+
 
 async def save_template(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tpl = update.message.text
@@ -338,9 +360,23 @@ async def rss_action_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
                 break
         save_rss_data(rss_data)
         return await edit_feed_menu(update, context, feed_id_override=f_id)
+    
+    # Switch Style (BitBread <-> Telegram)
+    if data.startswith("rss_switch_style_"):
+        f_id = data.split("_")[-1]
+        rss_data = load_rss_data()
+        uid = str(user_id)
+        for f in rss_data[uid]['feeds']:
+            if f['id'] == f_id:
+                # Cambiamos entre estilos
+                f['format'] = 'telegram' if f.get('format', 'bitbread') == 'bitbread' else 'bitbread'
+                break
+        save_rss_data(rss_data)
+        await query.answer(f"Cambiado a {f['format']}")
+        return await edit_feed_menu(update, context, feed_id_override=f_id)
 
 async def force_send_implementation(update, context, user_id, feed_id):
-    """Fuerza el envío de la última noticia al canal configurado."""
+    """Fuerza el envío de las últimas noticias (CORREGIDO)."""
     feed = get_feed_details(user_id, feed_id)
     if not feed: return
 
@@ -350,53 +386,82 @@ async def force_send_implementation(update, context, user_id, feed_id):
             await update.callback_query.message.reply_text("⚠️ El feed está vacío o inaccesible.")
             return
 
-        latest = parsed.entries[0]
+        entries_to_send = parsed.entries[:3] # Enviamos hasta 3
         
-        # Renderizar
-        msg_text, buttons, flags = render_notification(
-            feed.get('template'), latest, 
-            feed.get('title', 'RSS'), parsed.feed.get('link', '')
-        )
-        
-        reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
-        target_id = feed['target_channel_id']
-        
-        # Detectar imagen
-        img_url = None
-        if not flags['ignore_media']:
-            if 'media_content' in latest: img_url = latest['media_content'][0]['url']
-            elif 'links' in latest:
-                for l in latest['links']:
-                    if 'image' in l.get('type', ''): img_url = l['href']; break
-            if not img_url and 'summary' in latest:
-                img_match = re.search(r'<img .*?src=["\'](.*?)["\']', latest['summary'])
-                if img_match: img_url = img_match.group(1)
+        await update.callback_query.message.reply_text(f"⚡ Enviando {len(entries_to_send)} noticias...")
 
-        # Enviar
-        try:
-            if img_url:
-                if len(msg_text) > 1024:
-                    await context.bot.send_message(
-                        chat_id=target_id, text=f"[​​​​​​​​​​​]({img_url})" + msg_text,
-                        parse_mode=ParseMode.HTML, reply_markup=reply_markup
-                    )
-                else:
-                    await context.bot.send_photo(
-                        chat_id=target_id, photo=img_url, caption=msg_text,
-                        parse_mode=ParseMode.HTML, reply_markup=reply_markup
-                    )
-            else:
-                await context.bot.send_message(
-                    chat_id=target_id, text=msg_text, parse_mode=ParseMode.HTML,
-                    reply_markup=reply_markup, disable_web_page_preview=flags['no_web_page_preview']
-                )
-            await update.callback_query.message.reply_text(f"✅ Noticia enviada a ID: `{target_id}`", parse_mode="Markdown")
+        for latest in entries_to_send:
+            # 1. CORRECCIÓN DEL ERROR .GET: Pasamos 'feed' completo
+            msg_text, buttons, flags = render_notification(
+                feed, latest, 
+                feed.get('title', 'RSS'), parsed.feed.get('link', '')
+            )
             
-        except Exception as e:
-            await update.callback_query.message.reply_text(f"❌ Error al enviar a Telegram: {e}")
+            reply_markup = InlineKeyboardMarkup(buttons) if buttons else None
+            target_id = feed['target_channel_id']
+            
+            # === EXTRACCIÓN DE IMAGEN (RESUMIDA) ===
+            img_url = None
+            if not flags['ignore_media']:
+                if 'media_content' in latest:
+                     for m in latest['media_content']:
+                        if 'image' in m.get('type', '') or any(x in m.get('url', '').lower() for x in ['.jpg', '.png', '.webp']):
+                            img_url = m['url']; break
+                if not img_url and 'links' in latest:
+                    for l in latest['links']:
+                        if 'image' in l.get('type', '') and 'href' in l: img_url = l['href']; break
+                if not img_url and 'media_thumbnail' in latest:
+                        if latest['media_thumbnail']: img_url = latest['media_thumbnail'][0]['url']
+                if not img_url:
+                    full_html = latest.get('summary', '') + latest.get('description', '')
+                    if 'content' in latest:
+                        for c in latest['content']: full_html += c.get('value', '')
+                    img_tags = re.findall(r'<img[^>]+src=["\']\s*([^"\'>]+)["\']', full_html, re.IGNORECASE)
+                    for possible_url in img_tags:
+                        bad_keywords = ['emoji', 'icon', 'pixel', 'avatar', 'gravatar', 'share', 'button', 'gif']
+                        if any(k in possible_url.lower() for k in bad_keywords): continue
+                        img_url = possible_url; break 
+
+            # === ENVÍO CORREGIDO (SendPhoto Priority) ===
+            try:
+                sent = False
+                if img_url:
+                    try:
+                        # Control de longitud para caption (max 1024)
+                        caption_txt = msg_text
+                        if len(caption_txt) > 1024: caption_txt = caption_txt[:1000] + "..."
+                        
+                        await context.bot.send_photo(
+                            chat_id=target_id, 
+                            photo=img_url,
+                            caption=caption_txt,
+                            parse_mode=ParseMode.HTML, 
+                            reply_markup=reply_markup
+                        )
+                        sent = True
+                    except Exception as e:
+                        # Si falla la foto, no pasa nada, intentamos send_message abajo
+                        pass
+
+                if not sent:
+                    if img_url:
+                        header = f"<a href='{img_url}'>\u200b</a>"
+                        msg_text = header + msg_text
+                    
+                    await context.bot.send_message(
+                        chat_id=target_id, text=msg_text, parse_mode=ParseMode.HTML,
+                        reply_markup=reply_markup, disable_web_page_preview=False
+                    )
+                
+                await asyncio.sleep(1)
+                
+            except Exception as e:
+                await update.callback_query.message.reply_text(f"❌ Error envío: {e}")
+
+        await update.callback_query.message.reply_text(f"✅ Proceso finalizado.")
 
     except Exception as e:
-        await update.callback_query.message.reply_text(f"❌ Error leyendo feed: {e}")
+        await update.callback_query.message.reply_text(f"❌ Error feed: {e}")
 
 # === CONVERSATION HANDLER ===
 rss_conv_handler = ConversationHandler(
@@ -410,7 +475,10 @@ rss_conv_handler = ConversationHandler(
         ADD_CHANNEL_FWD: [MessageHandler(filters.ALL & ~filters.COMMAND, process_channel_fwd)],
         ADD_FEED_URL: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_feed_url)],
         ADD_FEED_SELECT_CH: [CallbackQueryHandler(process_feed_channel_select, pattern="^rss_sel_ch_")],
-        EDIT_TEMPLATE_WAIT: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_template)],
+        EDIT_TEMPLATE_WAIT: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, save_template),
+            CallbackQueryHandler(cancel_template_edit, pattern="^rss_back_edit_")
+        ],
         FILTER_ADD_WORD: [MessageHandler(filters.TEXT & ~filters.COMMAND, save_filter_word)]
     },
     fallbacks=[CommandHandler("cancel", rss_dashboard)]

@@ -112,7 +112,7 @@ def add_rss_feed(user_id, url, channel_id):
     
     data[uid]['feeds'].append(new_feed)
     save_rss_data(data)
-    return True, new_feed['title']
+    return True, new_feed 
 
 def delete_rss_item(user_id, type_item, item_id):
     data = load_rss_data()
