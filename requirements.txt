@@ -9,3 +9,4 @@ pytz
 pandas 
 pandas_ta
 tradingview-ta
+feedparser

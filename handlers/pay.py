@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from utils.file_manager import add_subscription_days, obtener_datos_usuario_seguro
 from core.config import ADMIN_CHAT_IDS
+from utils.rss_manager import add_purchased_slot 
 from core.i18n import _
 
 # === LISTA DE PRECIOS (En Telegram Stars - XTR) ===
@@ -30,7 +31,9 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(f"🪙 +1 Moneda en Lista - {PRICE_COIN_SLOT} ⭐️", callback_data="buy_coin")],
         [InlineKeyboardButton(f"🔔 +1 Alerta Cruce - {PRICE_ALERT_SLOT} ⭐️", callback_data="buy_alert")],
         [InlineKeyboardButton(f"💱 Tasa VIP (24/día) - {PRICE_TASA_VIP} ⭐️", callback_data="buy_tasa")],
-        [InlineKeyboardButton(f"📈 TA Pro (Ilimitado) - {PRICE_TA_VIP} ⭐️", callback_data="buy_ta")]
+        [InlineKeyboardButton(f"📈 TA Pro (Ilimitado) - {PRICE_TA_VIP} ⭐️", callback_data="buy_ta")],
+        [InlineKeyboardButton(f"📺 +1 Canal RSS - 100 ⭐️", callback_data="buy_rss_channel")],
+        [InlineKeyboardButton(f"🔗 +1 Link RSS - 50 ⭐️", callback_data="buy_rss_feed")],
     ]
     
     await update.message.reply_text(
@@ -83,6 +86,18 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         description = "Uso ilimitado del comando de análisis técnico /ta."
         payload = "sub_ta_vip"
         price_amount = PRICE_TA_VIP
+
+    elif data == "buy_rss_channel":
+        title = "📺 Slot Canal RSS (Permanente)"
+        description = "Añade capacidad para 1 canal/grupo de destino extra."
+        payload = "sub_rss_channel"
+        price_amount = 100 # XTR
+
+    elif data == "buy_rss_feed":
+        title = "🔗 Slot Feed RSS (Permanente)"
+        description = "Añade capacidad para 1 enlace RSS extra."
+        payload = "sub_rss_feed"
+        price_amount = 50 # XTR
     
     else:
         return
@@ -143,6 +158,12 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     elif sub_type == 'alerts_extra':
         item_name = "🔔 +1 Alerta Cruce"
         qty = 1
+    elif sub_type == 'rss_channel':
+        item_name = "📺 +1 Slot Canal RSS"
+        add_purchased_slot(chat_id, 'channels', 1)
+    elif sub_type == 'rss_feed':
+        item_name = "🔗 +1 Slot Feed RSS"
+        add_purchased_slot(chat_id, 'feeds', 1)
         
     # Llamamos a la función de file_manager para guardar los cambios
     add_subscription_days(chat_id, sub_type, days=30, quantity=qty)

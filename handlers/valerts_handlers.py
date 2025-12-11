@@ -83,10 +83,7 @@ async def valerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
         return # Terminamos la ejecución si no hay argumentos
-    
-    
-    # --- Lógica de Mostrar Niveles para un Símbolo Específico (Sigue Igual) ---
-
+        
     # Cargar datos
     subscribed = is_valerts_subscribed(user_id, symbol)
     state = get_symbol_state(symbol)

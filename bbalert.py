@@ -20,6 +20,8 @@ from core.loops import (
 from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
+from core.rss_loop import rss_monitor_loop # Importar Loop
+from handlers.rss import rss_dashboard, rss_conv_handler, rss_action_handler # Importar Handlers
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command,
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
@@ -58,6 +60,9 @@ async def post_init(app: Application):
     # Iniciar bucle de clima
     asyncio.create_task(weather_alerts_loop(app.bot))
     add_log_line("✅ Bucle de alertas de clima iniciado.")
+
+    asyncio.create_task(rss_monitor_loop(app.bot))
+    add_log_line("✅ Bucle RSS iniciado.")
     
     # 1. Iniciar los bucles de fondo globales
     asyncio.create_task(alerta_loop(app.bot))
@@ -219,8 +224,10 @@ def main():
             
     # NOTA: Eliminamos los registros manuales de callbacks (weather_alerttime_callback, etc.)
     # porque ya están incluidos dentro de 'weather_callback_handlers'.
-    
+    app.add_handler(CommandHandler("rss", rss_dashboard))
+    app.add_handler(rss_conv_handler)
     # Otros handlers
+    app.add_handler(CallbackQueryHandler(rss_action_handler, pattern="^rss_"))
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
