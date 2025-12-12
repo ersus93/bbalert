@@ -1,178 +1,294 @@
-# core/valerts_loop.py
-
 import asyncio
 import requests
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Bot
+from datetime import datetime
+from telegram.constants import ParseMode
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-from utils.file_manager import add_log_line
 from utils.valerts_manager import (
-    get_active_symbols, 
-    get_valerts_subscribers, 
-    get_symbol_state, 
-    update_symbol_state
+    get_active_symbols,
+    get_valerts_subscribers,
+    update_symbol_state,
+    get_symbol_state
 )
+from utils.file_manager import add_log_line
 from utils.ads_manager import get_random_ad_text
 
-# Variable para función de envío inyectada
-_enviar_msg_func = None
+# Variable global para la función de envío (inyectada desde bbalert.py)
+VALERTS_SENDER = None
 
 def set_valerts_sender(func):
-    global _enviar_msg_func
-    _enviar_msg_func = func
+    global VALERTS_SENDER
+    VALERTS_SENDER = func
 
-def get_candle_data(symbol):
-    """Obtiene vela 4H para un símbolo específico."""
+def fetch_binance_klines(symbol, interval="4h", limit=2):
+    """Obtiene las últimas velas de Binance para calcular pivots."""
     endpoints = [
+        "https://api.binance.com/api/v3/klines",
         "https://api.binance.us/api/v3/klines",
-        "https://api.binance.com/api/v3/klines"
+        "https://api1.binance.com/api/v3/klines"
     ]
-    params = {"symbol": symbol, "interval": "4h", "limit": 2}
+    params = {"symbol": symbol.upper(), "interval": interval, "limit": limit}
     
     for url in endpoints:
         try:
             r = requests.get(url, params=params, timeout=5)
-            if r.status_code != 200: continue
-            data = r.json()
-            if not isinstance(data, list) or len(data) < 2: continue
-
-            closed = data[-2]
-            current = data[-1]
-            
-            return {
-                "time": closed[0],
-                "high": float(closed[2]),
-                "low": float(closed[3]),
-                "close": float(closed[4]),
-                "current_price": float(current[4])
-            }
-        except:
+            if r.status_code == 200:
+                return r.json()
+        except Exception as e:
             continue
+    
+    print(f"Error fetching {symbol}: No endpoint disponible")
     return None
 
-async def valerts_monitor_loop(bot: Bot):
-    """Bucle que revisa TODAS las monedas activas."""
-    add_log_line("🦁 Iniciando Monitor Multi-Moneda (Valerts)...")
+def calculate_pivot_points(high, low, close):
+    """Calcula Puntos Pivote Standard con precisión."""
+    p = (high + low + close) / 3
+    r1 = (2 * p) - low
+    s1 = (2 * p) - high
+    r2 = p + (high - low)
+    s2 = p - (high - low)
+    r3 = high + 2 * (p - low)
+    s3 = low - 2 * (high - p)
+    return {"P": p, "R1": r1, "R2": r2, "R3": r3, "S1": s1, "S2": s2, "S3": s3}
+
+def determine_market_zone(current_price, levels):
+    """
+    Determina la zona de mercado actual y retorna:
+    (zone_name, emoji, intensity, color_description)
+    """
+    p = levels.get('P', 0)
+    r1 = levels.get('R1', 0)
+    r2 = levels.get('R2', 0)
+    r3 = levels.get('R3', 0)
+    s1 = levels.get('S1', 0)
+    s2 = levels.get('S2', 0)
+    s3 = levels.get('S3', 0)
+    
+    if current_price > r2:
+        return ("EXTENSIÓN ALCISTA", "🚀", "Máxima", "Territorio de volatilidad extrema alcista")
+    elif current_price > r1:
+        return ("IMPULSO ALCISTA", "📈", "Alta", "Momentum positivo fuerte")
+    elif current_price > p:
+        return ("PRESIÓN COMPRADORA", "📊", "Moderada", "Sesgo intradía positivo")
+    elif current_price > s1:
+        return ("NEUTRAL", "⚖️", "Baja", "Equilibrio de fuerzas")
+    elif current_price > s2:
+        return ("PRESIÓN VENDEDORA", "📉", "Moderada", "Sesgo intradía negativo")
+    elif current_price > s3:
+        return ("IMPULSO BAJISTA", "⬇️", "Alta", "Momentum negativo fuerte")
+    else:
+        return ("EXTENSIÓN BAJISTA", "🕳️", "Máxima", "Territorio de volatilidad extrema bajista")
+
+def get_alert_context(triggered_level, current_price, levels, symbol):
+    """
+    Genera información contextual inteligente para cada alerta.
+    Retorna: (emoji, titulo, descripcion_breve, proximo_objetivo, recomendacion)
+    """
+    level_value = levels.get(triggered_level, 0)
+    p = levels.get('P', 0)
+    
+    # Mapeo completo de cada nivel con contexto técnico
+    alert_context = {
+        'R3': {
+            'emoji': '🚀',
+            'titulo': f'Volatilidad Extrema Alcista en {symbol}',
+            'descripcion': 'El precio ha entrado en territorio de extensión máxima por encima de R3.',
+            'tecnico': 'Ruptura de máxima volatilidad. Condiciones de sobrecompra severa.',
+            'proximo': ('Discovery', 'Máximos históricos o retracción brusca'),
+            'recomendacion': 'Zona de máximo riesgo alcista. Considere asegurar ganancias.'
+        },
+        'R2': {
+            'emoji': '🌊',
+            'titulo': f'Impulso Alcista Fuerte en {symbol}',
+            'descripcion': 'El precio ha superado la segunda resistencia (R2).',
+            'tecnico': 'Ruptura confirmada de nivel R2. Presión de compra significativa.',
+            'proximo': ('R3', f'${levels.get("R3", 0):,.4f}'),
+            'recomendacion': 'Confirmación de fortaleza. Target: R3 o retracción a R1.'
+        },
+        'R1': {
+            'emoji': '📈',
+            'titulo': f'Primera Resistencia Superada en {symbol}',
+            'descripcion': 'El precio ha perforado el primer nivel de resistencia (R1).',
+            'tecnico': 'Ruptura de R1. Sesgo intradía claramente positivo.',
+            'proximo': ('R2', f'${levels.get("R2", 0):,.4f}'),
+            'recomendacion': 'Consolidación en zona positiva. Próximo target: R2.'
+        },
+        'P_UP': {
+            'emoji': '⚖️',
+            'titulo': f'Pivot Point Recuperado en {symbol}',
+            'descripcion': 'El precio está por encima del punto de equilibrio (Pivot).',
+            'tecnico': 'Recuperación del pivot central. Sesgo intradiario ligeramente alcista.',
+            'proximo': ('R1', f'${levels.get("R1", 0):,.4f}'),
+            'recomendacion': 'Soporte dinámico. Monitorear para salida o entrada.'
+        },
+        'S1': {
+            'emoji': '⚠️',
+            'titulo': f'Soporte Testado en {symbol}',
+            'descripcion': 'El precio ha caído por debajo del primer soporte (S1).',
+            'tecnico': 'Pérdida de S1. Debilidad técnica considerable.',
+            'proximo': ('S2', f'${levels.get("S2", 0):,.4f}'),
+            'recomendacion': 'Zona de debilidad. Atención a continuidad bajista.'
+        },
+        'S2': {
+            'emoji': '📉',
+            'titulo': f'Presión de Venta Fuerte en {symbol}',
+            'descripcion': 'El precio ha penetrado la segunda zona de soporte (S2).',
+            'tecnico': 'Ruptura de S2. Estructura técnica deteriorada.',
+            'proximo': ('S3', f'${levels.get("S3", 0):,.4f}'),
+            'recomendacion': 'Zona de máximo riesgo bajista. Considere cobertura.'
+        },
+        'S3': {
+            'emoji': '🕳️',
+            'titulo': f'Caída Extrema en {symbol}',
+            'descripcion': 'El precio ha perforado S3, máximo nivel de volatilidad bajista.',
+            'tecnico': 'Ruptura de S3. Condiciones de sobreventa severa.',
+            'proximo': ('Discovery', 'Mínimos históricos o rebote fuerte'),
+            'recomendacion': 'Zona de volatilidad extrema. Posibles retracción o pánico.'
+        },
+        'P_DOWN': {
+            'emoji': '⚖️',
+            'titulo': f'Pivot Point Perdido en {symbol}',
+            'descripcion': 'El precio ha caído por debajo del punto de equilibrio (Pivot).',
+            'tecnico': 'Pérdida del pivot central. Sesgo intradiario negativo.',
+            'proximo': ('S1', f'${levels.get("S1", 0):,.4f}'),
+            'recomendacion': 'Resistencia dinámica. Vigilar para entrada o salida.'
+        }
+    }
+    
+    return alert_context.get(triggered_level, {
+        'emoji': '⚡',
+        'titulo': f'Alerta de Nivel {triggered_level} en {symbol}',
+        'descripcion': f'El precio ha tocado/cruzado el nivel {triggered_level}.',
+        'tecnico': 'Revisión de niveles recomendada.',
+        'proximo': ('Siguiente', 'Pendiente análisis'),
+        'recomendacion': 'Monitorear desarrollo.'
+    })
+
+async def valerts_monitor_loop(bot):
+    """
+    Bucle principal que monitorea monedas activas, calcula niveles
+    y envía alertas si el precio cruza niveles clave con mensajes profundos.
+    """
+    add_log_line("🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...")
     
     while True:
         try:
-            # 1. Obtener qué monedas le interesan a la gente
             active_symbols = get_active_symbols()
             
-            # Si no hay nadie suscrito a nada, esperamos y seguimos
             if not active_symbols:
                 await asyncio.sleep(60)
                 continue
 
-            # 2. Iterar sobre cada moneda
             for symbol in active_symbols:
-                await process_symbol(symbol)
-                await asyncio.sleep(1) # Pequeña pausa para no saturar API
+                try:
+                    # 1. Obtener datos (Vela cerrada anterior y precio actual)
+                    klines = fetch_binance_klines(symbol, interval="4h")
+                    if not klines or len(klines) < 2:
+                        continue
+
+                    # Vela cerrada (penúltima en la lista)
+                    prev_candle = klines[-2] 
+                    # Vela actual (última en la lista)
+                    curr_candle = klines[-1]
+                    
+                    # Convertir datos
+                    ph, pl, pc = float(prev_candle[2]), float(prev_candle[3]), float(prev_candle[4])
+                    current_price = float(curr_candle[4]) # Precio de cierre actual (precio vivo)
+                    
+                    # 2. Calcular Niveles
+                    levels = calculate_pivot_points(ph, pl, pc)
+                    levels['current_price'] = current_price
+                    
+                    # Determinar zona actual
+                    zone_name, zone_emoji, intensity, zone_desc = determine_market_zone(current_price, levels)
+                    
+                    # 3. Obtener estado anterior
+                    state = get_symbol_state(symbol)
+                    last_alerted_levels = state.get('alerted_levels', [])
+                    candle_ts = prev_candle[0] # Timestamp de la vela de referencia
+                    
+                    # Si cambió la vela de 4H, reseteamos las alertas enviadas
+                    if state.get('last_candle_time') != candle_ts:
+                        last_alerted_levels = []
+                        state['last_candle_time'] = candle_ts
+                    
+                    # 4. Chequear Cruces (Lógica mejorada de alertas)
+                    check_list = [
+                        ('R3', levels['R3']), ('R2', levels['R2']), ('R1', levels['R1']),
+                        ('P_UP', levels['P']), ('P_DOWN', levels['P']),
+                        ('S1', levels['S1']), ('S2', levels['S2']), ('S3', levels['S3'])
+                    ]
+                    
+                    alerts_to_send = []
+                    
+                    for name, value in check_list:
+                        if name in last_alerted_levels:
+                            continue
+                        
+                        # Margen de 0.2% para altcoins
+                        diff = abs(current_price - value) / value
+                        if diff < 0.002:
+                            # Validación adicional: P_UP solo si está ARRIBA, P_DOWN solo si está ABAJO
+                            if name == 'P_UP' and current_price > value:
+                                alerts_to_send.append((name, value))
+                                last_alerted_levels.append(name)
+                            elif name == 'P_DOWN' and current_price < value:
+                                alerts_to_send.append((name, value))
+                                last_alerted_levels.append(name)
+                            elif name not in ['P_UP', 'P_DOWN']:
+                                alerts_to_send.append((name, value))
+                                last_alerted_levels.append(name)
+
+                    # 5. Guardar Estado (Importante para que el comando /valerts funcione)
+                    state['levels'] = levels
+                    state['alerted_levels'] = last_alerted_levels
+                    state['current_zone'] = zone_name
+                    update_symbol_state(symbol, state)
+                    
+                    # 6. Enviar Alertas (Si corresponde)
+                    if alerts_to_send and VALERTS_SENDER:
+                        subscribers = get_valerts_subscribers(symbol)
+                        if subscribers:
+                            for lname, lval in alerts_to_send:
+                                # Obtener contexto inteligente
+                                context = get_alert_context(lname, current_price, levels, symbol)
+                                
+                                # Determinar decimales según precio
+                                decimals = 2 if current_price > 100 else 4
+                                fmt = f",.{decimals}f"
+                                
+                                # Construir mensaje profesional CON MARKDOWN CORRECTO
+                                msg = (
+                                    f"{context['emoji']} *{context['titulo']}*\n"
+                                    f"—————————————————\n"
+                                    f"{context['descripcion']}\n\n"
+                                    f"*Análisis Técnico:*\n"
+                                    f"`{context['tecnico']}`\n\n"
+                                    f"*Detalles del Cruce:*\n"
+                                    f"🏷️ Nivel: {lname} (${lval:{fmt}})\n"
+                                    f"💰 Precio: ${current_price:{fmt}}\n"
+                                    f"🎯 Próximo: {context['proximo'][0]} ({context['proximo'][1]})\n\n"
+                                    f"✍️ *Recomendación:* {context['recomendacion']}\n\n"
+                                    f"{zone_emoji} Zona: {zone_name}\n"
+                                    f"⏳ Marco: 4H"
+                                )
+                                
+                                msg += get_random_ad_text()
+                                
+                                # Botón para ver tabla completa de niveles
+                                kb = [[InlineKeyboardButton("📊 Ver Tabla de Niveles", callback_data=f"valerts_view|{symbol}")]]
+                                
+                                # Enviar usando la función inyectada
+                                await VALERTS_SENDER(msg, subscribers, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(kb))
+                                await asyncio.sleep(0.05) # Evitar flood
+
+                except Exception as e:
+                    print(f"Error procesando {symbol} en valerts loop: {e}")
+                    add_log_line(f"❌ Error en Valerts Loop ({symbol}): {e}")
+                    
+            # Esperar 60 segundos antes del siguiente ciclo
+            await asyncio.sleep(60)
 
         except Exception as e:
-            add_log_line(f"Error en loop Valerts General: {e}")
-        
-        # Espera antes de la siguiente ronda de revisiones
-        await asyncio.sleep(60)
-
-async def process_symbol(symbol):
-    """Procesa lógica de niveles para UN solo símbolo."""
-    try:
-        data = get_candle_data(symbol)
-        if not data: return
-
-        # Cargar estado Específico de este símbolo
-        state = get_symbol_state(symbol)
-        subs = get_valerts_subscribers(symbol) # Solo usuarios de esta moneda
-
-        last_candle_time = state.get('last_candle_time', 0)
-        current_candle_time = data['time']
-        current_price = data['current_price']
-        
-        # --- CASO A: Nueva Vela (Recálculo) ---
-        if current_candle_time > last_candle_time:
-            H, L, C = data['high'], data['low'], data['close']
-            P = (H + L + C) / 3
-            
-            new_levels = {
-                "R3": P + 2 * (H - L),
-                "R2": P + (H - L),
-                "R1": (2 * P) - L,
-                "P": P,
-                "S1": (2 * P) - H,
-                "S2": P - (H - L),
-                "S3": P - 2 * (H - L),
-                "current_price": current_price
-            }
-            
-            state['levels'] = new_levels
-            state['last_candle_time'] = current_candle_time
-            state['alerted_levels'] = []
-            update_symbol_state(symbol, state)
-            
-            # Notificación de recálculo
-            if subs and _enviar_msg_func:
-                msg = (
-                    f"🔄 *Nuevos Niveles {symbol} (4H)*\n"
-                    "—————————————————\n"
-                    f"Vela cerrada. Niveles actualizados.\n"
-                    f"⚖️ *Pivot:* ${P:,.4f}\n"
-                    f"💰 *Precio:* ${current_price:,.4f}"
-                )
-                kb = [[InlineKeyboardButton("📊 Ver Niveles", callback_data=f"valerts_view|{symbol}")]]
-                await _enviar_msg_func(msg, subs, reply_markup=InlineKeyboardMarkup(kb))
-
-        # --- CASO B: Monitoreo Continuo ---
-        else:
-            if 'levels' not in state: state['levels'] = {}
-            state['levels']['current_price'] = current_price
-            update_symbol_state(symbol, state) # Guardamos precio actual
-
-            if subs:
-                levels = state.get('levels', {})
-                if not levels or 'R1' not in levels: return
-
-                alerted = state.get('alerted_levels', [])
-                threshold = 0.001 
-
-                trigger = None
-                nxt = None
-                emoji = ""
-                title = ""
-
-                # Lógica simplificada de triggers (reutilizando la de BTC)
-                # RESISTENCIAS
-                if current_price > levels['R3'] * (1 + threshold) and "R3" not in alerted:
-                    trigger, nxt, emoji, title = "R3", "Discovery", "🚀", "R3 Roto"
-                elif current_price > levels['R2'] * (1 + threshold) and "R2" not in alerted:
-                    trigger, nxt, emoji, title = "R2", "R3", "🌊", "Fuerza Alcista"
-                elif current_price > levels['R1'] * (1 + threshold) and "R1" not in alerted:
-                    trigger, nxt, emoji, title = "R1", "R2", "📈", "Resistencia R1"
-                
-                # SOPORTES
-                elif current_price < levels['S3'] * (1 - threshold) and "S3" not in alerted:
-                    trigger, nxt, emoji, title = "S3", "Discovery", "🕳️", "S3 Roto"
-                elif current_price < levels['S2'] * (1 - threshold) and "S2" not in alerted:
-                    trigger, nxt, emoji, title = "S2", "S3", "📉", "Debilidad S2"
-                elif current_price < levels['S1'] * (1 - threshold) and "S1" not in alerted:
-                    trigger, nxt, emoji, title = "S1", "S2", "⚠️", "Soporte S1"
-
-                if trigger and _enviar_msg_func:
-                    lvl_price = levels.get(trigger, 0)
-                    msg = (
-                        f"{emoji} *{title}: {symbol}*\n"
-                        f"—————————————————\n"
-                        f"El precio ha cruzado el nivel clave.\n\n"
-                        f"🏷️ *Nivel:* {trigger} (${lvl_price:,.4f})\n"
-                        f"💰 *Precio:* ${current_price:,.4f}\n"
-                    )
-                    msg += get_random_ad_text()
-                    kb = [[InlineKeyboardButton(f"📊 Ver {symbol}", callback_data=f"valerts_view|{symbol}")]]
-                    
-                    await _enviar_msg_func(msg, subs, reply_markup=InlineKeyboardMarkup(kb))
-                    
-                    state['alerted_levels'].append(trigger)
-                    update_symbol_state(symbol, state)
-                    add_log_line(f"🦁 Alerta {symbol} enviada: {trigger}")
-
-    except Exception as e:
-        add_log_line(f"Error procesando {symbol}: {e}")
+            add_log_line(f"❌ Error crítico en Valerts Loop: {e}")
+            await asyncio.sleep(60)

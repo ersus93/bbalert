@@ -1,5 +1,3 @@
-# handlers/valerts_handlers.py
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler, CommandHandler
 from telegram.constants import ParseMode
@@ -11,6 +9,53 @@ from utils.valerts_manager import (
     get_active_symbols
 )
 
+def get_zone_indicator(current_price, levels):
+    """Retorna emoji e indicador de zona para tabla de niveles."""
+    if current_price > levels.get('R2', 0):
+        return "🚀 EXTENSIÓN ALCISTA"
+    elif current_price > levels.get('R1', 0):
+        return "🐂 ZONA ALCISTA"
+    elif current_price > levels.get('S1', 0):
+        return "⚖️ NEUTRAL"
+    elif current_price > levels.get('S2', 0):
+        return "🐻 ZONA BAJISTA"
+    else:
+        return "🩸 EXTENSIÓN BAJISTA"
+
+async def valerts_list_view(bot, chat_id):
+    """Muestra la lista de símbolos activos."""
+    active_symbols = get_active_symbols()
+    
+    msg = (
+        "🦁 *Monitor de Volatilidad Multi-Moneda*\n"
+        "—————————————————\n"
+        "Recibe alertas técnicas inteligentes cuando el precio toca niveles clave.\n\n"
+        "Usa: `/valerts ETH` o `/valerts BNB`\n\n"
+    )
+    
+    kb_rows = []
+    
+    if active_symbols:
+        msg += "*📍 Símbolos Activos:*\n\n"
+        
+        # Crear botones: 3 por fila
+        temp_row = []
+        for i, sym in enumerate(active_symbols):
+            temp_row.append(InlineKeyboardButton(sym, callback_data=f"valerts_view|{sym}"))
+            if (i + 1) % 3 == 0:
+                kb_rows.append(temp_row)
+                temp_row = []
+        if temp_row:
+            kb_rows.append(temp_row)
+            
+        reply_markup = InlineKeyboardMarkup(kb_rows)
+        
+    else:
+        msg += "_No hay símbolos activos. ¡Únete a uno!_"
+        reply_markup = None
+
+    await bot.send_message(chat_id=chat_id, text=msg, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+
 async def valerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Muestra niveles y botón de suscripción para una moneda específica,
@@ -20,69 +65,36 @@ async def valerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- Lógica de Manejo de Callback o Comando ---
     is_callback = False
     if update.callback_query:
-        # Si viene de un callback, procesamos el símbolo (lógica existente)
-        # Esto es necesario si el callback es 'valerts_view|ETHUSDT'
-        # ... (cuerpo de la lógica de callback, sin cambios) ...
-        
         query = update.callback_query
         user_id = query.from_user.id
         chat_id = query.message.chat_id
+        
         try:
             symbol = query.data.split("|")[1]
+            # Manejo especial para "list"
+            if symbol == "list":
+                await query.answer()
+                await valerts_list_view(context.bot, chat_id)
+                return
         except IndexError:
-            # Esto maneja callbacks mal formados, aunque ya debería estar cubierto
-            await query.answer("Error en datos de moneda.")
+            await query.answer("Error en datos de moneda.", show_alert=True)
             return
         is_callback = True
         
     elif context.args:
-        # Si el usuario escribe /valerts ETH
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         
         symbol_raw = context.args[0].upper()
-        # Normalizar a USDT si no lo tiene (simple helper)
         symbol = symbol_raw if symbol_raw.endswith("USDT") else f"{symbol_raw}USDT"
         
     else:
-        # === CASO NUEVO: /valerts sin argumentos ===
+        # === CASO: /valerts sin argumentos ===
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         
-        # 1. Obtener la lista de símbolos que tienen suscriptores activos
-        active_symbols = get_active_symbols()
-        
-        msg = (
-            "🦁 *Monitor Volatilidad Multi-Moneda*\n"
-            "—————————————————\n"
-            "Para ver/añadir niveles, usa el comando así:\n"
-            "👉 Ej: `/valerts ETH`\n\n"
-        )
-        
-        kb_rows = []
-        
-        if active_symbols:
-            msg += "*👇 Símbolos con Alertas Activas:*\n"
-            
-            # Crear botones: 3 por fila para ahorrar espacio
-            temp_row = []
-            for i, sym in enumerate(active_symbols):
-                # El callback_data ahora usa 'valerts_view|SIMBOLO'
-                temp_row.append(InlineKeyboardButton(sym, callback_data=f"valerts_view|{sym}"))
-                if (i + 1) % 3 == 0:
-                    kb_rows.append(temp_row)
-                    temp_row = []
-            if temp_row:
-                kb_rows.append(temp_row)
-                
-            reply_markup = InlineKeyboardMarkup(kb_rows)
-            
-        else:
-            msg += "_Actualmente no hay símbolos con alertas activadas. Únete a uno con el comando de ejemplo._"
-            reply_markup = None
-
-        await update.message.reply_text(msg, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
-        return # Terminamos la ejecución si no hay argumentos
+        await valerts_list_view(context.bot, chat_id)
+        return
         
     # Cargar datos
     subscribed = is_valerts_subscribed(user_id, symbol)
@@ -91,61 +103,60 @@ async def valerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     status_icon = "✅ ACTIVADAS" if subscribed else "☑️ DESACTIVADAS"
     
-    # Construcción de la tabla (Idéntica a BTC pero con symbol)
+    # Construcción de la tabla mejorada
     if levels:
         price_now = levels.get('current_price', 0)
         p = levels.get('P', 0)
+        zone = get_zone_indicator(price_now, levels)
         
-        # Zona textual
-        zone = "Neutral (Pivot)"
-        if price_now > levels.get('R2', 0): zone = "🚀 Zona de Extensión (Sobre R2)"
-        elif price_now > levels.get('R1', 0): zone = "🐂 Zona Alcista (Sobre R1)"
-        elif price_now < levels.get('S2', 0): zone = "🩸 Zona de Extensión (Bajo S2)"
-        elif price_now < levels.get('S1', 0): zone = "🐻 Zona Bajista (Bajo S1)"
+        # Determinar número de decimales según el precio
+        decimals = 2 if price_now > 100 else 4
+        fmt = f",.{decimals}f"
         
         levels_msg = (
-            f"📊 *Estructura {symbol} (4H)*\n"
-            f"⚡ *Estado:* {zone}\n\n"
-            f"🧗 *R3:* `${levels.get('R3',0):,.4f}`\n"  # 4 decimales para alts
-            f"🟥 *R2:* `${levels.get('R2',0):,.4f}`\n"
-            f"🟧 *R1:* `${levels.get('R1',0):,.4f}`\n"
-            f"⚖️ *PIVOT:* `${p:,.4f}`\n"
-            f"🟦 *S1:* `${levels.get('S1',0):,.4f}`\n"
-            f"🟩 *S2:* `${levels.get('S2',0):,.4f}`\n"
-            f"🕳️ *S3:* `${levels.get('S3',0):,.4f}`"
+            f"*📊 Estructura {symbol} (4H)*\n"
+            f"⚡Estado: {zone}\n\n"
+            f"🧗 R3: `${levels.get('R3',0):{fmt}}` _(Máximo)_\n"
+            f"🟥 R2: `${levels.get('R2',0):{fmt}}` _(Extensión)_\n"
+            f"🟧 R1: `${levels.get('R1',0):{fmt}}` _(Resistencia)_\n"
+            f"⚖️ PIVOT: `${p:{fmt}}` _(Equilibrio)_\n"
+            f"🟦 S1: `${levels.get('S1',0):{fmt}}` _(Soporte)_\n"
+            f"🟩 S2: `${levels.get('S2',0):{fmt}}` _(Extensión)_\n"
+            f"🕳️ S3: `${levels.get('S3',0):{fmt}}` _(Mínimo)_\n\n"
+            f"💰 Precio: `${price_now:{fmt}}`"
         )
     else:
-        levels_msg = f"⏳ _Calculando niveles para {symbol}...\nEspera al próximo cierre de vela o asegúrate que el par existe en Binance._"
+        levels_msg = f"_Calculando niveles para {symbol}..._\n_Espera al próximo cierre de vela._"
 
     msg = (
         f"🦁 *Monitor Volatilidad: {symbol}*\n"
-        "—————————————————\n"
+        f"—————————————————\n"
         f"{levels_msg}\n"
-        "—————————————————\n"
-        f"🔔 *Alertas {symbol}:* {status_icon}\n\n"
-        "Alertas de cruces de niveles R1/R2/R3 y S1/S2/S3."
+        f"—————————————————\n"
+        f"Alertas {symbol}: {status_icon}\n\n"
+        f"Recibe notificaciones técnicas de cruces de niveles."
     )
 
-    # Botón Toggle CON EL SÍMBOLO INCRUSTADO
-    # Formato callback: accion|simbolo
+    # Botones mejorados - CORRECCIÓN DEL CALLBACK BACK
     btn_text = f"🔕 Desactivar {symbol}" if subscribed else f"🔔 Activar {symbol}"
     
-    # === AÑADIR BOTÓN DE REGRESO A LA LISTA ===
-    kb = [[InlineKeyboardButton(btn_text, callback_data=f"toggle_valerts|{symbol}")]]
-    kb.append([InlineKeyboardButton("🔙 Ver todas las monedas", callback_data="valerts_view|list")])
+    kb = [
+        [InlineKeyboardButton(btn_text, callback_data=f"toggle_valerts|{symbol}")],
+        [InlineKeyboardButton("🔙 Volver a la lista", callback_data="valerts_list_back")]
+    ]
     
     if is_callback:
         await update.callback_query.answer()
-        # Enviar mensaje NUEVO (como pediste en BTC)
         await context.bot.send_message(chat_id=chat_id, text=msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
     else:
         await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
 async def valerts_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Alterna suscripción con botón dinámico."""
     query = update.callback_query
     await query.answer()
     
-    # Extraer símbolo del callback data: "toggle_valerts|ETHUSDT"
+    # Extraer símbolo
     data_parts = query.data.split("|")
     if len(data_parts) < 2:
         return
@@ -156,18 +167,30 @@ async def valerts_toggle_callback(update: Update, context: ContextTypes.DEFAULT_
     
     # Actualizar botón
     btn_text = f"🔕 Desactivar {symbol}" if new_status else f"🔔 Activar {symbol}"
-    kb = [[InlineKeyboardButton(btn_text, callback_data=f"toggle_valerts|{symbol}")]]
+    kb = [
+        [InlineKeyboardButton(btn_text, callback_data=f"toggle_valerts|{symbol}")],
+        [InlineKeyboardButton("🔙 Volver a la lista", callback_data="valerts_list_back")]
+    ]
     
     try:
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(kb))
-        status_text = f"✅ Alertas {symbol} ON" if new_status else f"🔕 Alertas {symbol} OFF"
+        status_text = f"✅ {symbol} activadas" if new_status else f"🔕 {symbol} desactivadas"
         await query.answer(status_text, show_alert=False)
     except:
         pass
 
+async def valerts_list_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Callback para volver a la lista principal."""
+    query = update.callback_query
+    await query.answer()
+    
+    chat_id = query.message.chat_id
+    await valerts_list_view(context.bot, chat_id)
+
 # Lista de handlers para exportar
 valerts_handlers_list = [
     CommandHandler("valerts", valerts_command),
-    CallbackQueryHandler(valerts_toggle_callback, pattern="^toggle_valerts\|"), # Regex captura el pipe
-    CallbackQueryHandler(valerts_command, pattern="^valerts_view\|") # Reutilizamos el comando como view
+    CallbackQueryHandler(valerts_toggle_callback, pattern="^toggle_valerts\\|"),
+    CallbackQueryHandler(valerts_list_back_callback, pattern="^valerts_list_back$"),
+    CallbackQueryHandler(valerts_command, pattern="^valerts_view\\|")
 ]

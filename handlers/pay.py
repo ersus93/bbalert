@@ -9,11 +9,13 @@ from utils.rss_manager import add_purchased_slot
 from core.i18n import _
 
 # === LISTA DE PRECIOS (En Telegram Stars - XTR) ===
-PRICE_BUNDLE = 20      # Temp flexible + Ver x24 + Cambios ilimitados
-PRICE_COIN_SLOT = 5    # +1 Capacidad en lista
-PRICE_ALERT_SLOT = 4   # +1 Alerta de Cruce (Par Arriba/Abajo)
-PRICE_TASA_VIP = 5     # Tasa x24 consultas
-PRICE_TA_VIP = 10      # TA Ilimitado
+PRICE_BUNDLE = 20           # Temp flexible + Ver x24 + Cambios ilimitados
+PRICE_COIN_SLOT = 5         # +1 Capacidad en lista
+PRICE_ALERT_SLOT = 4        # +1 Alerta de Cruce (Par Arriba/Abajo)
+PRICE_TASA_VIP = 5          # Tasa x24 consultas
+PRICE_TA_VIP = 10           # TA Ilimitado
+PRICE_RSS_CHANNEL = 100     # Precio de Shannel Slot
+PRICE_RSS_FEED = 50         #Precio de Feed Slot
 
 # === MENÚ DE LA TIENDA ===
 async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -91,13 +93,13 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = "📺 Slot Canal RSS (Permanente)"
         description = "Añade capacidad para 1 canal/grupo de destino extra."
         payload = "sub_rss_channel"
-        price_amount = 100 # XTR
+        price_amount = PRICE_RSS_CHANNEL 
 
     elif data == "buy_rss_feed":
         title = "🔗 Slot Feed RSS (Permanente)"
         description = "Añade capacidad para 1 enlace RSS extra."
         payload = "sub_rss_feed"
-        price_amount = 50 # XTR
+        price_amount = PRICE_RSS_FEED
     
     else:
         return

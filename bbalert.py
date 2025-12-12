@@ -1,5 +1,5 @@
 # bbalert.py - Punto de Entrada Principal del Bot de Telegram para BitBread.
-
+ 
 import asyncio
 from telegram import Update
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
@@ -15,13 +15,27 @@ from core.loops import (
     programar_alerta_usuario, 
     get_logs_data, 
     set_enviar_mensaje_telegram_async,
-    weather_alerts_loop
 )
+from core.weather_loop import weather_alerts_loop
 from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
+
+#  Importaciones RSS 1.0
 from core.rss_loop import rss_monitor_loop # Importar Loop
 from handlers.rss import rss_dashboard, rss_conv_handler, rss_action_handler # Importar Handlers
+# Fin Importaciones RSS 1.0
+
+# === NUEVA IMPORTACIÓN: Sistema RSS v2 ===
+#from core.rss_loop_v2 import RSSMonitor
+#from handlers.rss_v2 import (
+#    rss_dashboard, 
+#    rss_conv_handler_v2, 
+#    rss_action_handler,
+#    rss_manager
+#)
+# === FIN NUEVA IMPORTACIÓN RSS ===
+
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command,
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
@@ -31,17 +45,14 @@ from handlers.alerts import (
     misalertas, 
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
-    
 )
 from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback, mk_command, ta_command
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
-# === INICIO DE INTEGRACIÓN VALERTS (CORRECCIÓN IMPORTACIÓN) ===
-from handlers.valerts_handlers import valerts_handlers_list
-# Importación corregida: 'enviar_mensaje_seguro' no está definida aquí, la función a inyectar es local ('enviar_mensajes')
-from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
-# === FIN DE INTEGRACIÓN VALERTS ===
 
-# --- CORRECCIÓN IMPORTANTE: Solo importamos lo que realmente existe en weather.py ---
+from handlers.valerts_handlers import valerts_handlers_list
+from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
+from core.btc_advanced_analysis import BTCAdvancedAnalyzer
+
 from handlers.weather import (
     weather_command, 
     weather_subscribe_command, 
@@ -50,19 +61,39 @@ from handlers.weather import (
     weather_callback_handlers
 )
 
+# === VARIABLE GLOBAL para el monitor RSS ===
+#rss_monitor: RSSMonitor = None
+
 async def post_init(app: Application):
     """
-    (NUEVO) Se ejecuta después de que el bot se inicializa.
+    Se ejecuta después de que el bot se inicializa.
     Inicia los bucles de fondo y programa las alertas para todos los usuarios existentes.
     """
+    global rss_monitor
+    
     add_log_line("🤖 Bot inicializado. Iniciando tareas de fondo...")
+
+    # === NUEVA INICIALIZACIÓN: RSS Monitor v2 ===
+    #rss_monitor = RSSMonitor(app.bot)
+    #from core.rss_loop_v2 import set_rss_monitor
+    #set_rss_monitor(rss_monitor)  # ✅ Establecer la instancia global
+    #asyncio.create_task(rss_monitor.monitor_loop())
+    #add_log_line("✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).")
+    # === FIN NUEVA INICIALIZACIÓN RSS ===
 
     # Iniciar bucle de clima
     asyncio.create_task(weather_alerts_loop(app.bot))
     add_log_line("✅ Bucle de alertas de clima iniciado.")
 
+    # Iniciar bucle RSS 1.0
     asyncio.create_task(rss_monitor_loop(app.bot))
     add_log_line("✅ Bucle RSS iniciado.")
+
+    # === NUEVA INICIALIZACIÓN: RSS Monitor v2 ===
+    #rss_monitor = RSSMonitor(app.bot)
+    #asyncio.create_task(rss_monitor.monitor_loop())
+    #add_log_line("✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).")
+    # === FIN NUEVA INICIALIZACIÓN RSS ===
     
     # 1. Iniciar los bucles de fondo globales
     asyncio.create_task(alerta_loop(app.bot))
@@ -74,7 +105,7 @@ async def post_init(app: Application):
     if usuarios:
         add_log_line(f"👥 Encontrados {len(usuarios)} usuarios. Programando sus alertas periódicas...")
         for user_id, data in usuarios.items():
-            intervalo_h = data.get('intervalo_alerta_h', 2.5) # Valor por defecto si no está establecido
+            intervalo_h = data.get('intervalo_alerta_h', 2.5)
             programar_alerta_usuario(int(user_id), intervalo_h)
     else:
         add_log_line("👥 No hay usuarios registrados. Esperando a que se unan.")
@@ -82,14 +113,13 @@ async def post_init(app: Application):
     add_log_line("✅ Todas las tareas de fondo han sido iniciadas.")
 
     try:
-        # Mensaje de inicio para administradores usando idioma por defecto (español)
         startup_message_template = _(
             "🚀 *¡Bot en línea!* 🚀\n\n"
             "🤖 `BitBread Alert v{version}`\n"
             "🪪 `PID: {pid}`\n"
             "🐍 `Python: v{python_version}`\n\n"
             "✅ Ejecutado y funcionando perfectamente.",
-            None  # Sin chat_id específico, usa español por defecto
+            None
         )
         startup_message = startup_message_template.format(
             version=VERSION,
@@ -97,7 +127,6 @@ async def post_init(app: Application):
             python_version=PYTHON_VERSION
         )
 
-        # Enviamos el mensaje a cada admin
         for admin_id in ADMIN_CHAT_IDS:
             await app.bot.send_message(chat_id=admin_id, text=startup_message, parse_mode=ParseMode.MARKDOWN)
 
@@ -107,10 +136,8 @@ async def post_init(app: Application):
         
     # Inicio de Loops de Monitoreo (BTC y VALERTS)
     asyncio.create_task(btc_monitor_loop(app.bot))
-    # === INICIO DE INTEGRACIÓN VALERTS (AÑADIR LOOP) ===
     asyncio.create_task(valerts_monitor_loop(app.bot))
-    # === FIN DE INTEGRACIÓN VALERTS ===
-    
+
 
 def main():
     """Inicia el bot y configura todos los handlers."""
@@ -164,16 +191,13 @@ def main():
 
         return fallidos
 
-    # 2. INYECCIÓN DE DEPENDENCIAS (Crucial)
+    # 2. INYECCIÓN DE DEPENDENCIAS
     set_admin_util(enviar_mensajes)
     set_logs_util(get_logs_data)
     set_reprogramar_alerta_util(programar_alerta_usuario)
     set_enviar_mensaje_telegram_async(enviar_mensajes, app)
     set_btc_sender(enviar_mensajes)
-    # === INICIO DE INTEGRACIÓN VALERTS (CORRECCIÓN SENDER) ===
-    # Usamos la función local 'enviar_mensajes' que es la que maneja los errores y las bajas
-    set_valerts_sender(enviar_mensajes) 
-    # === FIN DE INTEGRACIÓN VALERTS ===
+    set_valerts_sender(enviar_mensajes)
     
     # 3. REGISTRO DE HANDLERS
     app.add_handler(CommandHandler("shop", shop_command))
@@ -187,11 +211,11 @@ def main():
     app.add_handler(CommandHandler("users", users))
     app.add_handler(CommandHandler("logs", logs_command))    
     app.add_handler(CommandHandler("ad", ad_command))
-    app.add_handler(ms_conversation_handler)  
-    # === INICIO DE INTEGRACIÓN VALERTS (REGISTRO) ===
-    # El registro de la lista de handlers ya estaba aquí y es correcto
+    app.add_handler(ms_conversation_handler)
+    
+    # === Handlers de VALERTS ===
     app.add_handlers(valerts_handlers_list)
-    # === FIN DE INTEGRACIÓN VALERTS ===
+    
     app.add_handler(CommandHandler("mismonedas", mismonedas))
     app.add_handler(CommandHandler("parar", parar))
     app.add_handler(CommandHandler("temp", cmd_temp))
@@ -203,31 +227,44 @@ def main():
     app.add_handler(CommandHandler("p", p_command))       
     app.add_handler(CommandHandler("tasa", eltoque_command))
     app.add_handler(CommandHandler("monedas", set_monedas_command))
+    
     for handler in btc_handlers_list:
         app.add_handler(handler)
     
-    # --- REGISTRO DE HANDLERS DE CLIMA (Corregido) ---
+    # --- Handlers de CLIMA ---
     app.add_handler(CommandHandler("w", weather_command))
     app.add_handler(CommandHandler("weather_sub", weather_subscribe_command))
     app.add_handler(CommandHandler("weather_settings", weather_settings_command))
-    
-    # La conversación debe tener prioridad alta en ciertos casos, pero aquí está bien
     app.add_handler(weather_conversation_handler)
     
-    # Registramos TODOS los callbacks de clima usando la lista que viene de weather.py
     if weather_callback_handlers:
         if isinstance(weather_callback_handlers, list):
             for handler in weather_callback_handlers:
                 app.add_handler(handler)
         else:
             app.add_handler(weather_callback_handlers)
-            
-    # NOTA: Eliminamos los registros manuales de callbacks (weather_alerttime_callback, etc.)
-    # porque ya están incluidos dentro de 'weather_callback_handlers'.
+    
+    # === Handlers RSS ===
     app.add_handler(CommandHandler("rss", rss_dashboard))
     app.add_handler(rss_conv_handler)
     # Otros handlers
     app.add_handler(CallbackQueryHandler(rss_action_handler, pattern="^rss_"))
+    
+    # === NUEVA SECCIÓN: Handlers RSS v2 ===
+    # El comando principal
+    #app.add_handler(CommandHandler("rss", rss_dashboard))
+    # La conversación (entrada principal para flujos complejos)
+    #app.add_handler(rss_conv_handler_v2)    
+    # Los callbacks de acciones rápidas
+    #app.add_handler(CallbackQueryHandler(rss_action_handler, pattern="^rss_"))
+    # === FIN HANDLERS RSS ===
+    # === HANDLERS DE PAGO ===
+    app.add_handler(CommandHandler("shop", shop_command))
+    app.add_handler(CallbackQueryHandler(shop_callback, pattern="^buy_"))
+    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    
+    # Handlers restantes
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))

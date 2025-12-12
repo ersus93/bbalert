@@ -10,3 +10,6 @@ pandas
 pandas_ta
 tradingview-ta
 feedparser
+requests
+requests[socks]
+chardet
