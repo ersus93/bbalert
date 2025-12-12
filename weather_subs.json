@@ -1,0 +1,95 @@
+{
+    "1597973793": {
+        "city": "Pinar del Río",
+        "country": "CU",
+        "timezone": "UTC-5",
+        "alert_time": "07:00",
+        "subscribed_at": "2025-12-09 18:43:33",
+        "alerts_enabled": true,
+        "alert_types": {
+            "rain": true,
+            "uv_high": true,
+            "storm": true,
+            "snow": true,
+            "fog": true,
+            "temp_high": true,
+            "temp_low": true
+        },
+        "lat": 22.4167422,
+        "lon": -83.7002582
+    },
+    "1058749165": {
+        "city": "Pinar del Río",
+        "country": "CU",
+        "timezone": "UTC-5",
+        "alert_time": "07:00",
+        "subscribed_at": "2025-12-10 17:03:56",
+        "alerts_enabled": true,
+        "alert_types": {
+            "rain": true,
+            "uv_high": true,
+            "storm": true,
+            "snow": true,
+            "fog": true,
+            "temp_high": true,
+            "temp_low": true
+        },
+        "lat": 22.4167422,
+        "lon": -83.7002582
+    },
+    "7598064937": {
+        "city": "Pinar del Río",
+        "country": "CU",
+        "timezone": "UTC-5",
+        "alert_time": "07:00",
+        "subscribed_at": "2025-12-11 20:01:50",
+        "alerts_enabled": true,
+        "alert_types": {
+            "rain": true,
+            "uv_high": true,
+            "storm": true,
+            "snow": true,
+            "fog": true,
+            "temp_high": true,
+            "temp_low": true
+        },
+        "lat": 22.4167422,
+        "lon": -83.7002582
+    },
+    "5645098121": {
+        "city": "Pinar del Río",
+        "country": "CU",
+        "timezone": "UTC-5",
+        "alert_time": "08:00",
+        "subscribed_at": "2025-12-12 07:25:23",
+        "alerts_enabled": true,
+        "alert_types": {
+            "rain": true,
+            "uv_high": true,
+            "storm": true,
+            "snow": true,
+            "fog": true,
+            "temp_high": true,
+            "temp_low": true
+        },
+        "lat": 22.4167422,
+        "lon": -83.7002582
+    },
+    "1148031284": {
+        "city": "Pinar del Río",
+        "country": "CU",
+        "timezone": "UTC-5",
+        "alert_time": "07:00",
+        "subscribed_at": "2025-12-12 08:41:08",
+        "alerts_enabled": true,
+        "alert_types": {
+            "rain": true,
+            "uv_high": true,
+            "storm": true,
+            "snow": true,
+            "fog": true,
+            "temp_high": true,
+            "temp_low": true
+        }
+    }
+}

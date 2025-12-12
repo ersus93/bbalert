@@ -34,6 +34,9 @@ def subscribe_user(user_id, city, country, timezone, alert_time="07:00"):
         "alert_time": alert_time,
         "subscribed_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         "alerts_enabled": True,
+        # INICIALIZAMOS LAT/LON AQUI TAMBIEN POR SI ACASO (Aunque el handler ya lo hace)
+        "lat": None, 
+        "lon": None,
         "alert_types": {
             "rain": True,
             "uv_high": True,
@@ -47,6 +50,23 @@ def subscribe_user(user_id, city, country, timezone, alert_time="07:00"):
     save_weather_subscriptions(subs)
     return True
 
+# --- NUEVA FUNCIÓN PARA PERSISTENCIA DE COORDENADAS ---
+def update_user_coords(user_id, lat, lon):
+    """
+    Actualiza latitud y longitud de un usuario y GUARA EN DISCO.
+    Retorna True si se guardó correctamente.
+    """
+    subs = load_weather_subscriptions() # 1. Cargar estado actual
+    user_key = str(user_id)
+    
+    if user_key in subs:
+        subs[user_key]['lat'] = lat
+        subs[user_key]['lon'] = lon
+        save_weather_subscriptions(subs) # 2. Escribir en disco inmediatamente
+        return True
+    return False
+# -------------------------------------------------------
+
 def unsubscribe_user(user_id):
     """Elimina la suscripción de un usuario."""
     subs = load_weather_subscriptions()
@@ -57,7 +77,6 @@ def unsubscribe_user(user_id):
     return False
 
 def update_alert_time(user_id, alert_time):
-    """Actualiza la hora del resumen diario."""
     subs = load_weather_subscriptions()
     if str(user_id) in subs:
         subs[str(user_id)]['alert_time'] = alert_time
@@ -66,9 +85,12 @@ def update_alert_time(user_id, alert_time):
     return False
 
 def toggle_alert_type(user_id, alert_type):
-    """Activa/desactiva un tipo de alerta específico."""
     subs = load_weather_subscriptions()
     if str(user_id) in subs:
+        # Asegurar que existe el diccionario de tipos
+        if 'alert_types' not in subs[str(user_id)]:
+            subs[str(user_id)]['alert_types'] = {}
+            
         current = subs[str(user_id)]['alert_types'].get(alert_type, True)
         subs[str(user_id)]['alert_types'][alert_type] = not current
         save_weather_subscriptions(subs)
@@ -76,17 +98,15 @@ def toggle_alert_type(user_id, alert_type):
     return False
 
 def get_user_subscription(user_id):
-    """Obtiene la suscripción de un usuario."""
     subs = load_weather_subscriptions()
     return subs.get(str(user_id))
 
 def get_all_subscribed_users():
-    """Obtiene todos los usuarios suscritos."""
     subs = load_weather_subscriptions()
+    # Retorna solo usuarios con alertas habilitadas
     return [uid for uid, data in subs.items() if data.get('alerts_enabled', False)]
 
 def update_last_alert_time(user_id, alert_type):
-    """Registra la última vez que se envió una alerta."""
     if not os.path.exists(WEATHER_LAST_ALERTS_PATH):
         data = {}
     else:
@@ -106,7 +126,6 @@ def update_last_alert_time(user_id, alert_type):
         json.dump(data, f, indent=4)
 
 def should_send_alert(user_id, alert_type, cooldown_hours=3):
-    """Verifica si se debe enviar una alerta (evita spam)."""
     if not os.path.exists(WEATHER_LAST_ALERTS_PATH):
         return True
     

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import time 
 import uuid # Para generar IDs únicos si es necesario
 import openpyxl
+from utils.logger import save_log_to_disk
 from core.config import (
     USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, 
     PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH, 
@@ -81,6 +82,7 @@ def add_log_line(linea):
     if len(LOG_LINES) > LOG_MAX:
         del LOG_LINES[0]
     print(LOG_LINES[-1])
+    save_log_to_disk(linea)
 
 # === FUNCIONES DE UMBRALES HBD ===
 def load_hbd_thresholds():

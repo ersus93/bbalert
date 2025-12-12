@@ -281,6 +281,7 @@ async def cancel_ms(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 # Definición del ConversationHandler para el comando /ms
+# Definición del ConversationHandler para el comando /ms
 ms_conversation_handler = ConversationHandler(
     entry_points=[CommandHandler("ms", ms_start)],
     states={
@@ -299,10 +300,9 @@ ms_conversation_handler = ConversationHandler(
         ],
     },
     fallbacks=[CommandHandler("cancelar", cancel_ms)],
-    conversation_timeout=600, # Se cancela automáticamente después de 10 minutos de inactividad
-    per_message=True
+    conversation_timeout=600, 
+    # per_message=True  <---  COMENTANDO ESTA LÍNEA
 )
-
 # Referencias para inyección de funciones
 # Estas referencias se inyectan desde bbalert para enviar mensajes masivos y obtener logs
 _enviar_mensaje_telegram_async_ref = None

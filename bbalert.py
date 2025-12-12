@@ -2,6 +2,7 @@
  
 import asyncio
 from telegram import Update
+from telegram.error import BadRequest
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
 from telegram.constants import ParseMode
 from utils.file_manager import add_log_line, cargar_usuarios
@@ -148,14 +149,14 @@ def main():
     # 1. FUNCIÓN DE ENVÍO DE MENSAJES
     async def enviar_mensajes(mensaje, chat_ids, parse_mode=ParseMode.MARKDOWN, reply_markup=None, photo=None):
         """
-        Envía un mensaje a una lista de chat_ids y reporta errores detallados.
-        Automáticamente elimina a los usuarios que han bloqueado el bot.
+        Envía mensaje a lista de chat_ids. Si falla el Markdown, reintenta en texto plano.
         """
         fallidos = {}
         usuarios_actualizados = None
 
         for chat_id in chat_ids:
             try:
+                # Intentamos enviar con el formato original (Markdown)
                 if photo:
                     caption = mensaje.strip() if mensaje and mensaje.strip() else None
                     await app.bot.send_photo(
@@ -172,9 +173,39 @@ def main():
                         parse_mode=parse_mode,
                         reply_markup=reply_markup
                     )
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(0.05) # Pequeña pausa para evitar flood limits
+
+            except BadRequest as e:
+                # SI FALLA EL FORMATO (Markdown roto), REINTENTAMOS EN TEXTO PLANO
+                error_str = str(e)
+                if "parse entities" in error_str or "can't find end" in error_str:
+                    try:
+                        add_log_line(f"⚠️ Formato Markdown fallido para {chat_id}. Reenviando como texto plano.")
+                        if photo:
+                            await app.bot.send_photo(
+                                chat_id=int(chat_id),
+                                photo=photo,
+                                caption=mensaje, # Sin parse_mode
+                                reply_markup=reply_markup
+                            )
+                        else:
+                            await app.bot.send_message(
+                                chat_id=int(chat_id),
+                                text=mensaje, 
+                                parse_mode=None, # <--- Sin formato
+                                reply_markup=reply_markup
+                            )
+                    except Exception as e2:
+                        # Si falla incluso en texto plano, entonces sí es un error real
+                        fallidos[chat_id] = str(e2)
+                        add_log_line(f"❌ Fallo definitivo al enviar a {chat_id}: {e2}")
+                else:
+                    # Otros errores BadRequest (ej: chat not found)
+                    fallidos[chat_id] = error_str
+                    add_log_line(f"❌ Error BadRequest en {chat_id}: {error_str}")
 
             except Exception as e:
+                # Errores generales (Bloqueos, red, etc)
                 error_str = str(e)
                 fallidos[chat_id] = error_str
                 add_log_line(f"❌ Fallo al enviar a {chat_id}: {error_str}")
