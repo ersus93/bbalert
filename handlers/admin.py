@@ -301,7 +301,7 @@ ms_conversation_handler = ConversationHandler(
     },
     fallbacks=[CommandHandler("cancelar", cancel_ms)],
     conversation_timeout=600, 
-    per_message=True # <---  COMENTANDO ESTA LÍNEA
+    #per_message=True # <---  COMENTANDO ESTA LÍNEA
 )
 # Referencias para inyección de funciones
 # Estas referencias se inyectan desde bbalert para enviar mensajes masivos y obtener logs
