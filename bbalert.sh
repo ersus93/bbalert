@@ -227,9 +227,9 @@ while true; do
 
     case $option in
         1) install_bot ;;
-        2) manage_service "start" ;;
+        2) manage_service "start"; view_logs ;;
         3) manage_service "stop" ;;
-        4) manage_service "restart" ;;
+        4) manage_service "restart"; view_logs ;;
         5) manage_service "status" ;;
         6) view_logs ;;
         7) check_dependencies "interactive" ;;

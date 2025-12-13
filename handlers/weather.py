@@ -341,106 +341,215 @@ async def weather_subscribe_command(update: Update, context: ContextTypes.DEFAUL
         
     return LOCATION_INPUT
 
+# handlers/weather.py - LÍNEA 230 (DENTRO DE location_handler)
+
 async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Recibe la ubicación y configura la zona horaria automáticamente."""
+    """✅ Recibe ubicación y configura zona horaria automáticamente."""
     user_id = update.effective_user.id
+    
+    # ✅ LOG DE DEBUG
+    from utils.file_manager import add_log_line
+    add_log_line(f"🔍 location_handler llamado para usuario {user_id}")
     
     lat = None
     lon = None
     
+    # ✅ Procesar ubicación GPS
     if update.message.location:
         lat = update.message.location.latitude
         lon = update.message.location.longitude
-    else:
+        add_log_line(f"📍 GPS recibido: {lat}, {lon}")
+    
+    # ✅ Procesar texto (nombre de ciudad)
+    elif update.message.text:
         text = update.message.text
+        add_log_line(f"📝 Texto recibido: {text}")
+        
         loc = get_location_from_query(text)
         if loc:
             lat = loc['lat']
             lon = loc['lon']
+            add_log_line(f"🗺️ Geocodificado: {lat}, {lon}")
         else:
-            await update.message.reply_text(_("❌ No entendí la ubicación. Por favor usa el botón 'Compartir Ubicación'.", user_id))
+            add_log_line(f"❌ Geocodificación falló para: {text}")
+            await update.message.reply_text(
+                "❌ No encontré esa ubicación. Intenta compartir tu ubicación GPS o escribe una ciudad más conocida.",
+                reply_markup=ReplyKeyboardRemove()
+            )
             return LOCATION_INPUT
-
+    
+    # ✅ Si no hay coordenadas válidas
+    if not lat or not lon:
+        add_log_line("❌ No se obtuvieron coordenadas válidas")
+        await update.message.reply_text(
+            "❌ No pude obtener tu ubicación. Por favor, usa el botón 'Compartir Ubicación'.",
+            reply_markup=ReplyKeyboardRemove()
+        )
+        return LOCATION_INPUT
+    
+    # ✅ Obtener datos del clima
+    add_log_line(f"🌐 Consultando API de clima para {lat}, {lon}")
     weather_data = get_current_weather(lat, lon)
+    
     if not weather_data:
-        await update.message.reply_text(_("❌ Error conectando con servicio de clima.", user_id), reply_markup=ReplyKeyboardRemove())
+        add_log_line("❌ API de clima no respondió")
+        await update.message.reply_text(
+            "❌ Error conectando con el servicio de clima. Intenta de nuevo más tarde.",
+            reply_markup=ReplyKeyboardRemove()
+        )
         return ConversationHandler.END
+    
+    # ✅ Extraer ciudad y país
+    city_name = weather_data.get("name", "")
+    country = weather_data.get("sys", {}).get("country", "")
+    
+    add_log_line(f"🏙️ Ciudad detectada: {city_name}, {country}")
+    
+    # ✅ Si no hay nombre de ciudad, usar geocoding reverso
+    if not city_name or city_name == "Ubicación":
+        add_log_line("🔄 Intentando geocoding reverso...")
+        from utils.weather_api import reverse_geocode
+        result = reverse_geocode(lat, lon)
         
+        if result:
+            city_name, country = result
+            add_log_line(f"✅ Geocoding reverso exitoso: {city_name}, {country}")
+        else:
+            city_name = f"Ubicación ({lat:.2f}, {lon:.2f})"
+            add_log_line(f"⚠️ Geocoding reverso falló, usando coordenadas")
+    
+    # ✅ Calcular zona horaria
     offset_sec = weather_data.get("timezone", 0)
     offset_hours = offset_sec / 3600
     tz_str = f"UTC{offset_hours:+.0f}"
-    city_name = weather_data.get("name", "Ubicación detectada")
-    country = weather_data.get("sys", {}).get("country", "")
-
+    
+    add_log_line(f"🕐 Zona horaria: {tz_str}")
+    
+    # ✅ Guardar en contexto de usuario
     context.user_data['weather_sub'] = {
         'city': city_name,
         'country': country,
         'timezone': tz_str,
-        'lat': lat, 
-        'lon': lon
+        'lat': float(lat),
+        'lon': float(lon)
     }
     
-    keyboard = []
-    keyboard.append([InlineKeyboardButton("07:00", callback_data="weather_time_07"), InlineKeyboardButton("08:00", callback_data="weather_time_08")])
-    keyboard.append([InlineKeyboardButton("09:00", callback_data="weather_time_09"), InlineKeyboardButton("20:00", callback_data="weather_time_20")])
+    add_log_line(f"💾 Datos guardados en context.user_data")
+    
+    # ✅ Crear teclado de selección de hora
+    keyboard = [
+        [
+            InlineKeyboardButton("07:00", callback_data="weather_time_07"),
+            InlineKeyboardButton("08:00", callback_data="weather_time_08")
+        ],
+        [
+            InlineKeyboardButton("09:00", callback_data="weather_time_09"),
+            InlineKeyboardButton("20:00", callback_data="weather_time_20")
+        ]
+    ]
+    
+    msg = (
+        f"✅ *Ubicación recibida correctamente*\n\n"
+        f"📍 *Ciudad:* {city_name}, {country}\n"
+        f"🌍 *Zona Horaria:* {tz_str}\n\n"
+        f"📅 *Último paso:* ¿A qué hora quieres recibir el resumen diario del clima?"
+    )
     
     await update.message.reply_text(
-        _(
-            f"✅ Ubicación recibida: *{city_name}, {country}*\n"
-            f"🌍 Zona Horaria detectada: *{tz_str}*\n\n"
-            f"📅 *Último paso:* ¿A qué hora quieres recibir el resumen diario del clima?",
-            user_id
-        ),
+        msg,
         reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.MARKDOWN
     )
     
+    # ✅ Eliminar teclado de ubicación
+    await update.message.reply_text(
+        "🔽 Menú cerrado",
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    add_log_line(f"✅ location_handler completado exitosamente")
+    
     return ConversationHandler.END
 
+
+
 async def weather_time_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Finaliza la suscripción al elegir la hora."""
+    """✅ Finaliza suscripción pasando TODAS las coordenadas."""
     query = update.callback_query
     await query.answer()
     
-    data = query.data
     user_id = query.from_user.id
+    data = query.data
     
-    if "weather_time_" in data:
-        hour = data.split("_")[2]
-        alert_time = f"{hour}:00"
-        
-        sub_data = context.user_data.get('weather_sub')
-        if not sub_data:
-            await query.edit_message_text("❌ Error: Datos de sesión perdidos. Intenta /weather_sub de nuevo.")
-            return
+    from utils.file_manager import add_log_line
+    add_log_line(f"🔍 weather_time_callback llamado para usuario {user_id}")
+    
+    if "weather_time_" not in data:
+        add_log_line(f"⚠️ Callback data inválido: {data}")
+        return
+    
+    hour = data.split("_")[2]
+    alert_time = f"{hour}:00"
+    
+    add_log_line(f"⏰ Hora seleccionada: {alert_time}")
+    
+    sub_data = context.user_data.get('weather_sub')
+    if not sub_data:
+        add_log_line("❌ No hay datos en context.user_data")
+        await query.edit_message_text("❌ Error: Datos perdidos. Intenta de nuevo con /w")
+        return
+    
+    add_log_line(f"📦 Datos recuperados: {sub_data}")
+    
+    # ✅ Validar coordenadas
+    if 'lat' not in sub_data or 'lon' not in sub_data:
+        add_log_line("❌ Faltan coordenadas en sub_data")
+        await query.edit_message_text("❌ Error: Coordenadas no válidas.")
+        return
+    
+    # ✅ Llamar a subscribe_user
+    add_log_line(f"💾 Intentando suscribir usuario {user_id}...")
+    
+    success = subscribe_user(
+        user_id,
+        sub_data['city'],
+        sub_data['country'],
+        sub_data['timezone'],
+        sub_data['lat'],
+        sub_data['lon'],
+        alert_time
+    )
+    
+    if not success:
+        add_log_line(f"❌ subscribe_user falló para {user_id}")
+        await query.edit_message_text("❌ Error al guardar suscripción. Revisa los logs.")
+        return
+    
+    add_log_line(f"✅ Usuario {user_id} suscrito exitosamente")
+    
+    msg = (
+        f"🎉 *¡Suscripción Activada!*\n\n"
+        f"📍 *{sub_data['city']}* ({sub_data['timezone']})\n"
+        f"⏰ Resumen diario: *{alert_time}*\n\n"
+        f"Te avisaré sobre lluvia, tormentas y UV alto."
+    )
+    
+    from utils.ads_manager import get_random_ad_text
+    msg += "\n\n" + get_random_ad_text()
+    
+    await context.bot.send_message(
+        chat_id=user_id,
+        text=msg,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=ReplyKeyboardRemove()
+    )
+    
+    try:
+        await query.message.delete()
+    except:
+        pass
 
-        subscribe_user(
-            user_id,
-            sub_data['city'],
-            sub_data['country'],
-            sub_data['timezone'],
-            alert_time
-        )
-        
-        msg = _(
-            f"🎉 *¡Suscripción Activada!*\n\n"
-            f"📍 *{sub_data['city']}* ({sub_data['timezone']})\n"
-            f"⏰ Resumen: *{alert_time}*\n\n"
-            f"Te avisaré si va a llover, si hay tormenta o UV alto.",
-            user_id
-        )
-        msg += get_random_ad_text()
-        
-        await context.bot.send_message(
-            chat_id=user_id, 
-            text=msg, 
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=ReplyKeyboardRemove()
-        )
-        try:
-            await query.message.delete()
-        except:
-            pass
+
 
 async def weather_settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra el panel de configuración."""
@@ -516,7 +625,6 @@ async def weather_unsub_flow(update: Update, context: ContextTypes.DEFAULT_TYPE)
 # --- REGISTRO DE HANDLERS ---
 weather_conversation_handler = ConversationHandler(
     entry_points=[
-        CommandHandler("weather_sub", weather_subscribe_command),
         CallbackQueryHandler(weather_subscribe_command, pattern="^weather_subscribe_start$")
     ],
     states={
@@ -525,7 +633,13 @@ weather_conversation_handler = ConversationHandler(
             MessageHandler(filters.TEXT & ~filters.COMMAND, location_handler)
         ]
     },
-    fallbacks=[CommandHandler("cancel", weather_command)],
+    fallbacks=[
+        CommandHandler("cancel", weather_command),
+        CallbackQueryHandler(weather_command, pattern="^weather_menu$")
+    ],
+    per_message=False,  # ✅ Cambiado de True a False
+    allow_reentry=True,
+    name="weather_subscription"
 )
 
 weather_callback_handlers = [

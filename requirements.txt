@@ -13,3 +13,6 @@ feedparser
 requests
 requests[socks]
 chardet
+aiohttp 
+beautifulsoup4 
+lxml

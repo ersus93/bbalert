@@ -1,0 +1,610 @@
+[2025-12-12 14:30:15] | ----------- BOT INICIADO -----------
+[2025-12-12 14:30:15] | 🤖 Bot inicializado. Iniciando tareas de fondo...
+[2025-12-12 14:30:15] | ✅ Bucle de alertas de clima iniciado.
+[2025-12-12 14:30:15] | ✅ Bucle RSS iniciado.
+[2025-12-12 14:30:15] | ✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.
+[2025-12-12 14:30:15] | 👥 Encontrados 8 usuarios. Programando sus alertas periódicas...
+[2025-12-12 14:30:15] | ⏱️ Restaurando ciclo para 1148031284: Próxima alerta en 48.1 min.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_1148031284' programado para ejecutarse cada 4.0 horas.
+[2025-12-12 14:30:15] | ⏱️ Restaurando ciclo para 1058749165: Próxima alerta en 288.1 min.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_1058749165' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 14:30:15] | ⏱️ Restaurando ciclo para 5842558049: Próxima alerta en 288.1 min.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_5842558049' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 14:30:15] | ⏱️ Restaurando ciclo para 823941431: Próxima alerta en 288.1 min.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_823941431' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 14:30:15] | ⏱️ Restaurando ciclo para 7598064937: Próxima alerta en 505.8 min.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_7598064937' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 14:30:15] | ⏱️ Restaurando ciclo para 1597973793: Próxima alerta en 212.9 min.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_1597973793' programado para ejecutarse cada 24.0 horas.
+[2025-12-12 14:30:15] | ⏱️ Restaurando ciclo para 5645098121: Próxima alerta en 445.8 min.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_5645098121' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 14:30:15] | ⏱️ Alerta atrasada para -1003424894407. Se enviará en 5s.
+[2025-12-12 14:30:15] | ✅ Job 'user_alert_-1003424894407' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 14:30:15] | ✅ Todas las tareas de fondo han sido iniciadas.
+[2025-12-12 14:30:15] | 🌦️ Monitor de Clima: INICIADO (Modo Depuración Activado)
+[2025-12-12 14:30:15] | 📰 Iniciando Monitor RSS (Avanzado)...
+[2025-12-12 14:30:15] | ⏱️ Iniciando bucle HBD. Intervalo configurado: 300 segundos.
+[2025-12-12 14:30:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 14:30:17] | Historial de alertas personalizadas cargado. 3 monedas en memoria.
+[2025-12-12 14:30:17] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 14:30:18] | 📬 Notificación de inicio enviada a los administradores.
+[2025-12-12 14:30:18] | 🦁 Iniciando Monitor BTC PRO (Análisis Avanzado Activado)...
+[2025-12-12 14:30:18] | 🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...
+[2025-12-12 14:35:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 14:38:17] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 14:40:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 14:45:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 14:46:17] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 14:50:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 14:52:22] | ✅ RSS enviado (FOTO): Binance Wallet confirma su centralización bloqueando web maliciosa
+[2025-12-12 14:54:17] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 14:55:18] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 14:55:33] | ----------- BOT INICIADO -----------
+[2025-12-12 14:55:36] | 🤖 Bot inicializado. Iniciando tareas de fondo...
+[2025-12-12 14:55:36] | ✅ Bucle de alertas de clima iniciado.
+[2025-12-12 14:55:36] | ✅ Bucle RSS iniciado.
+[2025-12-12 14:55:36] | ✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.
+[2025-12-12 14:55:36] | 👥 Encontrados 8 usuarios. Programando sus alertas periódicas...
+[2025-12-12 14:55:36] | ⏱️ Restaurando ciclo para 1148031284: Próxima alerta en 22.7 min.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_1148031284' programado para ejecutarse cada 4.0 horas.
+[2025-12-12 14:55:36] | ⏱️ Restaurando ciclo para 1058749165: Próxima alerta en 262.8 min.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_1058749165' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 14:55:36] | ⏱️ Restaurando ciclo para 5842558049: Próxima alerta en 262.7 min.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_5842558049' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 14:55:36] | ⏱️ Restaurando ciclo para 823941431: Próxima alerta en 262.8 min.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_823941431' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 14:55:36] | ⏱️ Restaurando ciclo para 7598064937: Próxima alerta en 480.4 min.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_7598064937' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 14:55:36] | ⏱️ Restaurando ciclo para 1597973793: Próxima alerta en 187.5 min.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_1597973793' programado para ejecutarse cada 24.0 horas.
+[2025-12-12 14:55:36] | ⏱️ Restaurando ciclo para 5645098121: Próxima alerta en 420.5 min.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_5645098121' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 14:55:36] | ⏱️ Alerta atrasada para -1003424894407. Se enviará en 5s.
+[2025-12-12 14:55:36] | ✅ Job 'user_alert_-1003424894407' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 14:55:36] | ✅ Todas las tareas de fondo han sido iniciadas.
+[2025-12-12 14:55:36] | 🌦️ Monitor de Clima: INICIADO (Modo Depuración Activado)
+[2025-12-12 14:55:36] | 📰 Iniciando Monitor RSS (Avanzado)...
+[2025-12-12 14:55:36] | ⏱️ Iniciando bucle HBD. Intervalo configurado: 300 segundos.
+[2025-12-12 14:55:36] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 14:55:36] | Historial de alertas personalizadas cargado. 3 monedas en memoria.
+[2025-12-12 14:55:36] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 14:55:37] | 📬 Notificación de inicio enviada a los administradores.
+[2025-12-12 14:55:37] | 🦁 Iniciando Monitor BTC PRO (Análisis Avanzado Activado)...
+[2025-12-12 14:55:37] | 🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...
+[2025-12-12 15:00:36] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:00:39] | 🦁 Nuevos niveles BTC. Pivot: $90,076.92
+[2025-12-12 15:01:42] | 🦁 Alerta BTC: P_UP (NEUTRAL)
+[2025-12-12 15:03:36] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:05:36] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:05:37] | ✅ RSS enviado (FOTO): Ripple integra infraestructura de pagos con el banco suizo Amina para uso de stablecoins reguladas
+[2025-12-12 15:06:40] | ✅ RSS enviado (FOTO): Ripple, Circle y BitGo se convierten en “casi bancos” en EE. UU.: así empieza la ofensiva cripto sobre la banca tradicional
+[2025-12-12 15:10:37] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:11:36] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:15:37] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:18:22] | ✅ Alerta enviada a 1148031284. Precios y timestamp guardados.
+[2025-12-12 15:19:36] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:20:37] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:20:45] | ⚠️ Formato Markdown fallido para 7598064937. Reenviando como texto plano.
+[2025-12-12 15:21:01] | ----------- BOT INICIADO -----------
+[2025-12-12 15:21:02] | 🤖 Bot inicializado. Iniciando tareas de fondo...
+[2025-12-12 15:21:02] | ✅ Bucle de alertas de clima iniciado.
+[2025-12-12 15:21:02] | ✅ Bucle RSS iniciado.
+[2025-12-12 15:21:02] | ✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.
+[2025-12-12 15:21:02] | 👥 Encontrados 8 usuarios. Programando sus alertas periódicas...
+[2025-12-12 15:21:02] | ⏱️ Restaurando ciclo para 1148031284: Próxima alerta en 237.3 min.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_1148031284' programado para ejecutarse cada 4.0 horas.
+[2025-12-12 15:21:02] | ⏱️ Restaurando ciclo para 1058749165: Próxima alerta en 237.3 min.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_1058749165' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 15:21:02] | ⏱️ Restaurando ciclo para 5842558049: Próxima alerta en 237.3 min.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_5842558049' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 15:21:02] | ⏱️ Restaurando ciclo para 823941431: Próxima alerta en 237.3 min.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_823941431' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 15:21:02] | ⏱️ Restaurando ciclo para 7598064937: Próxima alerta en 455.0 min.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_7598064937' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 15:21:02] | ⏱️ Restaurando ciclo para 1597973793: Próxima alerta en 162.1 min.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_1597973793' programado para ejecutarse cada 24.0 horas.
+[2025-12-12 15:21:02] | ⏱️ Restaurando ciclo para 5645098121: Próxima alerta en 395.0 min.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_5645098121' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 15:21:02] | ⏱️ Alerta atrasada para -1003424894407. Se enviará en 5s.
+[2025-12-12 15:21:02] | ✅ Job 'user_alert_-1003424894407' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 15:21:02] | ✅ Todas las tareas de fondo han sido iniciadas.
+[2025-12-12 15:21:02] | 🌦️ Monitor de Clima: INICIADO (Modo Depuración Activado)
+[2025-12-12 15:21:02] | 📰 Iniciando Monitor RSS (Avanzado)...
+[2025-12-12 15:21:02] | ⏱️ Iniciando bucle HBD. Intervalo configurado: 300 segundos.
+[2025-12-12 15:21:02] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:21:02] | Historial de alertas personalizadas cargado. 3 monedas en memoria.
+[2025-12-12 15:21:03] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:21:04] | 📬 Notificación de inicio enviada a los administradores.
+[2025-12-12 15:21:04] | 🦁 Iniciando Monitor BTC PRO (Análisis Avanzado Activado)...
+[2025-12-12 15:21:04] | 🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...
+[2025-12-12 15:22:06] | ✅ RSS enviado (FOTO): Broadcom sacude al Nasdaq: desplome de los chips y caída de más del 2% en las tecnológicas
+[2025-12-12 15:26:02] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:29:04] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:31:02] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:33:11] | 🦁 Alerta BTC: P_DOWN (NEUTRAL)
+[2025-12-12 15:36:03] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:37:04] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:37:12] | ✅ RSS enviado (FOTO): Un “río atmosférico” desata inundaciones históricas en el noroeste del Pacífico
+[2025-12-12 15:38:13] | ✅ RSS enviado (FOTO): Solana tiene un nuevo software para validar transacciones
+[2025-12-12 15:41:03] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:45:04] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:46:04] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:51:04] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 15:51:17] | ✅ RSS enviado (FOTO): World evoluciona a super app con mensajería segura y billetera cripto tras nueva actualización
+[2025-12-12 15:53:04] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 15:56:04] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:01:04] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:01:05] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 16:06:04] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:06:20] | ✅ RSS enviado (FOTO): Director de Hollywood fue condenado en EEUU tras desviar fondos de Netflix para invertir en criptomonedas
+[2025-12-12 16:07:23] | ✅ RSS enviado (FOTO): El “rally de Papá Noel” brilla por su ausencia: Dow Jones cae 245 puntos
+[2025-12-12 16:08:17] | ⚠️ Formato Markdown fallido para 7598064937. Reenviando como texto plano.
+[2025-12-12 16:09:05] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 16:11:05] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:16:05] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:17:05] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 16:21:05] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:22:27] | ✅ RSS enviado (FOTO): Un terremoto de 5,3 sacude la costa de Japón sin aviso de tsunami
+[2025-12-12 16:25:05] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 16:26:05] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:31:08] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:33:10] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 16:36:08] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:36:29] | ✅ RSS enviado (FOTO): Google refuerza su apuesta por la IA con una versión reimaginada de Gemini Deep Research
+[2025-12-12 16:41:08] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:41:10] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 16:46:08] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:49:10] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 16:51:08] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:56:09] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 16:57:10] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:01:09] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:05:10] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:06:09] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:06:36] | ✅ RSS enviado (FOTO): Autoridades de Florida incautan USD $1,5 millones en criptomonedas vinculados a una estafa
+[2025-12-12 17:11:09] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:13:10] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:16:09] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:21:10] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:21:11] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:26:10] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:29:11] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:31:10] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:36:10] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:36:43] | ✅ RSS enviado (FOTO): HIVE Digital Technologies debuta en la bolsa colombiana con su modelo de minería Bitcoin e IA
+[2025-12-12 17:37:11] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:41:10] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:45:11] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:46:11] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:51:11] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 17:53:11] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 17:56:11] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:01:11] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:01:12] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 18:03:08] | ✅ Alerta enviada a 1597973793. Precios y timestamp guardados.
+[2025-12-12 18:06:12] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:09:12] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 18:11:12] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:16:12] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:17:12] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 18:21:12] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:25:12] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 18:26:12] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:31:13] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:33:12] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 18:36:13] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:36:59] | ✅ RSS enviado (FOTO): WhiteBIT lanza campaña de reembolsos hasta por 30% en alianza con TradingView y Tether
+[2025-12-12 18:41:13] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 18:41:13] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:46:13] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:49:13] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 18:51:13] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:52:03] | ✅ RSS enviado (FOTO): Tether anuncia planes para adquirir totalmente al equipo italiano Juventus FC
+[2025-12-12 18:56:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 18:57:13] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:00:03] | 🦁 Nuevos niveles BTC. Pivot: $90,232.96
+[2025-12-12 19:01:00] | ⚠️ Formato Markdown fallido para 7598064937. Reenviando como texto plano.
+[2025-12-12 19:01:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:03:05] | 🦁 Alerta BTC: P_UP (NEUTRAL)
+[2025-12-12 19:05:13] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:06:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:11:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:13:13] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:16:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:18:21] | ✅ Alerta enviada a 5842558049. Precios y timestamp guardados.
+[2025-12-12 19:18:22] | ✅ Alerta enviada a 823941431. Precios y timestamp guardados.
+[2025-12-12 19:18:22] | ✅ Alerta enviada a 1148031284. Precios y timestamp guardados.
+[2025-12-12 19:18:23] | ✅ Alerta enviada a 1058749165. Precios y timestamp guardados.
+[2025-12-12 19:21:13] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:21:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:26:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:29:15] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:31:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:36:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:37:15] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:40:11] | ⚠️ Formato Markdown fallido para 7598064937. Reenviando como texto plano.
+[2025-12-12 19:41:16] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:45:15] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:46:16] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:51:16] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 19:53:15] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 19:56:16] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:01:15] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 20:01:16] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:06:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:09:16] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 20:11:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:16:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:17:16] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 20:21:17] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:25:20] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 20:26:18] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:31:18] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:33:20] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 20:36:18] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:41:18] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:41:20] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 20:41:32] | 🦁 Alerta BTC: P_DOWN (NEUTRAL)
+[2025-12-12 20:46:18] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:49:26] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 20:51:18] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:56:19] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 20:57:28] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:01:19] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:05:28] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:06:19] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:11:19] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:13:28] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:15:20] | ----------- BOT INICIADO -----------
+[2025-12-12 21:15:21] | 🤖 Bot inicializado. Iniciando tareas de fondo...
+[2025-12-12 21:15:21] | ✅ Bucle de alertas de clima iniciado.
+[2025-12-12 21:15:21] | ✅ Bucle RSS iniciado.
+[2025-12-12 21:15:21] | ✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.
+[2025-12-12 21:15:21] | 👥 Encontrados 8 usuarios. Programando sus alertas periódicas...
+[2025-12-12 21:15:21] | ⏱️ Restaurando ciclo para 1148031284: Próxima alerta en 123.0 min.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_1148031284' programado para ejecutarse cada 4.0 horas.
+[2025-12-12 21:15:21] | ⏱️ Restaurando ciclo para 1058749165: Próxima alerta en 363.0 min.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_1058749165' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 21:15:21] | ⏱️ Restaurando ciclo para 5842558049: Próxima alerta en 363.0 min.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_5842558049' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 21:15:21] | ⏱️ Restaurando ciclo para 823941431: Próxima alerta en 363.0 min.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_823941431' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 21:15:21] | ⏱️ Restaurando ciclo para 7598064937: Próxima alerta en 100.7 min.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_7598064937' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 21:15:21] | ⏱️ Restaurando ciclo para 1597973793: Próxima alerta en 1247.8 min.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_1597973793' programado para ejecutarse cada 24.0 horas.
+[2025-12-12 21:15:21] | ⏱️ Restaurando ciclo para 5645098121: Próxima alerta en 40.7 min.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_5645098121' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 21:15:21] | ⏱️ Alerta atrasada para -1003424894407. Se enviará en 5s.
+[2025-12-12 21:15:21] | ✅ Job 'user_alert_-1003424894407' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 21:15:21] | ✅ Todas las tareas de fondo han sido iniciadas.
+[2025-12-12 21:15:21] | 🌦️ Monitor de Clima: INICIADO (Modo Depuración Activado)
+[2025-12-12 21:15:21] | 📰 Iniciando Monitor RSS (Avanzado)...
+[2025-12-12 21:15:21] | ⏱️ Iniciando bucle HBD. Intervalo configurado: 300 segundos.
+[2025-12-12 21:15:21] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:15:21] | Historial de alertas personalizadas cargado. 3 monedas en memoria.
+[2025-12-12 21:15:21] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:15:22] | 📬 Notificación de inicio enviada a los administradores.
+[2025-12-12 21:15:22] | 🦁 Iniciando Monitor BTC PRO (Análisis Avanzado Activado)...
+[2025-12-12 21:15:22] | 🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...
+[2025-12-12 21:20:21] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:23:22] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:25:21] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:30:22] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:31:22] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:35:22] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:39:22] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:40:22] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:45:22] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:47:22] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:50:23] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:55:22] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 21:55:23] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 21:56:05] | ✅ Alerta enviada a 5645098121. Precios y timestamp guardados.
+[2025-12-12 22:00:23] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:03:23] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:05:23] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:10:23] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:11:23] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:15:24] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:19:23] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:20:25] | ----------- BOT INICIADO -----------
+[2025-12-12 22:20:26] | 🤖 Bot inicializado. Iniciando tareas de fondo...
+[2025-12-12 22:20:26] | ✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).
+[2025-12-12 22:20:26] | ✅ Bucle de alertas de clima iniciado.
+[2025-12-12 22:20:26] | ✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.
+[2025-12-12 22:20:26] | 👥 Encontrados 8 usuarios. Programando sus alertas periódicas...
+[2025-12-12 22:20:26] | ⏱️ Restaurando ciclo para 1148031284: Próxima alerta en 57.9 min.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_1148031284' programado para ejecutarse cada 4.0 horas.
+[2025-12-12 22:20:26] | ⏱️ Restaurando ciclo para 1058749165: Próxima alerta en 297.9 min.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_1058749165' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 22:20:26] | ⏱️ Restaurando ciclo para 5842558049: Próxima alerta en 297.9 min.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_5842558049' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 22:20:26] | ⏱️ Restaurando ciclo para 823941431: Próxima alerta en 297.9 min.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_823941431' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 22:20:26] | ⏱️ Restaurando ciclo para 7598064937: Próxima alerta en 35.6 min.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_7598064937' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 22:20:26] | ⏱️ Restaurando ciclo para 1597973793: Próxima alerta en 1182.7 min.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_1597973793' programado para ejecutarse cada 24.0 horas.
+[2025-12-12 22:20:26] | ⏱️ Restaurando ciclo para 5645098121: Próxima alerta en 695.6 min.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_5645098121' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 22:20:26] | ⏱️ Alerta atrasada para -1003424894407. Se enviará en 5s.
+[2025-12-12 22:20:26] | ✅ Job 'user_alert_-1003424894407' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 22:20:26] | ✅ Todas las tareas de fondo han sido iniciadas.
+[2025-12-12 22:20:26] | 📰 RSS Monitor v2 Iniciado...
+[2025-12-12 22:20:26] | 🌦️ Monitor de Clima: INICIADO (Modo Depuración Activado)
+[2025-12-12 22:20:26] | ⏱️ Iniciando bucle HBD. Intervalo configurado: 300 segundos.
+[2025-12-12 22:20:26] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:20:26] | Historial de alertas personalizadas cargado. 3 monedas en memoria.
+[2025-12-12 22:20:26] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:20:27] | 📬 Notificación de inicio enviada a los administradores.
+[2025-12-12 22:20:27] | 🦁 Iniciando Monitor BTC PRO (Análisis Avanzado Activado)...
+[2025-12-12 22:20:27] | 🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...
+[2025-12-12 22:23:13] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:23:13] | ✅ Descargado: https://www.criptonoticias.com/feed (14920 bytes)
+[2025-12-12 22:23:13] | ✅ Feed 'CriptoNoticias – Noticias de Bitcoin, Ethereum y criptomonedas' añadido correctamente
+[2025-12-12 22:23:36] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:23:36] | ✅ Descargado: https://www.criptonoticias.com/feed (14920 bytes)
+[2025-12-12 22:23:36] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 22:23:43] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:23:44] | ✅ Descargado: https://www.negocios.com/rss (39536 bytes)
+[2025-12-12 22:23:44] | ✅ Feed 'Negocios TV :: Últimas noticias' añadido correctamente
+[2025-12-12 22:24:36] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:24:36] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:24:37] | ✅ Descargado: https://www.linuxadictos.com/feed (168527 bytes)
+[2025-12-12 22:24:37] | ✅ Feed 'Linux Adictos' añadido correctamente
+[2025-12-12 22:24:37] | ✅ Descargado: https://www.negocios.com/rss (39536 bytes)
+[2025-12-12 22:24:37] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 22:25:21] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:25:23] | ✅ Descargado: https://www.diariobitcoin.com/feed (254307 bytes)
+[2025-12-12 22:25:23] | ✅ Feed 'DiarioBitcoin' añadido correctamente
+[2025-12-12 22:25:26] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:25:39] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:25:40] | ✅ Descargado: https://www.diariobitcoin.com/feed (254307 bytes)
+[2025-12-12 22:25:40] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 22:26:47] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:26:47] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:26:47] | ⚠️ No es feed válido. Buscando en la página...
+[2025-12-12 22:26:47] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:26:48] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:26:48] | 🔍 Feed en ruta común: https://es.beincrypto.com/feed
+[2025-12-12 22:26:48] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:26:48] | ✅ Feed 'BeInCrypto' añadido correctamente
+[2025-12-12 22:26:54] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:26:54] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:26:54] | ⚠️ No es feed válido. Buscando en la página...
+[2025-12-12 22:26:54] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:26:55] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:26:55] | 🔍 Feed en ruta común: https://es.beincrypto.com/feed
+[2025-12-12 22:26:55] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:26:55] | ✅ [BitBread] Enviado como FOTO a -1002014160991
+[2025-12-12 22:26:58] | ✅ Feed procesado: 1 entradas enviadas
+[2025-12-12 22:27:40] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:27:40] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:27:40] | ⚠️ No es feed válido. Buscando en la página...
+[2025-12-12 22:27:40] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:27:40] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:27:40] | 🔍 Feed en ruta común: https://es.beincrypto.com/feed
+[2025-12-12 22:27:40] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:27:40] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 22:28:24] | ✅ Plantilla actualizada para feed 49142f6e-0b7
+[2025-12-12 22:28:27] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:28:28] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 22:28:28] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:28:28] | ⚠️ No es feed válido. Buscando en la página...
+[2025-12-12 22:28:28] | ✅ Descargado: https://es.beincrypto.com/ (783909 bytes)
+[2025-12-12 22:28:28] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:28:28] | 🔍 Feed en ruta común: https://es.beincrypto.com/feed
+[2025-12-12 22:28:28] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 22:28:28] | ✅ [BitBread] Enviado como FOTO a -1002014160991
+[2025-12-12 22:28:31] | ✅ Feed procesado: 1 entradas enviadas
+[2025-12-12 22:30:27] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:32:06] | 🔍 Tipo detectado: instagram | ID: maxisclub
+[2025-12-12 22:32:06] | 🔄 Intentando: https://rsshub.app/instagram/user/maxisclub...
+[2025-12-12 22:32:32] | ⚠️ Falló https://rsshub.app/instagram/user/maxisclub:
+[2025-12-12 22:32:32] | 🔄 Intentando: https://rss.nixnet.services/instagram/user/maxisclub...
+[2025-12-12 22:32:33] | 🔄 Intentando: https://rsshub.rssforever.com/instagram/user/maxisclub...
+[2025-12-12 22:32:35] | 🔄 Intentando: https://bibliogram.art/u/maxisclub/rss.xml...
+[2025-12-12 22:32:36] | ⚠️ Falló https://bibliogram.art/u/maxisclub/rss.xml: Server disconnected
+[2025-12-12 22:35:16] | 🔍 Tipo detectado: twitter | ID: elonmus
+[2025-12-12 22:35:16] | 🔄 Intentando: https://nitter.net/elonmus/rss...
+[2025-12-12 22:35:17] | 🔄 Intentando: https://nitter.poast.org/elonmus/rss...
+[2025-12-12 22:35:18] | 🔄 Intentando: https://nitter.privacydev.net/elonmus/rss...
+[2025-12-12 22:35:18] | ⚠️ Falló https://nitter.privacydev.net/elonmus/rss: Cannot connect to host nitter.privacydev.net:443 s
+[2025-12-12 22:35:18] | 🔄 Intentando: https://rsshub.app/twitter/user/elonmus...
+[2025-12-12 22:35:19] | 🔄 Intentando: https://rss.nixnet.services/twitter/user/elonmus...
+[2025-12-12 22:35:20] | 🔄 Intentando: https://rsshub.rssforever.com/twitter/user/elonmus...
+[2025-12-12 22:35:22] | 🔄 Intentando: https://rss-bridge.org/bridge01/?action=display&bridge=Twitter&context...
+[2025-12-12 22:35:24] | 🔄 Intentando: https://wtf.roflcopter.fr/rss-bridge/?action=display&bridge=Twitter&co...
+[2025-12-12 22:35:24] | ✅ Éxito con: https://wtf.roflcopter.fr/rss-bridge/?action=display&bridge=Twitter&co
+[2025-12-12 22:35:24] | ✅ Feed '🐦 Twitter @elonmus' añadido correctamente
+[2025-12-12 22:35:27] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:35:33] | 🔍 Tipo detectado: twitter | ID: elonmus
+[2025-12-12 22:35:33] | 🔄 Intentando: https://nitter.net/elonmus/rss...
+[2025-12-12 22:35:34] | 🔄 Intentando: https://nitter.poast.org/elonmus/rss...
+[2025-12-12 22:35:34] | 🔄 Intentando: https://nitter.privacydev.net/elonmus/rss...
+[2025-12-12 22:35:34] | ⚠️ Falló https://nitter.privacydev.net/elonmus/rss: Cannot connect to host nitter.privacydev.net:443 s
+[2025-12-12 22:35:34] | 🔄 Intentando: https://rsshub.app/twitter/user/elonmus...
+[2025-12-12 22:35:35] | 🔄 Intentando: https://rss.nixnet.services/twitter/user/elonmus...
+[2025-12-12 22:35:37] | 🔄 Intentando: https://rsshub.rssforever.com/twitter/user/elonmus...
+[2025-12-12 22:35:38] | 🔄 Intentando: https://rss-bridge.org/bridge01/?action=display&bridge=Twitter&context...
+[2025-12-12 22:35:39] | 🔄 Intentando: https://wtf.roflcopter.fr/rss-bridge/?action=display&bridge=Twitter&co...
+[2025-12-12 22:35:40] | ✅ Éxito con: https://wtf.roflcopter.fr/rss-bridge/?action=display&bridge=Twitter&co
+[2025-12-12 22:35:42] | 🔍 Tipo detectado: twitter | ID: elonmus
+[2025-12-12 22:35:42] | 🔄 Intentando: https://nitter.net/elonmus/rss...
+[2025-12-12 22:35:42] | ✅ [BitBread] Enviado como TEXTO a -1002014160991
+[2025-12-12 22:35:42] | 🔄 Intentando: https://nitter.poast.org/elonmus/rss...
+[2025-12-12 22:35:43] | 🔄 Intentando: https://nitter.privacydev.net/elonmus/rss...
+[2025-12-12 22:35:43] | ⚠️ Falló https://nitter.privacydev.net/elonmus/rss: Cannot connect to host nitter.privacydev.net:443 s
+[2025-12-12 22:35:43] | 🔄 Intentando: https://rsshub.app/twitter/user/elonmus...
+[2025-12-12 22:35:43] | 🔄 Intentando: https://rss.nixnet.services/twitter/user/elonmus...
+[2025-12-12 22:35:45] | ✅ Feed procesado: 1 entradas enviadas
+[2025-12-12 22:35:45] | 🔄 Intentando: https://rsshub.rssforever.com/twitter/user/elonmus...
+[2025-12-12 22:35:45] | 🔄 Intentando: https://rss-bridge.org/bridge01/?action=display&bridge=Twitter&context...
+[2025-12-12 22:35:46] | 🔄 Intentando: https://wtf.roflcopter.fr/rss-bridge/?action=display&bridge=Twitter&co...
+[2025-12-12 22:35:46] | ✅ Éxito con: https://wtf.roflcopter.fr/rss-bridge/?action=display&bridge=Twitter&co
+[2025-12-12 22:35:47] | ✅ [BitBread] Enviado como TEXTO a -1002014160991
+[2025-12-12 22:35:50] | ✅ Feed procesado: 1 entradas enviadas
+[2025-12-12 22:36:27] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:39:37] | 🔍 Tipo detectado: telegram | ID: telonews_es
+[2025-12-12 22:39:37] | 🔄 Intentando: https://rsshub.app/telegram/channel/telonews_es...
+[2025-12-12 22:40:03] | ⚠️ Falló https://rsshub.app/telegram/channel/telonews_es:
+[2025-12-12 22:40:03] | 🔄 Intentando: https://rss.nixnet.services/telegram/channel/telonews_es...
+[2025-12-12 22:40:04] | 🔄 Intentando: https://rsshub.rssforever.com/telegram/channel/telonews_es...
+[2025-12-12 22:40:24] | ✅ Éxito con: https://rsshub.rssforever.com/telegram/channel/telonews_es
+[2025-12-12 22:40:24] | ✅ Feed '💬 Telo News Español - Cripto | DeFi | Web3 - Telegram Channel' añadido correctamente
+[2025-12-12 22:40:29] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:40:31] | 🔍 Tipo detectado: telegram | ID: telonews_es
+[2025-12-12 22:40:31] | 🔄 Intentando: https://rsshub.app/telegram/channel/telonews_es...
+[2025-12-12 22:40:50] | 🔍 Tipo detectado: telegram | ID: telonews_es
+[2025-12-12 22:40:50] | 🔄 Intentando: https://rsshub.app/telegram/channel/telonews_es...
+[2025-12-12 22:40:57] | ⚠️ Falló https://rsshub.app/telegram/channel/telonews_es:
+[2025-12-12 22:40:57] | 🔄 Intentando: https://rss.nixnet.services/telegram/channel/telonews_es...
+[2025-12-12 22:40:58] | 🔄 Intentando: https://rsshub.rssforever.com/telegram/channel/telonews_es...
+[2025-12-12 22:41:16] | ⚠️ Falló https://rsshub.app/telegram/channel/telonews_es:
+[2025-12-12 22:41:16] | 🔄 Intentando: https://rss.nixnet.services/telegram/channel/telonews_es...
+[2025-12-12 22:41:17] | 🔄 Intentando: https://rsshub.rssforever.com/telegram/channel/telonews_es...
+[2025-12-12 22:41:19] | ✅ Éxito con: https://rsshub.rssforever.com/telegram/channel/telonews_es
+[2025-12-12 22:41:19] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 22:41:24] | ⚠️ Falló https://rsshub.rssforever.com/telegram/channel/tel:
+[2025-12-12 22:41:24] | ❌ Error parseando https://t.me/telonews_es: No se pudo convertir telegram a RSS
+[2025-12-12 22:43:13] | ----------- BOT INICIADO -----------
+[2025-12-12 22:43:13] | 🤖 Bot inicializado. Iniciando tareas de fondo...
+[2025-12-12 22:43:13] | ✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).
+[2025-12-12 22:43:13] | ✅ Bucle de alertas de clima iniciado.
+[2025-12-12 22:43:13] | ✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.
+[2025-12-12 22:43:13] | 👥 Encontrados 8 usuarios. Programando sus alertas periódicas...
+[2025-12-12 22:43:13] | ⏱️ Restaurando ciclo para 1148031284: Próxima alerta en 35.1 min.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_1148031284' programado para ejecutarse cada 4.0 horas.
+[2025-12-12 22:43:13] | ⏱️ Restaurando ciclo para 1058749165: Próxima alerta en 275.2 min.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_1058749165' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 22:43:13] | ⏱️ Restaurando ciclo para 5842558049: Próxima alerta en 275.1 min.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_5842558049' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 22:43:13] | ⏱️ Restaurando ciclo para 823941431: Próxima alerta en 275.1 min.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_823941431' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 22:43:13] | ⏱️ Restaurando ciclo para 7598064937: Próxima alerta en 12.8 min.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_7598064937' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 22:43:13] | ⏱️ Restaurando ciclo para 1597973793: Próxima alerta en 1159.9 min.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_1597973793' programado para ejecutarse cada 24.0 horas.
+[2025-12-12 22:43:13] | ⏱️ Restaurando ciclo para 5645098121: Próxima alerta en 672.9 min.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_5645098121' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 22:43:13] | ⏱️ Alerta atrasada para -1003424894407. Se enviará en 5s.
+[2025-12-12 22:43:13] | ✅ Job 'user_alert_-1003424894407' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 22:43:13] | ✅ Todas las tareas de fondo han sido iniciadas.
+[2025-12-12 22:43:13] | 📰 RSS Monitor v2 Iniciado...
+[2025-12-12 22:43:13] | 🌦️ Monitor de Clima: INICIADO (Modo Depuración Activado)
+[2025-12-12 22:43:13] | ⏱️ Iniciando bucle HBD. Intervalo configurado: 300 segundos.
+[2025-12-12 22:43:13] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:43:13] | Historial de alertas personalizadas cargado. 3 monedas en memoria.
+[2025-12-12 22:43:14] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:43:14] | 📬 Notificación de inicio enviada a los administradores.
+[2025-12-12 22:43:14] | 🦁 Iniciando Monitor BTC PRO (Análisis Avanzado Activado)...
+[2025-12-12 22:43:15] | 🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...
+[2025-12-12 22:48:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:51:14] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 22:53:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:56:03] | ✅ Alerta enviada a 7598064937. Precios y timestamp guardados.
+[2025-12-12 22:58:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 22:59:14] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 23:00:20] | 🦁 Nuevos niveles BTC. Pivot: $90,346.58
+[2025-12-12 23:01:22] | 🦁 Alerta BTC: P_UP (NEUTRAL)
+[2025-12-12 23:03:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:07:14] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 23:08:14] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:13:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:15:14] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 23:18:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:18:22] | ✅ Alerta enviada a 1148031284. Precios y timestamp guardados.
+[2025-12-12 23:23:15] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 23:23:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:24:29] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 23:24:29] | ✅ Descargado: https://www.criptonoticias.com/feed (14920 bytes)
+[2025-12-12 23:24:29] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 23:25:29] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 23:25:30] | ✅ Descargado: https://www.negocios.com/rss (39536 bytes)
+[2025-12-12 23:25:30] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 23:26:30] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 23:26:31] | ✅ Descargado: https://www.diariobitcoin.com/feed (254307 bytes)
+[2025-12-12 23:26:31] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 23:28:15] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:28:31] | 🔍 Tipo detectado: generic | ID: None
+[2025-12-12 23:28:32] | ✅ Descargado: https://es.beincrypto.com/ (783916 bytes)
+[2025-12-12 23:28:32] | ⚠️ No es feed válido. Buscando en la página...
+[2025-12-12 23:28:32] | ✅ Descargado: https://es.beincrypto.com/ (783916 bytes)
+[2025-12-12 23:28:33] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 23:28:33] | 🔍 Feed en ruta común: https://es.beincrypto.com/feed
+[2025-12-12 23:28:33] | ✅ Descargado: https://es.beincrypto.com/feed (107941 bytes)
+[2025-12-12 23:28:33] | ✅ Feed procesado: 0 entradas enviadas
+[2025-12-12 23:38:54] | ----------- BOT INICIADO -----------
+[2025-12-12 23:38:55] | 🤖 Bot inicializado. Iniciando tareas de fondo...
+[2025-12-12 23:38:55] | ✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).
+[2025-12-12 23:38:55] | ✅ Bucle de alertas de clima iniciado.
+[2025-12-12 23:38:55] | ✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.
+[2025-12-12 23:38:55] | 👥 Encontrados 8 usuarios. Programando sus alertas periódicas...
+[2025-12-12 23:38:55] | ⏱️ Restaurando ciclo para 1148031284: Próxima alerta en 219.4 min.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_1148031284' programado para ejecutarse cada 4.0 horas.
+[2025-12-12 23:38:55] | ⏱️ Restaurando ciclo para 1058749165: Próxima alerta en 219.5 min.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_1058749165' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 23:38:55] | ⏱️ Restaurando ciclo para 5842558049: Próxima alerta en 219.4 min.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_5842558049' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 23:38:55] | ⏱️ Restaurando ciclo para 823941431: Próxima alerta en 219.4 min.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_823941431' programado para ejecutarse cada 8.0 horas.
+[2025-12-12 23:38:55] | ⏱️ Restaurando ciclo para 7598064937: Próxima alerta en 677.1 min.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_7598064937' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 23:38:55] | ⏱️ Restaurando ciclo para 1597973793: Próxima alerta en 1104.2 min.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_1597973793' programado para ejecutarse cada 24.0 horas.
+[2025-12-12 23:38:55] | ⏱️ Restaurando ciclo para 5645098121: Próxima alerta en 617.2 min.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_5645098121' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 23:38:55] | ⏱️ Alerta atrasada para -1003424894407. Se enviará en 5s.
+[2025-12-12 23:38:55] | ✅ Job 'user_alert_-1003424894407' programado para ejecutarse cada 12.0 horas.
+[2025-12-12 23:38:55] | ✅ Todas las tareas de fondo han sido iniciadas.
+[2025-12-12 23:38:55] | 📰 RSS Monitor v2 Iniciado...
+[2025-12-12 23:38:55] | 🌦️ Iniciando Sistema de Alertas de Clima v2...
+[2025-12-12 23:38:55] | ⏱️ Iniciando bucle HBD. Intervalo configurado: 300 segundos.
+[2025-12-12 23:38:55] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:38:55] | Historial de alertas personalizadas cargado. 3 monedas en memoria.
+[2025-12-12 23:38:55] | ✅ Historial de precios de alertas personalizadas (en memoria) actualizado.
+[2025-12-12 23:38:56] | 📬 Notificación de inicio enviada a los administradores.
+[2025-12-12 23:38:56] | 🦁 Iniciando Monitor BTC PRO (Análisis Avanzado Activado)...
+[2025-12-12 23:38:56] | 🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...
+[2025-12-12 23:39:25] | 🔄 Weather Loop Ciclo #1
+[2025-12-12 23:39:25] | 👥 Procesando 5 usuarios...
+[2025-12-12 23:39:25] | 🔍 Procesando 1597973793: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:39:26] | 🔍 Procesando 1058749165: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:39:26] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:39:26] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:39:27] | 🔍 Procesando 7598064937: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:39:27] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:39:27] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:39:28] | 🔍 Procesando 5645098121: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:39:28] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:39:28] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:39:29] | 🔍 Procesando 1148031284: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:39:29] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:39:29] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:39:30] | ✅ Weather Loop Ciclo #1 completado
+[2025-12-12 23:41:05] | 🔍 Tipo detectado: telegram | ID: telonews_es
+[2025-12-12 23:41:05] | 🔄 Intentando: https://rsshub.app/telegram/channel/telonews_es...
+[2025-12-12 23:41:31] | ⚠️ Falló https://rsshub.app/telegram/channel/telonews_es:
+[2025-12-12 23:41:31] | 🔄 Intentando: https://rss.nixnet.services/telegram/channel/telonews_es...
+[2025-12-12 23:41:32] | 🔄 Intentando: https://rsshub.rssforever.com/telegram/channel/telonews_es...
+[2025-12-12 23:41:58] | ⚠️ Falló https://rsshub.rssforever.com/telegram/channel/tel:
+[2025-12-12 23:41:58] | ❌ Error parseando https://t.me/telonews_es: No se pudo convertir telegram a RSS
+[2025-12-12 23:43:55] | ✅ Precios de alerta guardados en hbd_price_history.json
+[2025-12-12 23:44:30] | 🔄 Weather Loop Ciclo #2
+[2025-12-12 23:44:30] | 👥 Procesando 5 usuarios...
+[2025-12-12 23:44:30] | 🔍 Procesando 1597973793: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:44:30] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:44:30] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:44:31] | 🔍 Procesando 1058749165: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:44:31] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:44:31] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:44:32] | 🔍 Procesando 7598064937: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:44:32] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:44:32] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:44:33] | 🔍 Procesando 5645098121: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:44:33] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:44:33] | 💾 Caché HIT: forecast (22.4167, -83.7003)
+[2025-12-12 23:44:34] | 🔍 Procesando 1148031284: Pinar del Río | lat=22.4167422, lon=-83.7002582
+[2025-12-12 23:44:34] | 💾 Caché HIT: weather (22.4167, -83.7003)
+[2025-12-12 23:44:34] | 💾 Caché HIT: forecast (22.4167, -83.7003)

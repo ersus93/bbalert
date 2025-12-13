@@ -1,6 +1,8 @@
 # bbalert.py - Punto de Entrada Principal del Bot de Telegram para BitBread.
- 
+
 import asyncio
+import warnings
+from telegram.warnings import PTBUserWarning
 from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
@@ -13,28 +15,23 @@ from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, VERSION, PID, PYTHON_VER
 from core.loops import (
     alerta_loop, 
     check_custom_price_alerts,
-    programar_alerta_usuario, 
+    programar_alerta_usuario,   
     get_logs_data, 
     set_enviar_mensaje_telegram_async,
 )
-from core.weather_loop import weather_alerts_loop
+from core.weather_loop_v2 import weather_alerts_loop
 from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
 
-#  Importaciones RSS 1.0
-from core.rss_loop import rss_monitor_loop # Importar Loop
-from handlers.rss import rss_dashboard, rss_conv_handler, rss_action_handler # Importar Handlers
-# Fin Importaciones RSS 1.0
-
 # === NUEVA IMPORTACIÓN: Sistema RSS v2 ===
-#from core.rss_loop_v2 import RSSMonitor
-#from handlers.rss_v2 import (
-#    rss_dashboard, 
-#    rss_conv_handler_v2, 
-#    rss_action_handler,
-#    rss_manager
-#)
+from core.rss_loop_v2 import RSSMonitor
+from handlers.rss_v2 import (
+    rss_dashboard, 
+    rss_conv_handler_v2, 
+    rss_action_handler,
+    rss_manager
+)
 # === FIN NUEVA IMPORTACIÓN RSS ===
 
 from handlers.user_settings import (
@@ -62,8 +59,10 @@ from handlers.weather import (
     weather_callback_handlers
 )
 
+# Ignorar advertencias específicas de PTB sobre CallbackQueryHandler en ConversationHandler
+warnings.filterwarnings("ignore", category=PTBUserWarning, message=".*CallbackQueryHandler.*")
 # === VARIABLE GLOBAL para el monitor RSS ===
-#rss_monitor: RSSMonitor = None
+rss_monitor: RSSMonitor = None
 
 async def post_init(app: Application):
     """
@@ -74,28 +73,18 @@ async def post_init(app: Application):
     
     add_log_line("🤖 Bot inicializado. Iniciando tareas de fondo...")
 
-    # === NUEVA INICIALIZACIÓN: RSS Monitor v2 ===
-    #rss_monitor = RSSMonitor(app.bot)
-    #from core.rss_loop_v2 import set_rss_monitor
-    #set_rss_monitor(rss_monitor)  # ✅ Establecer la instancia global
-    #asyncio.create_task(rss_monitor.monitor_loop())
-    #add_log_line("✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).")
+    # === NUEVA INICIALIZACIÓN: RSS Monitor v2 (SOLO UNA VEZ) ===
+    rss_monitor = RSSMonitor(app.bot)
+    from core.rss_loop_v2 import set_rss_monitor
+    set_rss_monitor(rss_monitor)  # ✅ Establecer la instancia global
+    asyncio.create_task(rss_monitor.monitor_loop())
+    add_log_line("✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).")
     # === FIN NUEVA INICIALIZACIÓN RSS ===
 
     # Iniciar bucle de clima
     asyncio.create_task(weather_alerts_loop(app.bot))
     add_log_line("✅ Bucle de alertas de clima iniciado.")
-
-    # Iniciar bucle RSS 1.0
-    asyncio.create_task(rss_monitor_loop(app.bot))
-    add_log_line("✅ Bucle RSS iniciado.")
-
-    # === NUEVA INICIALIZACIÓN: RSS Monitor v2 ===
-    #rss_monitor = RSSMonitor(app.bot)
-    #asyncio.create_task(rss_monitor.monitor_loop())
-    #add_log_line("✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).")
-    # === FIN NUEVA INICIALIZACIÓN RSS ===
-    
+   
     # 1. Iniciar los bucles de fondo globales
     asyncio.create_task(alerta_loop(app.bot))
     asyncio.create_task(check_custom_price_alerts(app.bot))
@@ -230,44 +219,92 @@ def main():
     set_btc_sender(enviar_mensajes)
     set_valerts_sender(enviar_mensajes)
     
-    # 3. REGISTRO DE HANDLERS
-    app.add_handler(CommandHandler("shop", shop_command))
-    app.add_handler(CallbackQueryHandler(shop_callback, pattern="^buy_"))
+        # 3. REGISTRO DE HANDLERS
+    
+    # ============================================
+    # IMPORTANTE: Handlers de conversación PRIMERO
+    # ============================================
+    
+    # 1️⃣ ConversationHandler de CLIMA (DEBE IR PRIMERO)
+    app.add_handler(weather_conversation_handler)
+    
+    # 2️⃣ ConversationHandler de Mensajes Admin
+    app.add_handler(ms_conversation_handler)
+    
+    # 3️⃣ ConversationHandler de RSS
+    app.add_handler(rss_conv_handler_v2)
+    
+    # ============================================
+    # Comandos generales
+    # ============================================
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("ver", ver))
+    app.add_handler(CommandHandler("help", help_command))
+    
+    # ============================================
+    # Comandos de Admin
+    # ============================================
+    app.add_handler(CommandHandler("users", users))
+    app.add_handler(CommandHandler("logs", logs_command))
+    app.add_handler(CommandHandler("ad", ad_command))
+    
+    # ============================================
+    # Comandos de Trading/Cripto
+    # ============================================
     app.add_handler(CommandHandler("mk", mk_command))
     app.add_handler(CommandHandler("ta", ta_command))
-    app.add_handler(CommandHandler("help", help_command))
-    app.add_handler(CommandHandler("users", users))
-    app.add_handler(CommandHandler("logs", logs_command))    
-    app.add_handler(CommandHandler("ad", ad_command))
-    app.add_handler(ms_conversation_handler)
+    app.add_handler(CommandHandler("graf", graf_command))
+    app.add_handler(CommandHandler("p", p_command))
+    app.add_handler(CommandHandler("tasa", eltoque_command))
     
-    # === Handlers de VALERTS ===
-    app.add_handlers(valerts_handlers_list)
-    
+    # ============================================
+    # Comandos de Usuario
+    # ============================================
     app.add_handler(CommandHandler("mismonedas", mismonedas))
+    app.add_handler(CommandHandler("monedas", set_monedas_command))
     app.add_handler(CommandHandler("parar", parar))
     app.add_handler(CommandHandler("temp", cmd_temp))
     app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
     app.add_handler(CommandHandler("lang", lang_command))
+    
+    # ============================================
+    # Comandos de Alertas
+    # ============================================
     app.add_handler(CommandHandler("alerta", alerta_command))
     app.add_handler(CommandHandler("misalertas", misalertas))
-    app.add_handler(CommandHandler("graf", graf_command)) 
-    app.add_handler(CommandHandler("p", p_command))       
-    app.add_handler(CommandHandler("tasa", eltoque_command))
-    app.add_handler(CommandHandler("monedas", set_monedas_command))
     
+    # ============================================
+    # Comandos de CLIMA (comandos directos, NO conversación)
+    # ============================================
+    app.add_handler(CommandHandler("w", weather_command))
+    app.add_handler(CommandHandler("weather_settings", weather_settings_command))
+    
+    # ============================================
+    # Comandos de PAGO
+    # ============================================
+    app.add_handler(CommandHandler("shop", shop_command))
+    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
+    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    
+    # ============================================
+    # Comandos RSS
+    # ============================================
+    app.add_handler(CommandHandler("rss", rss_dashboard))
+    
+    # ============================================
+    # Handlers de BTC y VALERTS (listas)
+    # ============================================
     for handler in btc_handlers_list:
         app.add_handler(handler)
     
-    # --- Handlers de CLIMA ---
-    app.add_handler(CommandHandler("w", weather_command))
-    app.add_handler(CommandHandler("weather_sub", weather_subscribe_command))
-    app.add_handler(CommandHandler("weather_settings", weather_settings_command))
-    app.add_handler(weather_conversation_handler)
+    app.add_handlers(valerts_handlers_list)
     
+    # ============================================
+    # CallbackQueryHandlers (DEBEN IR AL FINAL)
+    # ============================================
+    
+    # Callbacks de Clima
     if weather_callback_handlers:
         if isinstance(weather_callback_handlers, list):
             for handler in weather_callback_handlers:
@@ -275,34 +312,23 @@ def main():
         else:
             app.add_handler(weather_callback_handlers)
     
-    # === Handlers RSS ===
-    app.add_handler(CommandHandler("rss", rss_dashboard))
-    app.add_handler(rss_conv_handler)
-    # Otros handlers
-    app.add_handler(CallbackQueryHandler(rss_action_handler, pattern="^rss_"))
-    
-    # === NUEVA SECCIÓN: Handlers RSS v2 ===
-    # El comando principal
-    #app.add_handler(CommandHandler("rss", rss_dashboard))
-    # La conversación (entrada principal para flujos complejos)
-    #app.add_handler(rss_conv_handler_v2)    
-    # Los callbacks de acciones rápidas
-    #app.add_handler(CallbackQueryHandler(rss_action_handler, pattern="^rss_"))
-    # === FIN HANDLERS RSS ===
-    # === HANDLERS DE PAGO ===
-    app.add_handler(CommandHandler("shop", shop_command))
-    app.add_handler(CallbackQueryHandler(shop_callback, pattern="^buy_"))
-    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
-    
-    # Handlers restantes
+    # Callbacks de Trading
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
-    app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
-    app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+    
+    # Callbacks de Alertas
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
+    app.add_handler(CallbackQueryHandler(borrar_todas_alertas_callback, pattern="^delete_all_alerts$"))
+    
+    # Callbacks de Configuración
     app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
     app.add_handler(CallbackQueryHandler(set_language_callback, pattern="^set_lang_"))
-    app.add_handler(CallbackQueryHandler(borrar_todas_alertas_callback, pattern="^delete_all_alerts$"))
+    
+    # Callbacks de Pago
+    app.add_handler(CallbackQueryHandler(shop_callback, pattern="^buy_"))
+    
+    # Callbacks de RSS
+    app.add_handler(CallbackQueryHandler(rss_action_handler, pattern="^rss_"))
+
     
     # 4. Asignar la función post_init
     app.post_init = post_init
