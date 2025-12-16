@@ -219,7 +219,8 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             f"⚖️ *PIVOT:* `${p:,.0f}` _(Equilibrio)_\n"
             f"📍 *S1:* `${levels.get('S1',0):,.0f}` _(Soporte)_\n"
             f"🔻 *S2:* `${levels.get('S2',0):,.0f}` _(Extensión)_\n"
-            f"🕳️ *S3:* `${levels.get('S3',0):,.0f}` _(Mínimo)_"
+            f"🕳️ *S3:* `${levels.get('S3',0):,.0f}` _(Mínimo)_\n\n"
+            f"💰 *Precio Actual:* `${price_now:,.0f}`"
         )
     else:
         levels_msg = "⏳ _Calculando niveles..._"

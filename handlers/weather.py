@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from core.config import OPENWEATHER_API_KEY
 from utils.weather_manager import (
     subscribe_user, unsubscribe_user, get_user_subscription, 
@@ -12,6 +13,7 @@ from utils.weather_manager import (
 )
 from core.i18n import _
 from utils.ads_manager import get_random_ad_text
+from utils.file_manager import add_log_line
 
 # Estados para la conversación
 LOCATION_INPUT = range(1)
@@ -315,7 +317,7 @@ async def weather_subscribe_command(update: Update, context: ContextTypes.DEFAUL
     
     # Verificar si ya existe
     if get_user_subscription(user_id):
-        await weather_settings_command(update, context) # Redirigir a configuración
+        await weather_settings_command(update, context)
         return ConversationHandler.END
 
     # Botón especial para pedir ubicación
@@ -334,7 +336,6 @@ async def weather_subscribe_command(update: Update, context: ContextTypes.DEFAUL
     
     if update.callback_query:
         await update.callback_query.answer()
-        # Los botones de ReplyKeyboard no funcionan en mensajes editados, hay que enviar uno nuevo
         await update.callback_query.message.reply_text(msg, reply_markup=location_keyboard, parse_mode=ParseMode.MARKDOWN)
     else:
         await update.message.reply_text(msg, reply_markup=location_keyboard, parse_mode=ParseMode.MARKDOWN)
@@ -344,23 +345,22 @@ async def weather_subscribe_command(update: Update, context: ContextTypes.DEFAUL
 # handlers/weather.py - LÍNEA 230 (DENTRO DE location_handler)
 
 async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """✅ Recibe ubicación y configura zona horaria automáticamente."""
+    """✅ Recibe ubicación con más opciones de horario."""
     user_id = update.effective_user.id
     
-    # ✅ LOG DE DEBUG
     from utils.file_manager import add_log_line
     add_log_line(f"🔍 location_handler llamado para usuario {user_id}")
     
     lat = None
     lon = None
     
-    # ✅ Procesar ubicación GPS
+    # Procesar ubicación GPS
     if update.message.location:
         lat = update.message.location.latitude
         lon = update.message.location.longitude
         add_log_line(f"📍 GPS recibido: {lat}, {lon}")
     
-    # ✅ Procesar texto (nombre de ciudad)
+    # Procesar texto (nombre de ciudad)
     elif update.message.text:
         text = update.message.text
         add_log_line(f"📝 Texto recibido: {text}")
@@ -378,7 +378,6 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             return LOCATION_INPUT
     
-    # ✅ Si no hay coordenadas válidas
     if not lat or not lon:
         add_log_line("❌ No se obtuvieron coordenadas válidas")
         await update.message.reply_text(
@@ -387,7 +386,7 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return LOCATION_INPUT
     
-    # ✅ Obtener datos del clima
+    # Obtener datos del clima
     add_log_line(f"🌐 Consultando API de clima para {lat}, {lon}")
     weather_data = get_current_weather(lat, lon)
     
@@ -399,13 +398,11 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     
-    # ✅ Extraer ciudad y país
     city_name = weather_data.get("name", "")
     country = weather_data.get("sys", {}).get("country", "")
     
     add_log_line(f"🏙️ Ciudad detectada: {city_name}, {country}")
     
-    # ✅ Si no hay nombre de ciudad, usar geocoding reverso
     if not city_name or city_name == "Ubicación":
         add_log_line("🔄 Intentando geocoding reverso...")
         from utils.weather_api import reverse_geocode
@@ -418,14 +415,12 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             city_name = f"Ubicación ({lat:.2f}, {lon:.2f})"
             add_log_line(f"⚠️ Geocoding reverso falló, usando coordenadas")
     
-    # ✅ Calcular zona horaria
     offset_sec = weather_data.get("timezone", 0)
     offset_hours = offset_sec / 3600
     tz_str = f"UTC{offset_hours:+.0f}"
     
     add_log_line(f"🕐 Zona horaria: {tz_str}")
     
-    # ✅ Guardar en contexto de usuario
     context.user_data['weather_sub'] = {
         'city': city_name,
         'country': country,
@@ -436,15 +431,26 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     add_log_line(f"💾 Datos guardados en context.user_data")
     
-    # ✅ Crear teclado de selección de hora
+    # ✅ TECLADO MEJORADO CON MÁS OPCIONES
     keyboard = [
         [
-            InlineKeyboardButton("07:00", callback_data="weather_time_07"),
+            InlineKeyboardButton("06:00 🌅", callback_data="weather_time_06"),
+            InlineKeyboardButton("07:00 ☀️", callback_data="weather_time_07"),
             InlineKeyboardButton("08:00", callback_data="weather_time_08")
         ],
         [
             InlineKeyboardButton("09:00", callback_data="weather_time_09"),
+            InlineKeyboardButton("10:00", callback_data="weather_time_10"),
+            InlineKeyboardButton("12:00 🌤️", callback_data="weather_time_12")
+        ],
+        [
+            InlineKeyboardButton("14:00", callback_data="weather_time_14"),
+            InlineKeyboardButton("18:00 🌆", callback_data="weather_time_18"),
             InlineKeyboardButton("20:00", callback_data="weather_time_20")
+        ],
+        [
+            InlineKeyboardButton("21:00 🌙", callback_data="weather_time_21"),
+            InlineKeyboardButton("22:00", callback_data="weather_time_22")
         ]
     ]
     
@@ -452,7 +458,11 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"✅ *Ubicación recibida correctamente*\n\n"
         f"📍 *Ciudad:* {city_name}, {country}\n"
         f"🌍 *Zona Horaria:* {tz_str}\n\n"
-        f"📅 *Último paso:* ¿A qué hora quieres recibir el resumen diario del clima?"
+        f"📅 *Último paso:* ¿A qué hora quieres recibir el resumen diario?\n\n"
+        f"💡 _El resumen se adaptará al horario elegido:_\n"
+        f"• *Mañana* (06-11h): Pronóstico del día completo\n"
+        f"• *Tarde* (12-18h): Tarde, noche y mañana siguiente\n"
+        f"• *Noche* (20-22h): Pronóstico para el día siguiente"
     )
     
     await update.message.reply_text(
@@ -461,7 +471,6 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.MARKDOWN
     )
     
-    # ✅ Eliminar teclado de ubicación
     await update.message.reply_text(
         "🔽 Menú cerrado",
         reply_markup=ReplyKeyboardRemove()
@@ -552,7 +561,7 @@ async def weather_time_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def weather_settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el panel de configuración."""
+    """✅ Panel de configuración CON alertas globales."""
     if update.callback_query:
         user_id = update.callback_query.from_user.id
         message_func = update.callback_query.message.edit_text
@@ -576,10 +585,14 @@ async def weather_settings_command(update: Update, context: ContextTypes.DEFAULT
         return InlineKeyboardButton(f"{status} {label}", callback_data=f"weather_toggle_{key}")
 
     keyboard = [
-        # <--- Nuevos botones de alerta y reorganización
+        # Alertas climáticas locales
         [btn("rain", "Lluvia"), btn("storm", "Tormenta"), btn("snow", "Nieve/Escarcha")],
         [btn("uv_high", "UV Alto"), btn("fog", "Niebla")],
         [btn("temp_high", "Calor Intenso"), btn("temp_low", "Frío Intenso")],
+        
+        # ✅ NUEVA OPCIÓN: Alertas Globales
+        [btn("global_disasters", "🌍 Desastres Naturales Globales")],
+        
         [InlineKeyboardButton(_("🗑️ Eliminar Suscripción", user_id), callback_data="weather_unsub_confirm")],
         [InlineKeyboardButton(_("🔙 Volver", user_id), callback_data="weather_menu")]
     ]
@@ -588,20 +601,47 @@ async def weather_settings_command(update: Update, context: ContextTypes.DEFAULT
         f"⚙️ *Configuración de Clima*\n"
         f"📍 {sub['city']}\n"
         f"⏰ Resumen: {sub['alert_time']}\n\n"
-        f"Toca los botones para activar/desactivar alertas:",
+        f"*Alertas Locales:*\n"
+        f"Recibe avisos sobre el clima en tu zona.\n\n"
+        f"*Alertas Globales:*\n"
+        f"Terremotos, tsunamis, huracanes y volcanes de impacto mundial.\n\n"
+        f"Toca los botones para activar/desactivar:",
         user_id
     )
 
-    await message_func(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    try:
+        await message_func(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    except BadRequest as e:
+        # ✅ CAPTURA: Si el mensaje es idéntico, solo responde al callback sin hacer nada
+        if "Message is not modified" in str(e):
+            if update.callback_query:
+                await update.callback_query.answer("✅ Cambio aplicado")
+        else:
+            # Si es otro tipo de BadRequest, lo lanzamos
+            raise
+
 
 async def weather_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Toggle de alertas."""
+    """Toggle de alertas con manejo de errores."""
     query = update.callback_query
     user_id = query.from_user.id
-    alert_type = query.data.split("_")[2]
+    alert_type = query.data.split("_", 2)[2]  # ✅ Corregido: split con límite
     
+    # Responder inmediatamente al callback
+    await query.answer("⏳ Actualizando...")
+    
+    # Hacer el cambio
     toggle_alert_type(user_id, alert_type)
-    await weather_settings_command(update, context)
+    
+    # Actualizar el menú
+    try:
+        await weather_settings_command(update, context)
+    except BadRequest as e:
+        if "Message is not modified" in str(e):
+            # Si el mensaje no cambió, está bien, no hacer nada
+            pass
+        else:
+            add_log_line(f"❌ Error al actualizar menú de clima: {e}")
 
 async def weather_unsub_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Manejo de desuscripción."""

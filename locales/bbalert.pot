@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-12-07 21:25-0500\n"
+"POT-Creation-Date: 2025-12-13 21:00-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,16 +17,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: bbalert.py:63
+#: bbalert.py:110
 #, python-brace-format
 msgid ""
-"🚀 *¡Bot en línea!* 🚀\n"
+"🍞 *¡Llego el pan a la bodega!* 🍞\n"
+"————————————————————\n"
 "\n"
 "🤖 `BitBread Alert v{version}`\n"
 "🪪 `PID: {pid}`\n"
 "🐍 `Python: v{python_version}`\n"
 "\n"
-"✅ Ejecutado y funcionando perfectamente."
+"————————————————————\n"
+"✅ Ácido y aplastado, pero comible. 👍.\n"
+"🫣 ¡Vamos por mas!"
 msgstr ""
 
 #: core/api_client.py:99
@@ -55,7 +58,7 @@ msgid ""
 "•\n"
 msgstr ""
 
-#: core/loops.py:172
+#: core/loops.py:173
 #, python-brace-format
 msgid ""
 "📈 ¡Alerta de Precio! 📈\n"
@@ -66,7 +69,7 @@ msgid ""
 "Precio actual: *${current_price:,.4f}*"
 msgstr ""
 
-#: core/loops.py:186
+#: core/loops.py:187
 #, python-brace-format
 msgid ""
 "📉 ¡Alerta de Precio! 📉\n"
@@ -77,15 +80,15 @@ msgid ""
 "Precio actual: *${current_price:,.4f}*"
 msgstr ""
 
-#: core/loops.py:204
+#: core/loops.py:205
 msgid "🗑️ Borrar esta alerta"
 msgstr ""
 
-#: core/loops.py:260 handlers/user_settings.py:401
+#: core/loops.py:261 handlers/user_settings.py:401
 msgid "🔕 Desactivar estas alertas"
 msgstr ""
 
-#: core/loops.py:316
+#: core/loops.py:317
 #, python-brace-format
 msgid ""
 "📊 *Alerta de tus monedas ({intervalo_h}h):*\n"
@@ -93,7 +96,7 @@ msgid ""
 "\n"
 msgstr ""
 
-#: core/loops.py:333
+#: core/loops.py:334
 #, python-brace-format
 msgid ""
 "\n"
@@ -196,26 +199,30 @@ msgstr ""
 msgid "✅ ¡Éxito! Mensaje enviado a todos los *{total_usuarios}* usuarios."
 msgstr ""
 
-#: handlers/admin.py:336
+#: handlers/admin.py:337
 msgid "😕 No estás registrado en el sistema."
 msgstr ""
 
-#: handlers/admin.py:357
+#: handlers/admin.py:410
 #, python-brace-format
 msgid ""
 "👤 *Tu Perfil Registrado*\n"
 "—————————————————\n"
+"📋 *Datos Generales:*\n"
 "  - Nombre: {nombre_completo}\n"
-"  - 🪪 ID: `{user_id}`\n"
-"  - 👤 Usuario: {username_str}\n"
-"  - 🪙 Monedas: `{monedas_str}`\n"
-"  - ⏰ Alerta cada: {intervalo_h}h\n"
-"  - 🔔 Alertas cruce activas: {alertas_activas}\n"
+"  - ID: `{user_id}`\n"
+"  - Usuario: {username_str}\n"
+"  - Monedas: `{monedas_str}`\n"
+"  - Alerta Temp: cada {intervalo_h}h\n"
+"  - Alertas Cruce: {alertas_activas} activas\n"
+"\n"
+"✨ *Tus Suscripciones:*\n"
+"{suscripciones_str}\n"
 "—————————————————\n"
 "_Solo puedes ver tu propia información 🙂_"
 msgstr ""
 
-#: handlers/admin.py:552
+#: handlers/admin.py:610
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -229,15 +236,15 @@ msgid ""
 "_Ya, eso es todo lo que puedes ver 🙂👍_"
 msgstr ""
 
-#: handlers/admin.py:580
+#: handlers/admin.py:638
 msgid "❌ Error interno: La función de logs no ha sido inicializada."
 msgstr ""
 
-#: handlers/admin.py:593
+#: handlers/admin.py:651
 msgid "⚠️ El argumento debe ser un número entero."
 msgstr ""
 
-#: handlers/admin.py:621
+#: handlers/admin.py:679
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -528,7 +535,7 @@ msgid ""
 "Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n"
 "\n"
 "Tu plan actual permite un mínimo de: *{min_val} horas*.\n"
-"Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 2.5`)."
+"Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 8`)."
 msgstr ""
 
 #: handlers/user_settings.py:156
@@ -664,5 +671,57 @@ msgstr ""
 
 #: handlers/user_settings.py:474
 msgid "⚠️ Idioma no soportado."
+msgstr ""
+
+#: handlers/weather.py:270
+msgid ""
+"🌤️ *Centro de Clima BitBread*\n"
+"\n"
+"Consulta el clima detallado de cualquier ciudad o gestiona tus alertas "
+"automáticas.\n"
+"\n"
+"Selecciona una opción:"
+msgstr ""
+
+#: handlers/weather.py:331
+msgid ""
+"📍 *Suscripción a Alertas*\n"
+"\n"
+"Para enviarte alertas precisas y configurar tu zona horaria "
+"automáticamente, necesito tu ubicación.\n"
+"\n"
+"👇 *Pulsa el botón de abajo para compartirla:*"
+msgstr ""
+
+#: handlers/weather.py:576
+msgid "❌ No tienes suscripción activa. Usa /weather_sub."
+msgstr ""
+
+#: handlers/weather.py:596
+msgid "🗑️ Eliminar Suscripción"
+msgstr ""
+
+#: handlers/weather.py:597
+msgid "🔙 Volver"
+msgstr ""
+
+#: handlers/weather.py:601
+msgid ""
+"⚙️ *Configuración de Clima*\n"
+"cityalert_time*Alertas Locales:*\n"
+"Recibe avisos sobre el clima en tu zona.\n"
+"\n"
+"*Alertas Globales:*\n"
+"Terremotos, tsunamis, huracanes y volcanes de impacto mundial.\n"
+"\n"
+"Toca los botones para activar/desactivar:"
+msgstr ""
+
+#: handlers/weather.py:658
+msgid "¿Seguro que quieres dejar de recibir alertas de clima?"
+msgstr ""
+
+#: handlers/weather.py:663
+msgid "🗑️ Suscripción eliminada."
 msgstr ""
 

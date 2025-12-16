@@ -232,15 +232,15 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
 # === COMANDO ELTOQUE FUSIONADO (/tasa) ===
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id 
+    #chat_id = update.effective_chat.id 
 
     # === GUARDIA DE PAGO ===
-    acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
-    if not acceso:
-        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
-        return
+    # acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
+    #if not acceso:
+    #    await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+    #    return
     
-    registrar_uso_comando(chat_id, 'tasa')
+    #registrar_uso_comando(chat_id, 'tasa')
     # =======================
     
     # DEBUG: Si ves esto en la consola, el comando está bien registrado.
@@ -449,8 +449,9 @@ async def mk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def get_binance_klines(symbol, interval, limit=10000): 
     """Obtiene velas de Binance (Global o US)."""
     endpoints = [
-        "https://api.binance.com/api/v3/klines", 
-        "https://api.binance.us/api/v3/klines"
+        "https://api.binance.us/api/v3/klines",
+        "https://api.binance.com/api/v3/klines" 
+        
     ]
     for url in endpoints:
         params = {"symbol": symbol, "interval": interval, "limit": limit}
@@ -765,8 +766,8 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Construimos la tabla usando Markdown de bloque de código (```) para alineación perfecta
         # Cabecera
         table_msg = "```text\n"
-        table_msg += "IND     ACTUAL   PREVIO     ANT.\n"
-        table_msg += "──────  ───────  ───────  ───────\n"
+        table_msg += "IND   ACTUAL  PREVIO   ANT.\n"
+        table_msg += "────  ─────  ─────  ─────\n"
 
         for label, key in rows_config:
             vals = final_data.get(key, [0, 0, 0])
