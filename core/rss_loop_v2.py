@@ -243,63 +243,100 @@ class RSSMonitor:
     # ============================================================
     # PROCESAMIENTO DE FEEDS
     # ============================================================
+    # En core/rss_loop_v2.py
+
     async def _process_feed(self, user_id: int, feed: Dict, force: bool = False):
-        """Procesamiento con deduplicación robusta por hash."""
-        try:
-            res = await self.parser.parse(feed['url'])
-            
-            if not res.get('success'):
-                feed['stats']['last_error'] = res.get('error', 'Error desconocido')
-                add_log_line(f"❌ Error parseando {feed['url'][:50]}: {res.get('error')}")
-                return
-            
-            entries = res.get('entries', [])
-            if not entries:
-                add_log_line(f"⚠️ Feed vacío: {feed['url'][:50]}")
-                return
-            
-            # Deduplicación por hash
-            last_hash = feed.get('last_entry_hash')
-            new_entries = []
-            
-            if force:
-                new_entries = [entries[0]]  # Solo la primera en modo manual
-            else:
+        """
+        Procesa el feed usando comparación de listas (Feed vs Historial) 
+        y optimiza la URL automáticamente.
+        """
+        current_url = feed['url']
+        
+        # 1. Analizar Feed
+        res = await self.parser.parse(current_url)
+        
+        if not res.get('success'):
+            add_log_line(f"⚠️ Error leyendo feed {feed.get('source_title', '?')}: {res.get('error')}")
+            feed['stats']['errors'] += 1
+            return
+
+        # --- AUTO-CORRECCIÓN DE URL (OPTIMIZACIÓN) ---
+        # Si estábamos usando .com y encontramos .xml, guardamos el cambio PARA SIEMPRE.
+        detected_url = res.get('real_url')
+        if detected_url and detected_url != current_url:
+            if 'rss' in detected_url or 'xml' in detected_url or 'feed' in detected_url:
+                add_log_line(f"🛠️ URL Optimizada detectada: {current_url} -> {detected_url}")
+                feed['url'] = detected_url # Actualizamos memoria
+                # Guardamos en disco INMEDIATAMENTE para que el próximo ciclo no escanee de nuevo
+                data = RSSManager.load_data()
+                # Buscamos el feed en la estructura global para actualizarlo
+                if str(user_id) in data:
+                    for f in data[str(user_id)].get('feeds', []):
+                        if f['id'] == feed['id']:
+                            f['url'] = detected_url
+                            break
+                RSSManager.save_data(data)
+
+        entries = res.get('entries', [])
+        if not entries:
+            return
+
+        # 2. Inicializar Historial (Si no existe)
+        if 'sent_history' not in feed:
+            feed['sent_history'] = []
+            # Si es la primera vez, marcamos todo como "visto" para no spamear 50 noticias de golpe
+            # excepto si es FORCE, o dejamos pasar solo la última.
+            if not force and 'last_checked' not in feed:
                 for entry in entries:
-                    entry_hash = entry.get('hash', entry['id'])
-                    
-                    if entry_hash == last_hash:
-                        break  # Ya procesamos esta
-                    
-                    new_entries.append(entry)
-                
-                new_entries = new_entries[:10]  # Límite de 10
+                    feed['sent_history'].append(entry['hash'])
+                feed['last_checked'] = time.time()
+                return
+
+        # 3. Filtrado: ¿Qué noticias NO están en el historial?
+        noticias_nuevas = []
+        for entry in entries:
+            if entry['hash'] not in feed['sent_history']:
+                noticias_nuevas.append(entry)
+
+        # Si no hay nada nuevo
+        if not noticias_nuevas:
+            if force:
+                # En force, si no hay nada nuevo, reenviamos la primera del feed original
+                add_log_line(f"⚡ [Force] No hay nuevas. Reenviando la más reciente.")
+                noticias_nuevas = [entries[0]]
+            else:
+                feed['last_checked'] = time.time()
+                return
+
+        # 4. Ordenar para envío (De la más vieja a la más nueva)
+        # Los feeds suelen venir [Nueva, Vieja, Más Vieja]. Invertimos.
+        noticias_nuevas.reverse()
+
+        # 5. Envío y Actualización
+        sent_count = 0
+        for entry in noticias_nuevas:
+            # Protección anti-spam: Máximo 5 noticias por ciclo (salvo que sea manual)
+            if sent_count >= 5 and not force:
+                break
             
-            if not force:
-                new_entries.reverse()  # Orden cronológico
-            
-            sent_count = 0
-            for entry in new_entries:
-                if sent_count >= 5 and not force:
-                    break
-                
-                if await self._send_entry(user_id, feed, entry):
-                    feed['last_entry_hash'] = entry.get('hash', entry['id'])
-                    feed['stats']['total_sent'] += 1
-                    sent_count += 1
-                    await asyncio.sleep(3)
-            
-            # Guardar cambios
-            data = RSSManager.load_data()
-            RSSManager.save_data(data)
-            
-            add_log_line(f"✅ Feed procesado: {sent_count} entradas enviadas")
-            
-        except Exception as e:
-            add_log_line(f"❌ Error en _process_feed: {e}")
-            import traceback
-            add_log_line(f"Traceback: {traceback.format_exc()[:500]}")
-            feed['stats']['last_error'] = str(e)[:200]
+            # Intentar enviar
+            if await self._send_entry(user_id, feed, entry):
+                # AGREGAR AL HISTORIAL
+                feed['sent_history'].append(entry['hash'])
+                feed['stats']['total_sent'] += 1
+                sent_count += 1
+                await asyncio.sleep(2) # Pausa para no saturar Telegram
+
+        # 6. Mantenimiento del Historial (Limpieza)
+        # Solo guardamos los últimos 100 hashes para que el JSON no crezca infinito
+        if len(feed['sent_history']) > 100:
+            feed['sent_history'] = feed['sent_history'][-100:]
+
+        feed['last_checked'] = time.time()
+        
+        # Guardamos el estado actualizado (historial) en disco
+        data = RSSManager.load_data()
+        RSSManager.save_data(data) # Guardado global
     
     # ============================================================
     # BUCLE DE MONITOREO

@@ -13,7 +13,7 @@ from datetime import datetime
 PRICE_BUNDLE = 20           # Temp flexible + Ver x24 + Cambios ilimitados
 PRICE_COIN_SLOT = 5         # +1 Capacidad en lista
 PRICE_ALERT_SLOT = 4        # +1 Alerta de Cruce (Par Arriba/Abajo)
-#PRICE_TASA_VIP = 5          # Tasa x24 consultas
+PRICE_TASA_VIP = 5          # Tasa x24 consultas
 PRICE_TA_VIP = 10           # TA Ilimitado
 PRICE_RSS_CHANNEL = 100     # Precio de Channel Slot (CORREGIDO: era 1000)
 PRICE_RSS_FEED = 50         # Precio de Feed Slot (CORREGIDO: era 250)
@@ -38,7 +38,7 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(f"📦 Pack Total - {PRICE_BUNDLE} ⭐", callback_data="buy_bundle")],
         [InlineKeyboardButton(f"🪙 +1 Moneda - {PRICE_COIN_SLOT} ⭐", callback_data="buy_coin")],
         [InlineKeyboardButton(f"🔔 +1 Alerta - {PRICE_ALERT_SLOT} ⭐", callback_data="buy_alert")],
-#        [InlineKeyboardButton(f"💱 Tasa VIP - {PRICE_TASA_VIP} ⭐", callback_data="buy_tasa")],
+        [InlineKeyboardButton(f"💱 Tasa VIP - {PRICE_TASA_VIP} ⭐", callback_data="buy_tasa")],
         [InlineKeyboardButton(f"📈 TA Pro - {PRICE_TA_VIP} ⭐", callback_data="buy_ta")],
         [InlineKeyboardButton(f"📺 +1 Canal RSS - {PRICE_RSS_CHANNEL} ⭐", callback_data="buy_rss_channel")],
         [InlineKeyboardButton(f"🔗 +1 Feed RSS - {PRICE_RSS_FEED} ⭐", callback_data="buy_rss_feed")],
@@ -84,13 +84,13 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "price": PRICE_ALERT_SLOT,
             "item_name": "🔔 +1 Alerta Cruce"
         },
-#        "buy_tasa": {
-#            "title": "💱 Tasa VIP (30 días)",
-#            "description": "Aumenta el límite del comando /tasa a 24 veces por día.",
-#           "payload": "sub_tasa_vip",
-#            "price": PRICE_TASA_VIP,
-#            "item_name": "💱 Tasa VIP"
-#        },
+        "buy_tasa": {
+            "title": "💱 Tasa VIP (30 días)",
+            "description": "Aumenta el límite del comando /tasa a 24 veces por día.",
+            "payload": "sub_tasa_vip",
+            "price": PRICE_TASA_VIP,
+            "item_name": "💱 Tasa VIP"
+        },
         "buy_ta": {
             "title": "📈 TA Pro (30 días)",
             "description": "Uso ilimitado del comando de análisis técnico /ta.",
@@ -204,9 +204,9 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             add_subscription_days(chat_id, "alerts_extra", days=30, quantity=1)
             item_name = "🔔 +1 Alerta Cruce"
             
-#        elif payload == "sub_tasa_vip":
-#            add_subscription_days(chat_id, "tasa_vip", days=30)
-#            item_name = "💱 Tasa VIP"
+        elif payload == "sub_tasa_vip":
+            add_subscription_days(chat_id, "tasa_vip", days=30)
+            item_name = "💱 Tasa VIP"
             
         elif payload == "sub_ta_vip":
             add_subscription_days(chat_id, "ta_vip", days=30)

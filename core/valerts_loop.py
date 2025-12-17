@@ -2,6 +2,7 @@
 
 import asyncio
 import requests
+import pandas as pd
 from datetime import datetime
 from telegram.constants import ParseMode
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -14,33 +15,105 @@ from utils.valerts_manager import (
 )
 from utils.file_manager import add_log_line
 from utils.ads_manager import get_random_ad_text
+from utils.tv_helper import get_tv_data
+from core.api_client import obtener_datos_moneda
+from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 
 # Variable global para la función de envío (inyectada desde bbalert.py)
 VALERTS_SENDER = None
+_enviar_valerts_msg = None
 
 def set_valerts_sender(func):
     global VALERTS_SENDER
     VALERTS_SENDER = func
 
-def fetch_binance_klines(symbol, interval="4h", limit=2):
-    """Obtiene las últimas velas de Binance para calcular pivots."""
+
+def fetch_binance_klines_data(symbol, interval="4h", limit=1000):
+    """
+    Obtiene datos de velas de Binance de forma robusta.
+    Igual que en btc_loop, limitamos a 1000 por llamada para evitar errores de API,
+    pero es suficiente para calcular EMA200 y Pivotes.
+    """
+    # Ajuste de símbolo para asegurar compatibilidad
+    if not symbol.endswith("USDT") and "BTC" not in symbol:
+        symbol += "USDT"
+
+    # Endpoints de redundancia
     endpoints = [
-        "https://api.binance.com/api/v3/klines",
         "https://api.binance.us/api/v3/klines",
+        "https://api.binance.com/api/v3/klines",
         "https://api1.binance.com/api/v3/klines"
     ]
-    params = {"symbol": symbol.upper(), "interval": interval, "limit": limit}
     
+    # Binance limita a 1000 por request estándar
+    safe_limit = min(limit, 1000)
+    
+    params = {
+        "symbol": symbol,
+        "interval": interval,
+        "limit": safe_limit
+    }
+
     for url in endpoints:
         try:
-            r = requests.get(url, params=params, timeout=5)
-            if r.status_code == 200:
-                return r.json()
+            r = requests.get(url, params=params, timeout=10)
+            if r.status_code != 200:
+                continue
+            
+            data = r.json()
+            
+            # Verificar que hay suficientes datos para el análisis técnico
+            if not isinstance(data, list) or len(data) < 200:
+                continue
+                
+            # Definir columnas explícitamente
+            column_names = [
+                "open_time", "open", "high", "low", "close", "volume",
+                "close_time", "quote_asset_volume", "trades",
+                "taker_base", "taker_quote", "ignore"
+            ]
+            
+            df = pd.DataFrame(data, columns=column_names)
+            
+            # Convertir a números
+            for col in ["open", "high", "low", "close", "volume"]:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            
+            # Obtener precio actual (última vela)
+            current_price = float(df.iloc[-1]['close'])
+            
+            return {
+                'df': df,
+                'current_price': current_price
+            }
         except Exception as e:
-            continue
-    
-    # print(f"Error fetching {symbol}: No endpoint disponible") 
+            continue # Intentar siguiente endpoint
+
     return None
+
+def get_alert_text_data(level_name, symbol, price, target):
+    """Genera los textos y emojis para la alerta."""
+    clean_sym = symbol.replace("USDT", "").replace(":TV", "")
+    
+    # Diccionario de textos
+    texts = {
+        'R3': {'e': '🚀', 't': 'Volatilidad Extrema (R3)', 'd': 'Precio en zona de extensión máxima.'},
+        'R2': {'e': '🌊', 't': 'Impulso Fuerte (R2)', 'd': 'Ruptura alcista con fuerza.'},
+        'R1': {'e': '📈', 't': 'Resistencia R1 Rota', 'd': 'Inicio de zona alcista.'},
+        'S1': {'e': '⚠️', 't': 'Soporte S1 Perforado', 'd': 'Debilidad en la estructura.'},
+        'S2': {'e': '📉', 't': 'Soporte S2 Perdido', 'd': 'Presión de venta acelerada.'},
+        'S3': {'e': '🕳️', 't': 'Caída Libre (S3)', 'd': 'Volatilidad extrema bajista.'}
+    }
+    
+    data = texts.get(level_name, {'e': '⚡', 't': f'Nivel {level_name}', 'd': 'Cruce de nivel detectado.'})
+    
+    return {
+        'emoji': data['e'],
+        'titulo': f"{data['t']}",
+        'descripcion': data['d'],
+        'symbol': clean_sym,
+        'target': target
+    }
 
 def calculate_pivot_points(high, low, close):
     """Calcula Puntos Pivote Standard con precisión."""
@@ -81,215 +154,229 @@ def determine_market_zone(current_price, levels):
     else:
         return ("EXTENSIÓN BAJISTA", "🕳️", "Máxima", "Territorio de volatilidad extrema bajista")
 
-def get_alert_context(triggered_level, current_price, levels, symbol):
+
+async def send_valerts_alert(symbol_key, subs, clean_symbol, level_name, level_value, 
+                           current_price, levels, threshold, state, analyzer=None, divergence=None):
     """
-    Genera información contextual inteligente para cada alerta.
-    Retorna: diccionario con emoji, titulo, descripcion, etc.
+    Envía una alerta idéntica a BTC Alerts, incluyendo análisis técnico avanzado.
     """
-    # Escapamos el símbolo aquí por si contiene guiones bajos (ej: PEPE_USDT)
-    clean_symbol = symbol.replace("_", "\\_")
-    
-    level_value = levels.get(triggered_level, 0)
-    p = levels.get('P', 0)
-    
-    # Mapeo completo de cada nivel con contexto técnico
-    alert_context = {
+    # 1. Definir datos base de la alerta (Copiados de BTC para consistencia)
+    alert_definitions = {
         'R3': {
-            'emoji': '🚀',
-            'titulo': f'Volatilidad Extrema Alcista en {clean_symbol}',
-            'descripcion': 'El precio ha entrado en territorio de extensión máxima por encima de R3.',
-            'tecnico': 'Ruptura de máxima volatilidad. Condiciones de sobrecompra severa.',
-            'proximo': ('Discovery', 'Máximos históricos o retracción brusca'),
-            'recomendacion': 'Zona de máximo riesgo alcista. Considere asegurar ganancias.'
+            'emoji': '🚀', 'titulo': f'Ruptura de R3 - Volatilidad Extrema',
+            'desc': 'El precio ha perforado R3, máxima volatilidad alcista alcanzada.',
+            'icon_rec': '⚡', 'rec': 'Zona de máximo riesgo. Asegura ganancias.',
+            'next': ('Unknown', 0) 
         },
         'R2': {
-            'emoji': '🌊',
-            'titulo': f'Impulso Alcista Fuerte en {clean_symbol}',
-            'descripcion': 'El precio ha superado la segunda resistencia (R2).',
-            'tecnico': 'Ruptura confirmada de nivel R2. Presión de compra significativa.',
-            'proximo': ('R3', f'${levels.get("R3", 0):,.4f}'),
-            'recomendacion': 'Confirmación de fortaleza. Target: R3 o retracción a R1.'
+            'emoji': '🌊', 'titulo': f'R2 Perforado - Impulso Fuerte',
+            'desc': 'Ruptura de R2 confirmada. Momentum fuerte detectado.',
+            'icon_rec': '✅', 'rec': 'Confirma fortaleza. Target: R3',
+            'next': ('R3', levels.get('R3', 0))
         },
         'R1': {
-            'emoji': '📈',
-            'titulo': f'Primera Resistencia Superada en {clean_symbol}',
-            'descripcion': 'El precio ha perforado el primer nivel de resistencia (R1).',
-            'tecnico': 'Ruptura de R1. Sesgo intradía claramente positivo.',
-            'proximo': ('R2', f'${levels.get("R2", 0):,.4f}'),
-            'recomendacion': 'Consolidación en zona positiva. Próximo target: R2.'
-        },
-        'P_UP': {
-            'emoji': '⚖️',
-            'titulo': f'Pivot Point Recuperado en {clean_symbol}',
-            'descripcion': 'El precio está por encima del punto de equilibrio (Pivot).',
-            'tecnico': 'Recuperación del pivot central. Sesgo intradiario ligeramente alcista.',
-            'proximo': ('R1', f'${levels.get("R1", 0):,.4f}'),
-            'recomendacion': 'Soporte dinámico. Monitorear para salida o entrada.'
+            'emoji': '📈', 'titulo': f'Resistencia R1 Superada',
+            'desc': 'Primera resistencia perforada. Sesgo fuertemente alcista.',
+            'icon_rec': '🔝', 'rec': 'Consolidación en zona positiva.',
+            'next': ('R2', levels.get('R2', 0))
         },
         'S1': {
-            'emoji': '⚠️',
-            'titulo': f'Soporte Testado en {clean_symbol}',
-            'descripcion': 'El precio ha caído por debajo del primer soporte (S1).',
-            'tecnico': 'Pérdida de S1. Debilidad técnica considerable.',
-            'proximo': ('S2', f'${levels.get("S2", 0):,.4f}'),
-            'recomendacion': 'Zona de debilidad. Atención a continuidad bajista.'
+            'emoji': '⚠️', 'titulo': f'Soporte S1 Testado',
+            'desc': 'Primer soporte roto. Sesgo fuertemente bajista.',
+            'icon_rec': '⚠️', 'rec': 'Debilidad confirmada.',
+            'next': ('S2', levels.get('S2', 0))
         },
         'S2': {
-            'emoji': '📉',
-            'titulo': f'Presión de Venta Fuerte en {clean_symbol}',
-            'descripcion': 'El precio ha penetrado la segunda zona de soporte (S2).',
-            'tecnico': 'Ruptura de S2. Estructura técnica deteriorada.',
-            'proximo': ('S3', f'${levels.get("S3", 0):,.4f}'),
-            'recomendacion': 'Zona de máximo riesgo bajista. Considere cobertura.'
+            'emoji': '📉', 'titulo': f'Presión de Venta - S2 Perforado',
+            'desc': 'Segundo nivel de soporte roto. Estructura deteriorada.',
+            'icon_rec': '🛑', 'rec': 'Zona crítica de riesgo.',
+            'next': ('S3', levels.get('S3', 0))
         },
         'S3': {
-            'emoji': '🕳️',
-            'titulo': f'Caída Extrema en {clean_symbol}',
-            'descripcion': 'El precio ha perforado S3, máximo nivel de volatilidad bajista.',
-            'tecnico': 'Ruptura de S3. Condiciones de sobreventa severa.',
-            'proximo': ('Discovery', 'Mínimos históricos o rebote fuerte'),
-            'recomendacion': 'Zona de volatilidad extrema. Posibles retracción o pánico.'
-        },
-        'P_DOWN': {
-            'emoji': '⚖️',
-            'titulo': f'Pivot Point Perdido en {clean_symbol}',
-            'descripcion': 'El precio ha caído por debajo del punto de equilibrio (Pivot).',
-            'tecnico': 'Pérdida del pivot central. Sesgo intradiario negativo.',
-            'proximo': ('S1', f'${levels.get("S1", 0):,.4f}'),
-            'recomendacion': 'Resistencia dinámica. Vigilar para entrada o salida.'
+            'emoji': '🕳️', 'titulo': f'Caída Extrema - S3 Perforado',
+            'desc': 'Máximo nivel de volatilidad bajista alcanzado.',
+            'icon_rec': '⚠️', 'rec': 'Volatilidad extrema. Posible pánico.',
+            'next': ('Unknown', 0)
         }
     }
-    
-    return alert_context.get(triggered_level, {
-        'emoji': '⚡',
-        'titulo': f'Alerta de Nivel {triggered_level} en {clean_symbol}',
-        'descripcion': f'El precio ha tocado/cruzado el nivel {triggered_level}.',
-        'tecnico': 'Revisión de niveles recomendada.',
-        'proximo': ('Siguiente', 'Pendiente análisis'),
-        'recomendacion': 'Monitorear desarrollo.'
+
+    # Datos por defecto (Pivot o casos raros)
+    data = alert_definitions.get(level_name, {
+        'emoji': '⚡', 'titulo': f'Cruce de Nivel {level_name}',
+        'desc': f'El precio cruzó {level_name}',
+        'icon_rec': '👀', 'rec': 'Monitorear desarrollo',
+        'next': ('-', 0)
     })
 
+    # 2. Construcción del Mensaje Base
+    msg = (
+        f"{data['emoji']} *{data['titulo']} en {clean_symbol}*\n"
+        f"—————————————————\n"
+        f"📊 {data['desc']}\n\n"
+    )
+
+    # 3. Inyección de Análisis Avanzado (Igual que BTC)
+    if analyzer:
+        # Obtenemos señales del analyzer pasado como argumento
+        signal, sig_emoji, (buy, sell), reasons = analyzer.get_momentum_signal()
+        msg += (
+            f"*Momentum Actual:* {sig_emoji} {signal}\n"
+            f"⚖️ _Score: {buy} Compra | {sell} Venta_\n"
+        )
+        # Añadir razones clave (si existen)
+        if len(reasons) > 0: msg += f"✓ {reasons[0]}\n"
+        if len(reasons) > 1: msg += f"✓ {reasons[1]}\n"
+        msg += "\n"
+
+    # 4. Inyección de Divergencias
+    if divergence:
+        div_type, div_desc = divergence
+        div_emoji = "🐂" if div_type == "BULLISH" else "🐻"
+        msg += (
+            f"{div_emoji} *Divergencia {div_type}*\n"
+            f"💡 _{div_desc}_\n\n"
+        )
+
+    # 5. Detalles Técnicos Finales
+    target_name, target_val = data.get('next', ('-', 0))
+    msg += (
+        f"*Detalles del Cruce:*\n"
+        f"📍 Nivel: `{level_name}` (${level_value:,.4f})\n"
+        f"💰 Precio: `${current_price:,.4f}`\n"
+    )
+    
+    if target_val > 0:
+        msg += f"🎯 Objetivo: `{target_name}` (${target_val:,.4f})\n"
+        
+    msg += (
+        f"\n{data['icon_rec']} *Recomendación:*\n"
+        f"_{data['rec']}_\n\n"
+        f"⏳ *Marco Temporal:* 4H"
+    )
+    
+    msg += get_random_ad_text()
+    
+    # 6. Botón de acción (Link al comando de vista PRO)
+    # Callback data incluye BINANCE para forzar modo local
+    kb = [[InlineKeyboardButton(f"📊 Ver Análisis {clean_symbol}", 
+                             callback_data=f"valerts_view|{symbol_key}|BINANCE")]]
+    
+    # Enviar usando la función global inyectada
+    if _enviar_valerts_msg:
+        await _enviar_valerts_msg(msg, subs, 
+                                reply_markup=InlineKeyboardMarkup(kb),
+                                parse_mode=ParseMode.MARKDOWN)
+    
+    # Log y actualización de estado
+    state['alerted_levels'].append(level_name)
+    update_symbol_state(symbol_key, state)
+    add_log_line(f"🦁 Alerta Valerts enviada {clean_symbol}: {level_name}")
+
 async def valerts_monitor_loop(bot):
-    """
-    Bucle principal que monitorea monedas activas, calcula niveles
-    y envía alertas si el precio cruza niveles clave con mensajes profundos.
-    """
-    add_log_line("🦁 Loop de Volatilidad (Valerts) iniciado con mensajes mejorados...")
+    add_log_line("🦁 Iniciando Monitor Valerts (Modo Fibonacci Multi-Moneda)...")
+    global _enviar_valerts_msg
+    if VALERTS_SENDER:
+        _enviar_valerts_msg = VALERTS_SENDER
     
     while True:
         try:
             active_symbols = get_active_symbols()
-            
             if not active_symbols:
-                await asyncio.sleep(60)
+                await asyncio.sleep(30)
                 continue
-
-            for symbol in active_symbols:
-                try:
-                    # 1. Obtener datos (Vela cerrada anterior y precio actual)
-                    klines = fetch_binance_klines(symbol, interval="4h")
-                    if not klines or len(klines) < 2:
-                        continue
-
-                    prev_candle = klines[-2] 
-                    curr_candle = klines[-1]
+                
+            for symbol_key in active_symbols:
+                subs = get_valerts_subscribers(symbol_key)
+                if not subs: 
+                    continue
+                
+                # 1. Cargar Estado Actual
+                state = get_symbol_state(symbol_key)
+                last_saved_time = state.get('last_candle_time', 0)
+                
+                # 2. Obtener datos (Usamos el fetch robusto)
+                data_pack = fetch_binance_klines_data(symbol_key, "4h", 1000)
+                if not data_pack or data_pack['df'] is None:
+                    continue
                     
-                    ph, pl, pc = float(prev_candle[2]), float(prev_candle[3]), float(prev_candle[4])
-                    current_price = float(curr_candle[4])
-                    
-                    # 2. Calcular Niveles
-                    levels = calculate_pivot_points(ph, pl, pc)
-                    levels['current_price'] = current_price
-                    
-                    zone_name, zone_emoji, intensity, zone_desc = determine_market_zone(current_price, levels)
-                    
-                    # 3. Obtener estado anterior
-                    state = get_symbol_state(symbol)
-                    last_alerted_levels = state.get('alerted_levels', [])
-                    candle_ts = prev_candle[0]
-                    
-                    if state.get('last_candle_time') != candle_ts:
-                        last_alerted_levels = []
-                        state['last_candle_time'] = candle_ts
-                    
-                    # 4. Chequear Cruces
-                    check_list = [
-                        ('R3', levels['R3']), ('R2', levels['R2']), ('R1', levels['R1']),
-                        ('P_UP', levels['P']), ('P_DOWN', levels['P']),
-                        ('S1', levels['S1']), ('S2', levels['S2']), ('S3', levels['S3'])
-                    ]
-                    
-                    alerts_to_send = []
-                    
-                    for name, value in check_list:
-                        if name in last_alerted_levels:
-                            continue
-                        
-                        diff = abs(current_price - value) / value
-                        if diff < 0.002: # 0.2% de margen
-                            if name == 'P_UP' and current_price > value:
-                                alerts_to_send.append((name, value))
-                                last_alerted_levels.append(name)
-                            elif name == 'P_DOWN' and current_price < value:
-                                alerts_to_send.append((name, value))
-                                last_alerted_levels.append(name)
-                            elif name not in ['P_UP', 'P_DOWN']:
-                                alerts_to_send.append((name, value))
-                                last_alerted_levels.append(name)
-
-                    # 5. Guardar Estado
+                df = data_pack['df']
+                current_price = data_pack['current_price']
+                
+                # Tiempos de vela
+                # Penúltima fila es la vela cerrada (la base del cálculo)
+                # Última fila es la vela actual
+                last_closed_candle = df.iloc[-2]
+                current_candle_time = int(last_closed_candle['open_time'])
+                
+                # 3. ANÁLISIS CENTRALIZADO (Igual que BTC)
+                analyzer = BTCAdvancedAnalyzer(df)
+                
+                # Calculamos Niveles Fibonacci (P, R1-R3, S1-S3)
+                # Esto usa internamente la vela cerrada anterior
+                levels = analyzer.get_support_resistance_dynamic()
+                
+                # Análisis extra para el mensaje
+                momentum_signal, emoji_mom, (buy, sell), reasons = analyzer.get_momentum_signal()
+                divergence = analyzer.detect_rsi_divergence(lookback=5)
+                
+                # 4. GESTIÓN DE ESTADO Y NUEVA VELA
+                # Si la vela cerrada actual es más nueva que la guardada, recalculamos
+                is_new_candle = current_candle_time > last_saved_time
+                
+                if is_new_candle or not state.get('levels'):
+                    # Guardamos los nuevos niveles calculados
                     state['levels'] = levels
-                    state['alerted_levels'] = last_alerted_levels
-                    state['current_zone'] = zone_name
-                    update_symbol_state(symbol, state)
+                    state['last_candle_time'] = current_candle_time
+                    state['alerted_levels'] = [] # Reseteamos alertas para la nueva sesión
+                    update_symbol_state(symbol_key, state)
                     
-                    # 6. Enviar Alertas
-                    if alerts_to_send and VALERTS_SENDER:
-                        subscribers = get_valerts_subscribers(symbol)
-                        if subscribers:
-                            for lname, lval in alerts_to_send:
-                                context = get_alert_context(lname, current_price, levels, symbol)
-                                
-                                decimals = 2 if current_price > 100 else 4
-                                fmt = f",.{decimals}f"
-                                
-                                # --- CORRECCIÓN CRÍTICA DE MARKDOWN ---
-                                # "Sanitizamos" el nombre del nivel para que no rompa el Markdown
-                                # Si lname es "P_UP", se convierte en "P UP" (sin guion bajo)
-                                display_level_name = lname.replace("_", " ") 
-                                # O si prefieres mantener el guion bajo visualmente, usa:
-                                # display_level_name = lname.replace("_", "\\_")
+                    # Opcional: Notificar recálculo (si se desea)
+                    # Aquí lo omitimos para no spammear en Valerts, 
+                    # pero la lógica ya está lista.
+                
+                # 5. VERIFICACIÓN DE ALERTAS (Dentro de la vela actual)
+                if not state.get('levels'): continue
+                
+                saved_levels = state['levels']
+                alerted_list = state.get('alerted_levels', [])
+                clean_symbol = symbol_key.replace("USDT", "").upper()
+                threshold = 0.001 # 0.1% margen
+                
+                # Lista de chequeos (Nombre Nivel, Clave en Dict)
+                # NOTA: BTCAdvancedAnalyzer devuelve claves en Mayúsculas (R1, S1...)
+                checks = [
+                    ('R3', 'R3'), ('R2', 'R2'), ('R1', 'R1'), 
+                    ('S1', 'S1'), ('S2', 'S2'), ('S3', 'S3')
+                ]
 
-                                # Construir mensaje
-                                msg = (
-                                    f"{context['emoji']} *{context['titulo']}*\n"
-                                    f"—————————————————\n"
-                                    f"{context['descripcion']}\n\n"
-                                    f"*Análisis Técnico:*\n"
-                                    f"`{context['tecnico']}`\n\n"
-                                    f"*Detalles del Cruce:*\n"
-                                    # AQUÍ USAMOS LA VARIABLE SANITIZADA display_level_name
-                                    f"🏷️ Nivel: {display_level_name} (${lval:{fmt}})\n"
-                                    f"💰 Precio: ${current_price:{fmt}}\n"
-                                    f"🎯 Próximo: {context['proximo'][0]} ({context['proximo'][1]})\n\n"
-                                    f"✍️ *Recomendación:* {context['recomendacion']}\n\n"
-                                    f"{zone_emoji} Zona: {zone_name}\n"
-                                    f"⏳ Marco: 4H"
-                                )
-                                
-                                msg += get_random_ad_text()
-                                
-                                kb = [[InlineKeyboardButton("📊 Ver Tabla de Niveles", callback_data=f"valerts_view|{symbol}")]]
-                                
-                                await VALERTS_SENDER(msg, subscribers, parse_mode=ParseMode.MARKDOWN, reply_markup=InlineKeyboardMarkup(kb))
-                                await asyncio.sleep(0.05)
+                for lvl_name, dict_key in checks:
+                    val = saved_levels.get(dict_key, 0)
+                    if val == 0: continue
 
-                except Exception as e:
-                    # print(f"Error procesando {symbol}: {e}")
-                    add_log_line(f"❌ Error en Valerts Loop ({symbol}): {e}")
+                    triggered = False
                     
-            await asyncio.sleep(60)
-
+                    # Lógica de Trigger (Precio cruza el nivel)
+                    if lvl_name.startswith('R'): # Resistencias (Precio sube)
+                        if current_price > val * (1 + threshold): triggered = True
+                    elif lvl_name.startswith('S'): # Soportes (Precio baja)
+                        if current_price < val * (1 - threshold): triggered = True
+                    
+                    if triggered and lvl_name not in alerted_list:
+                        # ENVIAR ALERTA
+                        # Pasamos analyzer y divergence para que send_valerts_alert 
+                        # construya el mensaje idéntico a BTC
+                        await send_valerts_alert(
+                            symbol_key, subs, clean_symbol, 
+                            lvl_name, val, current_price, 
+                            saved_levels, threshold, state,
+                            analyzer=analyzer,       
+                            divergence=divergence
+                        )
+                        # El estado se actualiza dentro de send_valerts_alert 
+                        # (añade el nivel a alerted_levels)
+                        
+            await asyncio.sleep(60) # Espera entre ciclos de todas las monedas
+            
         except Exception as e:
-            add_log_line(f"❌ Error crítico en Valerts Loop: {e}")
+            add_log_line(f"Error Valerts Loop: {e}")
             await asyncio.sleep(60)

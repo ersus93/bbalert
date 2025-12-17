@@ -29,12 +29,15 @@ def obtener_tasas_eltoque():
 
     try:
         response = requests.get(URL_API_ELTOQUE, headers=headers, timeout=10)
-        # Lanza una excepción si la respuesta es un error (ej. 401, 404, 500)
         response.raise_for_status() 
         
         data = response.json()
+        
+        # --- AGREGAR ESTO TEMPORALMENTE PARA VERIFICAR ---
+        print("🔍 RESPUESTA JSON DE ELTOQUE:", json.dumps(data, indent=2))
+        # -------------------------------------------------
 
-        return data 
+        return data
         
     except requests.exceptions.RequestException as e:
         print(f"❌ Error al contactar la API de ElToque: {e}")
@@ -161,40 +164,41 @@ def obtener_precios_alerta():
 def obtener_precios_control(monedas):
     return _obtener_precios(monedas, CMC_API_KEY_CONTROL)
 
+# En core/api_client.py
+
 def obtener_high_low_24h(moneda):
-    """Consulta el OHLCV histórico para calcular el high y low de las últimas 24h."""
-    headers = {
-        "X-CMC_PRO_API_KEY": CMC_API_KEY_CONTROL,
-        "Accept": "application/json"
-    }
-
-    ahora = datetime.utcnow()
-    hace_24h = ahora - timedelta(hours=24)
-
-    params = {
-        "symbol": moneda,
-        "convert": "USD",
-        "time_start": hace_24h.strftime("%Y-%m-%dT%H:%M:%S"),
-        "time_end": ahora.strftime("%Y-%m-%dT%H:%M:%S")
-    }
+    """
+    Obtiene el High y Low de las últimas 24h usando Binance (Gratis).
+    Intenta buscar el par contra USDT.
+    """
+    # Estandarizamos el símbolo a mayúsculas y le pegamos USDT
+    symbol = moneda.upper()
+    pair = f"{symbol}USDT"
+    
+    url = [
+        "https://api.binance.us/api/v3/ticker/24hr",
+        "https://api.binance.com/api/v3/ticker/24hr"
+        ]
+    params = {"symbol": pair}
 
     try:
-        response = requests.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/ohlcv/historical", headers=headers, params=params, timeout=10)
-        response.raise_for_status()
+        # Timeout corto para no bloquear el bot si Binance tarda
+        response = requests.get(url, params=params, timeout=2)
+        
+        # Si la moneda no existe en Binance (400 Bad Request), devolvemos 0,0 silenciosamente
+        if response.status_code != 200:
+            return 0, 0
+            
         data = response.json()
+        
+        high = float(data.get('highPrice', 0))
+        low = float(data.get('lowPrice', 0))
+        
+        return high, low
 
-        candles = data.get("data", {}).get("quotes", [])
-        if not candles:
-            return (0, 0)
-
-        high = max(candle["quote"]["USD"]["high"] for candle in candles)
-        low = min(candle["quote"]["USD"]["low"] for candle in candles)
-        return (high, low)
-
-    except (requests.exceptions.RequestException, KeyError) as e:
-        print(f"Error al obtener HL histórico de {moneda}: {e}")
-        return (0, 0)
-
+    except Exception as e:
+        # En caso de error de conexión, retornamos 0 sin explotar
+        return 0, 0
 def obtener_datos_moneda(moneda):
     """Obtiene datos detallados de una moneda de CoinMarketCap."""
     headers = {

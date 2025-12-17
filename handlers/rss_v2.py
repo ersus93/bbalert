@@ -191,12 +191,12 @@ async def start_add_feed(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     msg = (
         "🔗 *Añadir Feed RSS*\n\n"
-        "Soporta:\n"
-        "  • RSS/Atom estándar\n\n"
+        "*Soporta:*\n"
+        "  • RSS/Atom estándar\n"
+        "  • Cuentas Instagram\n\n"
         "  • *Proximamente*\n "
         "  • Canales Telegram\n"
         "  • Perfiles Twitter/X\n"
-        "  • Cuentas Instagram\n"
         "  • Canales YouTube\n\n"
         "Envía la **URL**:"
     )

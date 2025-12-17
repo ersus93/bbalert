@@ -1,3 +1,5 @@
+# handlers/btc_handlers.py
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CallbackQueryHandler, CommandHandler
 from telegram.constants import ParseMode
@@ -11,9 +13,10 @@ from datetime import datetime
 from core.config import DATA_DIR
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 from core.btc_loop import get_btc_klines
+from utils.tv_helper import get_tv_data 
 
+# === GESTIÓN DE SUSCRIPCIONES (Manteniendo tu lógica original) ===
 BTC_SUBS_PATH = os.path.join(DATA_DIR, "btc_subs.json")
-BTC_STATE_PATH = os.path.join(DATA_DIR, "btc_alert_state.json")
 
 def load_btc_subs():
     if not os.path.exists(BTC_SUBS_PATH):
@@ -34,240 +37,332 @@ def save_btc_subs(subs):
         print(f"Error guardando subs BTC: {e}")
 
 def toggle_btc_subscription(user_id):
-    """Activa o desactiva la suscripción de un usuario."""
     subs = load_btc_subs()
     uid = str(user_id)
-    
     if uid in subs:
         current = subs[uid].get('active', False)
         subs[uid]['active'] = not current
     else:
         subs[uid] = {'active': True, 'joined_at': datetime.now().isoformat()}
-    
     save_btc_subs(subs)
     return subs[uid]['active']
 
-def is_btc_subscribed(user_id):
-    subs = load_btc_subs()
-    return subs.get(str(user_id), {}).get('active', False)
+# === COMANDO PRINCIPAL CON LÓGICA DE SWITCH ===
 
-def get_btc_subscribers():
-    subs = load_btc_subs()
-    return [uid for uid, data in subs.items() if data.get('active')]
-
-def load_btc_state():
-    """Carga el estado de niveles y alertas enviadas."""
-    if not os.path.exists(BTC_STATE_PATH):
-        return {"last_candle_time": 0, "levels": {}, "alerted_levels": []}
-    try:
-        with open(BTC_STATE_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"⚠️ Error cargando estado BTC ({e}). Iniciando limpio.")
-        return {"last_candle_time": 0, "levels": {}, "alerted_levels": []}
-
-def save_btc_state(data):
-    """Guarda el estado actual en JSON de forma segura."""
-    try:
-        temp_path = f"{BTC_STATE_PATH}.tmp"
-        with open(temp_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
-        os.replace(temp_path, BTC_STATE_PATH)
-    except Exception as e:
-        print(f"❌ Error crítico guardando estado BTC: {e}")
-
-async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra análisis técnico completo de BTC con indicadores PRO."""
+async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE, source="BINANCE"):
+    """
+    Muestra el análisis de BTC.
+    source: "BINANCE" (Cálculo local PRO) o "TV" (TradingView Simple).
+    """
+    # 1. Detectar contexto (Callback vs Comando)
+    is_callback = update.callback_query is not None
+    user_id = update.effective_user.id
     
-    if update.callback_query:
-        user_id = update.callback_query.from_user.id
-        chat_id = update.callback_query.message.chat_id
-        is_callback = True
-    else:
-        user_id = update.effective_user.id
-        chat_id = update.effective_chat.id
-        is_callback = False
+    # Si el usuario escribe "/btcalerts TV", forzamos TV
+    if not is_callback and context.args and "TV" in [a.upper() for a in context.args]:
+        source = "TV"
 
+    # Estado de suscripción para el botón
     subscribed = is_btc_subscribed(user_id)
-    state = load_btc_state()
-    levels = state.get('levels', {})
-
     status_icon = "✅ ACTIVADAS" if subscribed else "☑️ DESACTIVADAS"
     
-    # --- ANÁLISIS TÉCNICO EN VIVO ---
-    analysis_text = "⏳ _Cargando análisis..._"
-    
-    try:
-        df = get_btc_klines(limit=100)
-        if df is not None and len(df) > 0:
-            analyzer = BTCAdvancedAnalyzer(df)
-            curr_values = analyzer.get_current_values()
-            momentum_signal, emoji_mom, score, reasons = analyzer.get_momentum_signal()
-            support_res = analyzer.get_support_resistance_dynamic()
-            divergence = analyzer.detect_rsi_divergence()
+    msg = ""
+    switch_btn = []
+
+    # ==================================================================
+    # CASO A: VISTA TRADINGVIEW (ESTILO PRO / VALERTS)
+    # ==================================================================
+    if source == "TV":
+        try:
+            # 1. Obtener datos de TradingView
+            tv_data = get_tv_data("BTCUSDT", interval_str="4h")
             
-            # Emoji de RSI
-            rsi_val = curr_values['rsi']
+            if not tv_data:
+                raise Exception("Sin datos de TV")
+            
+            # 2. Extraer variables clave
+            curr = tv_data.get('current_price', 0)
+            rec = tv_data.get('recommendation', 'NEUTRAL')
+            buy_score = tv_data.get('buy_count', 0)
+            sell_score = tv_data.get('sell_count', 0)
+            
+            rsi_val = tv_data.get('RSI', 50)
+            macd_hist = tv_data.get('MACD_hist', 0)
+            sma50 = tv_data.get('SMA50', 0)
+            
+            # 3. Lógica de Emojis y Textos (Igual que en Valerts)
+            # --- Señal General ---
+            if "STRONG_BUY" in rec:
+                sig_icon, sig_txt = "🚀", "COMPRA FUERTE"
+            elif "BUY" in rec:
+                sig_icon, sig_txt = "🐂", "COMPRA"
+            elif "STRONG_SELL" in rec:
+                sig_icon, sig_txt = "🩸", "VENTA FUERTE"
+            elif "SELL" in rec:
+                sig_icon, sig_txt = "🐻", "VENTA"
+            else:
+                sig_icon, sig_txt = "⚖️", "NEUTRAL"
+
+            # --- RSI ---
             if rsi_val > 70:
-                rsi_emoji = "🔴"
-                rsi_state = "SOBRECOMPRADO"
-            elif rsi_val > 60:
-                rsi_emoji = "🟢"
-                rsi_state = "ALCISTA"
-            elif rsi_val > 40:
-                rsi_emoji = "🟡"
-                rsi_state = "NEUTRAL"
+                rsi_icon, rsi_state = "🔴", "SOBRECOMPRA"
+            elif rsi_val < 30:
+                rsi_icon, rsi_state = "🟢", "SOBREVENTA"
+            elif rsi_val > 50:
+                rsi_icon, rsi_state = "🔵", "ALCISTA"
             else:
-                rsi_emoji = "🔵"
-                rsi_state = "BAJISTA/SOBREVENTA"
-            
-            # Emoji de MACD
-            macd_emoji = "✅" if (curr_values['macd_hist'] > 0) else "❌"
-            macd_state = "Alcista" if (curr_values['macd_hist'] > 0) else "Bajista"
-            
-            # Emoji de Volumen
-            vol_ratio = curr_values['volume_ratio']
-            if vol_ratio > 1.5:
-                vol_emoji = "📈"
-                vol_state = "MUY ALTO (Fuerte)"
-            elif vol_ratio > 1.2:
-                vol_emoji = "📊"
-                vol_state = "ALTO (Confirmación)"
-            elif vol_ratio > 0.8:
-                vol_emoji = "📉"
-                vol_state = "NORMAL"
+                rsi_icon, rsi_state = "🟠", "BAJISTA"
+
+            # --- MACD ---
+            if macd_hist > 0:
+                macd_icon, macd_state = "✅", "Positivo (Alcista)"
             else:
-                vol_emoji = "⚠️"
-                vol_state = "BAJO (Débil)"
-            
-            # Emoji de SMA
-            price = curr_values['price']
-            sma_50 = curr_values['sma_50']
-            sma_200 = curr_values['sma_200']
-            
-            if price > sma_50 > sma_200:
-                sma_emoji = "🚀"
-                sma_state = "ALCISTA (Todos UP)"
-            elif price > sma_50:
-                sma_emoji = "📈"
-                sma_state = "POSITIVO"
-            elif price > sma_200:
-                sma_emoji = "⚖️"
-                sma_state = "NEUTRAL"
+                macd_icon, macd_state = "❌", "Negativo (Bajista)"
+
+            # --- SMA 50 ---
+            if curr > sma50:
+                sma_icon, sma_state = "📈", "Sobre SMA50"
             else:
-                sma_emoji = "📉"
-                sma_state = "BAJISTA"
-            
-            analysis_text = (
-                f"*📊 Análisis Técnico Actual (4H)*\n"
+                sma_icon, sma_state = "📉", "Bajo SMA50"
+
+            # 4. Construcción del Mensaje PRO
+            msg = (
+                f"🦁 *Monitor BTC (TradingView)*\n"
                 f"—————————————————\n"
-                f"{emoji_mom} *Momentum:* {momentum_signal}\n"
-                f"📈 _Score: {score}/10_\n\n"
-                f"*Indicadores Clave:*\n"
-                f"{rsi_emoji} *RSI:* `{rsi_val:.1f}` _{rsi_state}_\n"
-                f"{macd_emoji} *MACD:* _{macd_state}_\n"
-                f"{vol_emoji} *Volumen:* `{vol_ratio:.2f}x` _{vol_state}_\n"
-                f"{sma_emoji} *SMA:* _{sma_state}_\n"
+                f"📊 *Estructura BTC (4H)*\n"
+                f"📡 Fuente: _TradingView API_\n"
+                f"{sig_icon} *Señal:* `{sig_txt}`\n"
+                f"⚖️ *Score:* {buy_score} Compra | {sell_score} Venta\n\n"
+                
+                f"*Indicadores:*\n"
+                f"{rsi_icon} *RSI:* `{rsi_val:.1f}` _{rsi_state}_\n"
+                f"{macd_icon} *MACD:* _{macd_state}_\n"
+                f"{sma_icon} *SMA:* _{sma_state}_\n\n"
+                
+                f"*💹 Niveles Clave:*\n"
+                f"🧗 R3: `${tv_data.get('R3', 0):,.0f}`\n"
+                f"🟥 R2: `${tv_data.get('R2', 0):,.0f}`\n"
+                f"🟧 R1: `${tv_data.get('R1', 0):,.0f}`\n"
+                f"⚖️ *PIVOT: ${tv_data.get('P', 0):,.0f}*\n"
+                f"🟦 S1: `${tv_data.get('S1', 0):,.0f}`\n"
+                f"🟩 S2: `${tv_data.get('S2', 0):,.0f}`\n"
+                f"🕳️ S3: `${tv_data.get('S3', 0):,.0f}`\n\n"
+                
+                f"💰 *Precio:* `${curr:,.2f}`\n"
+                f"—————————————————\n"
+                f"🔔 *Suscripción:* {status_icon}"
             )
             
-            # Divergencia con emoji destacado
-            if divergence:
-                div_type, div_desc = divergence
-                div_emoji = "🐂" if div_type == "BULLISH" else "🐻"
-                analysis_text += (
-                    f"\n{div_emoji} *Divergencia Detectada:* {div_type}\n"
-                    f"💡 _{div_desc}_\n"
-                )
+            # El botón switch llevará a la vista LOCAL (Binance)
+            switch_btn = [InlineKeyboardButton("🦁 Ver Local (Binance)", callback_data="btc_switch_view|BINANCE")]
             
-            # Factores clave
-            analysis_text += f"\n*Factores Principales:*\n"
-            for i, reason in enumerate(reasons[:3], 1):
-                analysis_text += f"{i}️⃣ {reason}\n"
-    
-    except Exception as e:
-        print(f"Error en análisis: {e}")
-        analysis_text = "⚠️ _Análisis técnico no disponible en este momento._"
-    
-    # --- TABLA DE NIVELES CON EMOJIS ---
-    if levels:
-        price_now = levels.get('current_price', 0)
-        p = levels.get('P', 0)
-        
-        # Emoji de zona
-        if price_now > levels.get('R2', 0):
-            zone = "🚀 EXTENSIÓN"
-            zone_color = "🟠"
-        elif price_now > levels.get('R1', 0):
-            zone = "🐂 ALCISTA"
-            zone_color = "🟢"
-        elif price_now < levels.get('S2', 0):
-            zone = "🩸 EXTENSIÓN"
-            zone_color = "🔴"
-        elif price_now < levels.get('S1', 0):
-            zone = "🐻 BAJISTA"
-            zone_color = "🔴"
-        else:
-            zone = "⚖️ NEUTRAL"
-            zone_color = "🟡"
-        
-        levels_msg = (
-            f"*💹 Estructura de Mercado (4H)*\n"
-            f"Estado: {zone_color} {zone}\n\n"
-            f"🧗 *R3:* `${levels.get('R3',0):,.0f}` _(Máximo)_\n"
-            f"🔺 *R2:* `${levels.get('R2',0):,.0f}` _(Extensión)_\n"
-            f"📍 *R1:* `${levels.get('R1',0):,.0f}` _(Resistencia)_\n"
-            f"⚖️ *PIVOT:* `${p:,.0f}` _(Equilibrio)_\n"
-            f"📍 *S1:* `${levels.get('S1',0):,.0f}` _(Soporte)_\n"
-            f"🔻 *S2:* `${levels.get('S2',0):,.0f}` _(Extensión)_\n"
-            f"🕳️ *S3:* `${levels.get('S3',0):,.0f}` _(Mínimo)_\n\n"
-            f"💰 *Precio Actual:* `${price_now:,.0f}`"
-        )
+        except Exception as e:
+            msg = f"⚠️ *Error conectando con TradingView.*\nUse la vista local por ahora.\nError: _{e}_"
+            # Botón de emergencia para volver a local
+            switch_btn = [InlineKeyboardButton("🦁 Volver a Local", callback_data="btc_switch_view|BINANCE")]
+
+    # ==================================================================
+    # CASO B: VISTA BINANCE PRO (Cálculo Local Avanzado)
+    # ==================================================================
     else:
-        levels_msg = "⏳ _Calculando niveles..._"
+        try:
+            # 1. Obtener Velas (Limit 10000 para precisión en EMA200)
+            df = get_btc_klines(limit=1000)
+            
+            if df is None or len(df) < 200:
+                msg = "⚠️ *Datos insuficientes de Binance.*\nIntenta de nuevo en unos segundos."
+            else:
+                # 2. Instanciar Analizador
+                analyzer = BTCAdvancedAnalyzer(df)
+                
+                # 3. Obtener Datos
+                curr_values = analyzer.get_current_values()
+                momentum_signal, emoji_mom, (buy, sell), reasons = analyzer.get_momentum_signal()
+                sr = analyzer.get_support_resistance_dynamic()
+                
+                # 4. Formatear Valores
+                price = curr_values.get('close', 0)
+                rsi_val = curr_values.get('RSI', 50)
+                 # Intentamos buscar ADX_14 o ADX
+                adx = curr_values.get('ADX_14', curr_values.get('ADX', 0))
+                if adx >= 50:
+                    adx_txt = "🔥 Tendencia Muy Fuerte"
+                elif adx >= 25:
+                    adx_txt = "💪 Tendencia Fuerte"
+                else:
+                    adx_txt = "💤 Rango / Sin Tendencia"
+                # Intentamos buscar STOCHk_14... o similar
+                stoch_k = curr_values.get('stoch_k', 50)
+                if stoch_k >= 80:
+                    stoch_txt = "🔴 Sobrecompra (Posible Caída)"
+                elif stoch_k <= 20:
+                    stoch_txt = "🟢 Sobrevendido (Posible Rebote)"
+                else:
+                    stoch_txt = "⚖️ Neutro"
+                macd_hist = curr_values.get('MACD_HIST', 0)
+                ema_50 = curr_values.get('EMA_50', 0)
+                ema_200 = curr_values.get('EMA_200', 0)
+                
+                # Etiquetas lógicas
+                if rsi_val > 70: rsi_str = "SOBRECOMPRA 🔴"
+                elif rsi_val < 30: rsi_str = "SOBREVENTA 🟢"
+                elif rsi_val > 50: rsi_str = "ALCISTA ↗️"
+                else: rsi_str = "BAJISTA ↘️"
+                
+                trend_str = "ALCISTA (Sobre EMA50)" if price > ema_50 else "BAJISTA (Bajo EMA50)"
+                
+                # Zona de precio vs Niveles
+                if price > sr.get('R2', 0): zone = "🚀 EXTENSIÓN"
+                elif price > sr.get('R1', 0): zone = "🐂 ALCISTA"
+                elif price < sr.get('S2', 0): zone = "🩸 EXTENSIÓN"
+                elif price < sr.get('S1', 0): zone = "🐻 BAJISTA"
+                else: zone = "⚖️ NEUTRAL"
 
-    msg = (
-        f"🦁 *Monitor BTC PRO*\n"
-        f"—————————————————\n"
-        f"{analysis_text}\n\n"
-        f"—————————————————\n"
-        f"{levels_msg}\n"
-        f"—————————————————\n"
-        f"🔔 *Suscripción:* {status_icon}\n\n"
-        f"🎯 Alertas inteligentes con análisis técnico avanzado"
-    )
+                # 5. Construir Mensaje PRO
+                msg = (
+                    f"🦁 *Monitor BTC PRO (Local)*\n"
+                    f"—————————————————\n"
+                    f"{emoji_mom} *Señal:* {momentum_signal}\n"
+                    f"⚖️ *Score:* {buy} Compra vs {sell} Venta\n\n"
+                    
+                    f"*Osciladores & Momentum:*\n"
+                    f"🔵 *RSI (14):* `{rsi_val:.1f}` _{rsi_str}_\n"
+                    f"🌊 *Stoch K:* `{stoch_k:.1f}` _{stoch_txt}_\n"
+                    f"🔋 *ADX Force:* `{adx:.1f}` _{adx_txt}_\n"
+                    f"❌ *MACD:* {'Positivo 🟢' if macd_hist > 0 else 'Negativo 🔴'}\n\n"
+                    
+                    f"*Tendencia (Medias Móviles):*\n"
+                    f"📉 *Estructura:* _{trend_str}_\n"
+                    f"EMA 200: `${ema_200:,.0f}` _(Tendencia LP)_\n\n"
+                    
+                    f"—————————————————\n"
+                    f"💹 *Niveles Fibonacci (4H)*\n"
+                    f"Estado: {zone}\n"
+                    f"🧗 R3: `${sr.get('R3',0):,.0f}`\n"
+                    f"🟥 R2: `${sr.get('R2',0):,.0f}`\n"
+                    f"🟧 R1: `${sr.get('R1',0):,.0f}`\n"
+                    f"⚖️ *PIVOT: ${sr.get('P',0):,.0f}*\n"
+                    f"🟦 S1: `${sr.get('S1',0):,.0f}`\n"
+                    f"🟩 S2: `${sr.get('S2',0):,.0f}`\n"
+                    f"🕳️ S3: `${sr.get('S3',0):,.0f}`\n\n"
+                    
+                    f"💰 *Precio Actual:* `${price:,.0f}`\n"
+                    f"—————————————————\n"
+                    f"🔔 *Suscripción:* {status_icon}"
+                )
+                
+                # Agregar razones si existen
+                if reasons:
+                   msg += f"\n\n*Factores Clave:*\n"
+                   for r in reasons[:2]:
+                       msg += f"• {r}\n"
 
-    btn_text = "🔕 Desactivar" if subscribed else "🔔 Activar Alertas"
-    kb = [[InlineKeyboardButton(btn_text, callback_data="toggle_btc_alerts")]]
+        except Exception as e:
+            msg = f"❌ *Error crítico en análisis local.*\n_{str(e)}_"
+            # En caso de error, permitir ir a TV
+            switch_btn = [InlineKeyboardButton("📺 Probar TradingView", callback_data="btc_switch_view|TV")]
+
+        # Si todo salió bien en bloque Binance, definimos el botón a TV
+        if not switch_btn:
+            switch_btn = [InlineKeyboardButton("📊 Ver en TradingView", callback_data="btc_switch_view|TV")]
+
+    # ==================================================================
+    # ARMADO FINAL DEL MENSAJE Y TECLADO
+    # ==================================================================
     
+    # Agregar publicidad
+    msg += get_random_ad_text()
+    
+    kb = []
+    # Botón de Suscripción
+    sub_text = "🔕 Desactivar Alertas" if subscribed else "🔔 Activar Alertas"
+    kb.append([InlineKeyboardButton(sub_text, callback_data="toggle_btc_alerts")])
+    
+    # Botón de Switch
+    if switch_btn:
+        kb.append(switch_btn)
+    
+    reply_markup = InlineKeyboardMarkup(kb)
+
     if is_callback:
+        # Editar mensaje existente (Switch suave)
         await update.callback_query.answer()
-        await context.bot.send_message(chat_id=chat_id, text=msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        try:
+            await update.callback_query.edit_message_text(
+                text=msg, 
+                reply_markup=reply_markup, 
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception:
+            pass # Si el mensaje es idéntico, ignora el error
     else:
-        await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+        # Enviar mensaje nuevo
+        await update.message.reply_text(
+            msg, 
+            reply_markup=reply_markup, 
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+
+# === HANDLERS DE CALLBACK ===
+
+async def btc_switch_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Maneja el cambio de vista entre Binance y TradingView.
+    """
+    query = update.callback_query
+    
+    # --- INICIO MODIFICACIÓN ---
+    # Si recibimos el callback antiguo, forzamos a BINANCE
+    if query.data == "btcalerts_view":
+        target_source = "BINANCE"
+    else:
+        # Lógica estándar con argumentos
+        data = query.data.split("|")
+        if len(data) < 2:
+            await query.answer("Error en datos.")
+            return
+        target_source = data[1] 
+    # --- FIN MODIFICACIÓN ---
+
+    # Llamamos a la función principal
+    await btc_alerts_command(update, context, source=target_source)
+
 
 async def btc_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Activa o desactiva alertas y actualiza solo el botón."""
     query = update.callback_query
     await query.answer()
     
     new_status = toggle_btc_subscription(query.from_user.id)
+    btn_text = "🔕 Desactivar Alertas" if new_status else "🔔 Activar Alertas"
     
-    user_id = query.from_user.id
-    btn_text = "🔕 Desactivar" if new_status else "🔔 Activar Alertas"
-    kb = [[InlineKeyboardButton(btn_text, callback_data="toggle_btc_alerts")]]
+    # Recuperamos el teclado actual para no perder el botón de Switch
+    current_kb = query.message.reply_markup.inline_keyboard
+    new_kb = []
+    
+    for row in current_kb:
+        new_row = []
+        for btn in row:
+            if btn.callback_data == "toggle_btc_alerts":
+                new_row.append(InlineKeyboardButton(btn_text, callback_data="toggle_btc_alerts"))
+            else:
+                new_row.append(btn)
+        new_kb.append(new_row)
     
     try:
-        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(kb))
-        status_text = "✅ Alertas ACTIVADAS" if new_status else "🔕 Alertas DESACTIVADAS"
-        await query.answer(status_text, show_alert=False)
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(new_kb))
+        msg_toast = "✅ Alertas ACTIVADAS" if new_status else "🔕 Alertas DESACTIVADAS"
+        await query.answer(msg_toast, show_alert=False)
     except:
         pass
 
-async def btc_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Callback para el botón 'Ver Análisis'."""
-    await btc_alerts_command(update, context)
+# === LISTA DE HANDLERS PARA MAIN.PY ===
 
 btc_handlers_list = [
     CommandHandler("btcalerts", btc_alerts_command),
     CallbackQueryHandler(btc_toggle_callback, pattern="^toggle_btc_alerts$"),
-    CallbackQueryHandler(btc_view_callback, pattern="^btcalerts_view$") 
+    CallbackQueryHandler(btc_switch_view_callback, pattern="^btc_switch_view\\|"),
+    # Mantenemos compatibilidad con botones viejos si existen
+    CallbackQueryHandler(btc_switch_view_callback, pattern="^btcalerts_view") 
 ]

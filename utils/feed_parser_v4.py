@@ -12,6 +12,11 @@ from datetime import datetime
 from urllib.parse import urljoin, urlparse
 from utils.file_manager import add_log_line
 
+# ===== NUEVAS IMPORTACIONES =====
+from utils.rss_generator import RSSGenerator
+from utils.web_scraper import WebContentScraper
+from utils.instagram_scraper import InstagramScraper
+
 class FeedParserV4:
     """
     Parser RSS Ultra-Robusto con:
@@ -22,23 +27,37 @@ class FeedParserV4:
     """
     
     HEADERS = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/rss+xml, application/atom+xml, application/xml, text/html, */*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Cache-Control": "max-age=0",
+        "Sec-Ch-Ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1"
     }
     
     # ========================================
     # SERVICIOS DE CONVERSIÓN (Prioridad)
     # ========================================
     RSSHUB_MIRRORS = [
+        "https://rss-proxy.madbots.dev",  # <--- AÑADIR ESTO PRIMERO
         "https://rsshub.app",
-        "https://rss.nixnet.services",
-        "https://rsshub.rssforever.com",
+        "https://rsshub.feeded.xyz",
+        "https://hub.sls.tw",
     ]
     
     RSS_BRIDGE_MIRRORS = [
+        "https://rss-bridge.madbots.dev", # <--- AÑADIR ESTO PRIMERO
         "https://rss-bridge.org/bridge01",
-        "https://wtf.roflcopter.fr/rss-bridge",
+        "https://feed.eugenemolotov.ru",
+        "https://rss-bridge.tchncs.de",
     ]
     
     NITTER_INSTANCES = [
@@ -50,7 +69,11 @@ class FeedParserV4:
     def __init__(self, timeout: int = 25):
         self.timeout = timeout
         self._session = None
-    
+        # ===== NUEVO: Inicializar scrapers propios =====
+        self.rss_gen = RSSGenerator(format_type='rss')
+        self.web_scraper = WebContentScraper(timeout=timeout)
+        self.instagram_scraper = InstagramScraper(timeout=timeout)
+
     async def _get_session(self):
         """Crea sesión HTTP persistente."""
         if not self._session:
@@ -66,6 +89,10 @@ class FeedParserV4:
         if self._session:
             await self._session.close()
             self._session = None
+
+            # ===== NUEVO: Cerrar scrapers propios =====
+            await self.web_scraper.close()
+            await self.instagram_scraper.close()
     
     # ========================================
     # DETECCIÓN DE TIPO DE FEED
@@ -84,8 +111,16 @@ class FeedParserV4:
         
         # Instagram
         if 'instagram.com' in url_lower:
-            match = re.search(r'instagram\.com/([a-zA-Z0-9_.]{1,30})', url)
-            return ('instagram', match.group(1) if match else None)
+            # Captura el usuario ignorando query params o slash final
+            # Evita capturar rutas de sistema como /p/ (posts) o /reel/
+            if '/p/' not in url_lower and '/reel/' not in url_lower:
+                match = re.search(r'instagram\.com/([a-zA-Z0-9_.]{1,30})', url.split('?')[0])
+                if match:
+                    identifier = match.group(1).rstrip('/')
+                    # Filtrar palabras reservadas de Instagram que no son usuarios
+                    if identifier not in ['explore', 'direct', 'stories', 'reels']:
+                        return ('instagram', identifier)
+            return ('generic', None) # Si es un post específico, tratar como genérico o añadir lógica futura
         
         # YouTube
         if 'youtube.com' in url_lower or 'youtu.be' in url_lower:
@@ -144,12 +179,36 @@ class FeedParserV4:
         
         # --- INSTAGRAM ---
         elif source_type == 'instagram':
-            # RSSHub
+            # 1. Scraper Nativo (Ahora devolverá None si hay 0 posts)
+            native_content = await self.convert_instagram_native(identifier)
+            if native_content:
+                return native_content
+    
+            add_log_line("⚠️ Scraper nativo falló, intentando servicios externos...")
+    
+            # 2. RSS Bridge (Aquí usará https://rss-bridge.madbots.dev primero)
+            for mirror in self.RSS_BRIDGE_MIRRORS:
+                services.append(
+                    f"{mirror}/?action=display&bridge=Instagram&context=Username"
+                    f"&u={identifier}&media_type=all&format=Atom"
+                )
+    
+            # 3. RSSHub (Aquí usará https://rss-proxy.madbots.dev primero)
             for mirror in self.RSSHUB_MIRRORS:
                 services.append(f"{mirror}/instagram/user/{identifier}")
-            
-            # Bibliogram
-            services.append(f"https://bibliogram.art/u/{identifier}/rss.xml")
+                services.append(f"{mirror}/instagram/feed/{identifier}")
+    
+            # ===== FALLBACK: RSS Bridge =====
+            for mirror in self.RSS_BRIDGE_MIRRORS:
+                services.append(
+                    f"{mirror}/?action=display&bridge=Instagram&context=Username"
+                    f"&u={identifier}&media_type=all&format=Atom"
+                )
+    
+            # ===== FALLBACK: RSSHub =====
+            for mirror in self.RSSHUB_MIRRORS:
+                services.append(f"{mirror}/instagram/user/{identifier}")
+                services.append(f"{mirror}/instagram/feed/{identifier}")
         
         # --- YOUTUBE ---
         elif source_type == 'youtube':
@@ -199,6 +258,112 @@ class FeedParserV4:
         
         return None
     
+    # ========================================
+    # CONVERSIÓN NATIVA DE INSTAGRAM
+    # ========================================
+    async def convert_instagram_native(self, username: str) -> Optional[bytes]:
+        """
+        Convierte perfil de Instagram a RSS usando scraper propio.
+        Prioridad sobre servicios externos.
+        """
+        try:
+            # Limpiar el username por si acaso llega con @ o slash
+            username = username.replace('@', '').rstrip('/')
+            
+            add_log_line(f"📸 Intentando scraper nativo para Instagram @{username}")
+
+            result = await self.instagram_scraper.scrape_profile(username)
+        
+            if not result.get('success'):
+                error_msg = result.get('error', 'Desconocido')
+                add_log_line(f"⚠️ Scraper nativo falló para @{username}: {error_msg}")
+                return None
+        
+            posts = result.get('posts', [])
+            
+            if not posts:
+                add_log_line(f"⚠️ Scraper nativo encontró el perfil pero 0 posts. Saltando a servicios externos (Madbots)...")
+                return None
+            
+            rss_items = []
+            for post in posts:
+                item = {
+                    'title': post['title'],
+                    'link': post['link'],
+                    'description': post['description'],
+                    'pub_date': post['pub_date'],
+                    'guid': post['guid'],
+                }
+            
+                if post.get('media_url'):
+                    item['enclosure'] = {
+                        'url': post['media_url'],
+                        'type': post.get('media_type', 'image/jpeg'),
+                        'length': 0
+                    }
+                rss_items.append(item)
+            
+            # Título del feed con nombre real
+            display_name = result.get('profile_name', username)
+            
+            rss_feed = self.rss_gen.generate_rss_feed(
+                channel_title=f"📸 {display_name} (@{username})",
+                channel_link=f"https://www.instagram.com/{username}/",
+                channel_description=result.get('profile_bio', 'Instagram Profile'),
+                items=rss_items,
+                language='es',
+                image_url=result.get('profile_pic')
+            )
+        
+            add_log_line(f"✅ RSS nativo generado para @{username}: {len(rss_items)} posts")
+            return rss_feed
+        
+        except Exception as e:
+            add_log_line(f"❌ Error en convert_instagram_native: {e}")
+            import traceback
+            add_log_line(traceback.format_exc()[:200])
+            return None
+
+
+    # ========================================
+    # CONVERSIÓN NATIVA DE PÁGINAS WEB
+    # ========================================
+    async def convert_webpage_to_rss(self, url: str) -> Optional[bytes]:
+        """
+        Convierte página web genérica a RSS usando scraper universal.
+        """
+        try:
+            add_log_line(f"🌐 Intentando scraper web para: {url}")
+        
+            result = await self.web_scraper.scrape_webpage(url)
+
+            if not result.get('success'):
+                add_log_line(f"⚠️ Scraper web falló: {result.get('error')}")
+                return None
+        
+            items = result.get('items', [])
+            if not items:
+                add_log_line("⚠️ No se encontró contenido en la página")
+                return None
+        
+            # Generar feed RSS
+            rss_feed = self.rss_gen.generate_rss_feed(
+                channel_title=result['site_title'],
+                channel_link=result['site_url'],
+                channel_description=result.get('site_description', ''),
+                items=items,
+                language='es'
+            )
+        
+            add_log_line(f"✅ RSS generado de página web: {len(items)} items")
+            return rss_feed
+        
+        except Exception as e:
+            add_log_line(f"❌ Error en convert_webpage_to_rss: {e}")
+            return None
+
+
+
     # ========================================
     # DESCARGA CON REINTENTOS
     # ========================================
@@ -299,15 +464,15 @@ class FeedParserV4:
     # ========================================
     @staticmethod
     def generate_entry_hash(entry: Dict) -> str:
-        """
-        Genera un hash único para una entrada.
-        Basado en: título + enlace + fecha publicación
-        """
+        """Genera un hash único ignorando parámetros variables de la URL."""
+        # 1. Limpiamos la URL (quitamos todo después del ?)
+        raw_link = entry.get('link', '')
+        clean_link = raw_link.split('?')[0]
+        
+        # 2. Usamos Título + Link limpio para la identidad única
         components = [
-            entry.get('title', ''),
-            entry.get('link', ''),
-            entry.get('id', ''),
-            str(entry.get('published_parsed', '')),
+            entry.get('title', '').strip(),
+            clean_link
         ]
         
         unique_string = '|'.join(filter(None, components))
@@ -422,7 +587,17 @@ class FeedParserV4:
                     
                     if discovered_url:
                         content = await self.fetch(discovered_url)
-                        original_url = discovered_url
+                        original_url = discovered_url # Actualizamos la URL origen a la descubierta
+
+                    # ===== NUEVO: Si tampoco hay feed descubierto, scraper web =====
+                    if not content or not self._is_valid_feed(content):
+                        add_log_line("🌐 Intentando convertir página web a RSS...")
+                        content = await self.convert_webpage_to_rss(url)
+            
+                        if content:
+                            add_log_line("✅ Página web convertida a RSS exitosamente")
+                        else:
+                            add_log_line("❌ No se pudo convertir la página web a RSS")
             
             # --- VALIDAR CONTENIDO ---
             if not content:
@@ -489,32 +664,31 @@ class FeedParserV4:
             
             # Añadir emoji según tipo
             emoji_map = {
-                'twitter': '🐦',
-                'instagram': '📸',
-                'youtube': '📺',
-                'telegram': '💬',
-                'reddit': '🗨️',
+                'twitter': '🐦', 'instagram': '📸', 'youtube': '📺',
+                'telegram': '💬', 'reddit': '🗨️',
             }
             
             if source_type in emoji_map:
                 source_title = f"{emoji_map[source_type]} {source_title}"
+
+            # Determinar URL real final
+            final_url = parsed.get('href', original_url)
             
+            # MODIFICACIÓN: Retornamos 'real_url' para que el loop pueda guardarla y optimizar
             return {
                 'success': True,
                 'type': source_type,
-                'source_title': source_title,  # ✅ TÍTULO CORRECTO
+                'source_title': source_title,
                 'link': parsed.feed.get('link', original_url),
                 'description': parsed.feed.get('description', ''),
-                'entries': entries
+                'entries': entries,
+                'real_url': final_url  # ✅ URL optimizada (ej: .../rss.xml)
             }
-        
+            
         except Exception as e:
             add_log_line(f"❌ Error crítico en parse: {e}")
-            import traceback
-            add_log_line(f"Traceback: {traceback.format_exc()[:500]}")
-            
             return {
                 'success': False,
-                'error': f'Error: {str(e)[:100]}',
+                'error': str(e),
                 'type': 'unknown'
             }
