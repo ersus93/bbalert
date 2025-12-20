@@ -556,3 +556,116 @@ def mark_alert_sent_advanced(user_id, alert_type, event_time, **kwargs):
         stage=stage,
         description=desc
     )
+
+
+GLOBAL_EVENTS_BUFFER_PATH = os.path.join(DATA_DIR, "global_events_buffer.json")
+
+# --- LAS FUNCIONES QUE FALTABAN Y CAUSABAN EL CRASH ---
+
+def should_send_alert(user_id, alert_type, cooldown_hours=4):
+    """
+    Verifica si se debe enviar una alerta basada en el tiempo transcurrido (Lógica V1).
+    Usa el historial 'local' del manager.
+    """
+    history = weather_manager._load_history()
+    user_key = str(user_id)
+    
+    # Si no hay historial para este usuario, enviar
+    if "local" not in history or user_key not in history["local"]:
+        return True
+        
+    # Buscar la última alerta de este tipo
+    last_time = None
+    # Iteramos al revés para encontrar la más reciente rápidamente
+    alerts_list = history["local"][user_key]
+    if not isinstance(alerts_list, list): return True
+    
+    for entry in reversed(alerts_list):
+        if entry.get('type') == alert_type:
+            ts_str = entry.get('timestamp')
+            if ts_str:
+                try:
+                    last_time = datetime.fromisoformat(ts_str)
+                    break
+                except:
+                    continue
+    
+    if not last_time:
+        return True
+        
+    # Verificar cooldown
+    diff = datetime.now() - last_time
+    hours_passed = diff.total_seconds() / 3600
+    
+    return hours_passed >= cooldown_hours
+
+def update_last_alert_time(user_id, alert_type):
+    """
+    Registra que se envió una alerta (Lógica V1).
+    Guarda en el historial 'local' del manager.
+    """
+    history = weather_manager._load_history()
+    user_key = str(user_id)
+    
+    if "local" not in history:
+        history["local"] = {}
+        
+    if user_key not in history["local"]:
+        history["local"][user_key] = []
+        
+    # Añadir registro simple
+    history["local"][user_key].append({
+        "type": alert_type,
+        "stage": "sent",
+        "desc": "Alerta generada por Loop V2",
+        "timestamp": datetime.now().isoformat()
+    })
+    
+    weather_manager._save_history(history)
+
+# --- BUFFER GLOBAL (NECESARIO PARA EL RESUMEN) ---
+
+def buffer_global_event(event_data: dict):
+    """Guarda evento global para el resumen diario."""
+    events = []
+    if os.path.exists(GLOBAL_EVENTS_BUFFER_PATH):
+        try:
+            with open(GLOBAL_EVENTS_BUFFER_PATH, 'r', encoding='utf-8') as f:
+                events = json.load(f)
+        except:
+            pass
+
+    if any(e['id'] == event_data['id'] for e in events):
+        return
+
+    simple_event = {
+        "id": event_data['id'],
+        "title": event_data['title'],
+        "type": event_data.get('type', 'Unknown'),
+        "severity": event_data.get('severity', 'Green'),
+        "timestamp": datetime.now().isoformat()
+    }
+    events.append(simple_event)
+    
+    # Limpieza (últimas 48h)
+    cutoff = datetime.now() - timedelta(hours=48)
+    events = [e for e in events if datetime.fromisoformat(e['timestamp']) > cutoff]
+    
+    try:
+        with open(GLOBAL_EVENTS_BUFFER_PATH, 'w', encoding='utf-8') as f:
+            json.dump(events, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        add_log_line(f"❌ Error buffer global: {e}")
+
+def get_recent_global_events(hours=24):
+    """Obtiene eventos globales recientes del buffer."""
+    if not os.path.exists(GLOBAL_EVENTS_BUFFER_PATH):
+        return []
+    try:
+        with open(GLOBAL_EVENTS_BUFFER_PATH, 'r', encoding='utf-8') as f:
+            events = json.load(f)
+        
+        cutoff = datetime.now() - timedelta(hours=hours)
+        return [e for e in events if datetime.fromisoformat(e['timestamp']) > cutoff]
+    except:
+        return []

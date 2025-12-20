@@ -7,8 +7,7 @@ from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
 from telegram.constants import ParseMode
-from utils.file_manager import add_log_line, cargar_usuarios
-from utils.file_manager import guardar_usuarios
+from utils.file_manager import add_log_line, cargar_usuarios, guardar_usuarios
 from core.btc_loop import btc_monitor_loop, set_btc_sender
 from handlers.btc_handlers import btc_handlers_list
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, VERSION, PID, PYTHON_VERSION, STATE
@@ -25,15 +24,6 @@ from core.i18n import _
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
 
-# === NUEVA IMPORTACIÓN: Sistema RSS v2 ===
-from core.rss_loop_v2 import RSSMonitor
-from handlers.rss_v2 import (
-    rss_dashboard, 
-    rss_conv_handler_v2, 
-    rss_action_handler,
-    rss_manager
-)
-# === FIN NUEVA IMPORTACIÓN RSS ===
 
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command,
@@ -45,7 +35,8 @@ from handlers.alerts import (
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
 )
-from handlers.trading import graf_command, p_command, eltoque_command, refresh_command_callback, mk_command, ta_command
+from handlers.trading import graf_command, p_command, refresh_command_callback, mk_command, ta_command, ta_switch_callback 
+from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
 
 from handlers.valerts_handlers import valerts_handlers_list
@@ -55,32 +46,21 @@ from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 from handlers.weather import (
     weather_command, 
     weather_subscribe_command, 
-    weather_settings_command, 
-    weather_conversation_handler, 
+   weather_settings_command, 
+   weather_conversation_handler, 
     weather_callback_handlers
 )
 
 # Ignorar advertencias específicas de PTB sobre CallbackQueryHandler en ConversationHandler
 warnings.filterwarnings("ignore", category=PTBUserWarning, message=".*CallbackQueryHandler.*")
-# === VARIABLE GLOBAL para el monitor RSS ===
-rss_monitor: RSSMonitor = None
 
 async def post_init(app: Application):
     """
     Se ejecuta después de que el bot se inicializa.
     Inicia los bucles de fondo y programa las alertas para todos los usuarios existentes.
     """
-    global rss_monitor
     
     add_log_line("🤖 Bot inicializado. Iniciando tareas de fondo...")
-
-    # === NUEVA INICIALIZACIÓN: RSS Monitor v2 (SOLO UNA VEZ) ===
-    rss_monitor = RSSMonitor(app.bot)
-    from core.rss_loop_v2 import set_rss_monitor
-    set_rss_monitor(rss_monitor)  # ✅ Establecer la instancia global
-    asyncio.create_task(rss_monitor.monitor_loop())
-    add_log_line("✅ Bucle RSS v2 iniciado (Soporte multi-plataforma).")
-    # === FIN NUEVA INICIALIZACIÓN RSS ===
 
     # Iniciar bucle de clima
     asyncio.create_task(weather_alerts_loop(app.bot))
@@ -107,11 +87,12 @@ async def post_init(app: Application):
 
     try:
         startup_message_template = _(
-            "🚀 *¡Bot en línea!* 🚀\n\n"
+            "🍞 *¡Llego el pan a la bodega!* 🍞\n————————————————————\n\n"
             "🤖 `BitBread Alert v{version}`\n"
             "🪪 `PID: {pid}`\n"
-            "🐍 `Python: v{python_version}`\n\n"
-            "✅ Ejecutado y funcionando perfectamente.",
+            "🐍 `Python: v{python_version}`\n\n————————————————————\n"
+            "✅ Ácido y aplastado, pero comible. 👍.\n"
+            "🫣 ¡Vamos por mas!",
             None
         )
         startup_message = startup_message_template.format(
@@ -233,10 +214,7 @@ def main():
     
     # 2️⃣ ConversationHandler de Mensajes Admin
     app.add_handler(ms_conversation_handler)
-    
-    # 3️⃣ ConversationHandler de RSS
-    app.add_handler(rss_conv_handler_v2)
-    
+
     # ============================================
     # Comandos generales
     # ============================================
@@ -260,6 +238,7 @@ def main():
     app.add_handler(CommandHandler("graf", graf_command))
     app.add_handler(CommandHandler("p", p_command))
     app.add_handler(CommandHandler("tasa", eltoque_command))
+    app.add_handler(CommandHandler("ta", ta_command))
     
     # ============================================
     # Comandos de Usuario
@@ -291,11 +270,6 @@ def main():
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     
     # ============================================
-    # Comandos RSS
-    # ============================================
-    app.add_handler(CommandHandler("rss", rss_dashboard))
-    
-    # ============================================
     # Handlers de BTC y VALERTS (listas)
     # ============================================
     for handler in btc_handlers_list:
@@ -316,7 +290,10 @@ def main():
             app.add_handler(weather_callback_handlers)
     
     # Callbacks de Trading
+    app.add_handler(CallbackQueryHandler(ta_switch_callback, pattern="^ta_switch\\|"))
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
+    app.add_handler(CallbackQueryHandler(eltoque_refresh_callback, pattern="^eltoque_refresh$"))
+    app.add_handler(CallbackQueryHandler(eltoque_provincias_callback, pattern="^eltoque_provincias$"))
     
     # Callbacks de Alertas
     app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
@@ -329,16 +306,12 @@ def main():
     # Callbacks de Pago
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^buy_"))
     
-    # Callbacks de RSS
-    app.add_handler(CallbackQueryHandler(rss_action_handler, pattern="^rss_"))
-
-    
     # 4. Asignar la función post_init
     app.post_init = post_init
     
     # 5. Iniciar el polling
-    print("✅ Bot iniciado. Esperando mensajes...")
-    add_log_line("----------- BOT INICIADO -----------")
+    print("✅ BitBread iniciado. Esperando mensajes...")
+    add_log_line("----------- 🤖 BitBread INICIADO -----------")
     app.run_polling()
 
 if __name__ == "__main__":

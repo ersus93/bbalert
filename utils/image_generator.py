@@ -4,8 +4,10 @@ from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 import io
 import os
-from utils.file_manager import load_eltoque_history
+
+from utils.tasa_manager import load_eltoque_history
 from core.config import TEMPLATE_PATH # Importamos la ruta desde config
+
 
 # Configuración de estilo (Azul oscuro tomado de tu imagen)
 COLOR_TINTA = "#0B1E38"

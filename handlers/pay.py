@@ -5,7 +5,6 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from utils.file_manager import add_subscription_days, obtener_datos_usuario_seguro, add_log_line
 from core.config import ADMIN_CHAT_IDS
-from utils.rss_manager_v2 import add_purchased_slot
 from core.i18n import _
 from datetime import datetime
 
@@ -15,8 +14,6 @@ PRICE_COIN_SLOT = 5         # +1 Capacidad en lista
 PRICE_ALERT_SLOT = 4        # +1 Alerta de Cruce (Par Arriba/Abajo)
 PRICE_TASA_VIP = 5          # Tasa x24 consultas
 PRICE_TA_VIP = 10           # TA Ilimitado
-PRICE_RSS_CHANNEL = 100     # Precio de Channel Slot (CORREGIDO: era 1000)
-PRICE_RSS_FEED = 50         # Precio de Feed Slot (CORREGIDO: era 250)
 
 # === MENÚ DE LA TIENDA ===
 async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -40,8 +37,6 @@ async def shop_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(f"🔔 +1 Alerta - {PRICE_ALERT_SLOT} ⭐", callback_data="buy_alert")],
         [InlineKeyboardButton(f"💱 Tasa VIP - {PRICE_TASA_VIP} ⭐", callback_data="buy_tasa")],
         [InlineKeyboardButton(f"📈 TA Pro - {PRICE_TA_VIP} ⭐", callback_data="buy_ta")],
-        [InlineKeyboardButton(f"📺 +1 Canal RSS - {PRICE_RSS_CHANNEL} ⭐", callback_data="buy_rss_channel")],
-        [InlineKeyboardButton(f"🔗 +1 Feed RSS - {PRICE_RSS_FEED} ⭐", callback_data="buy_rss_feed")],
     ]
     
     await update.message.reply_text(
@@ -98,20 +93,7 @@ async def shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "price": PRICE_TA_VIP,
             "item_name": "📈 TA Pro"
         },
-        "buy_rss_channel": {
-            "title": "📺 Slot Canal RSS (Permanente)",
-            "description": "Añade capacidad para 1 canal/grupo de destino extra.",
-            "payload": "sub_rss_channel",
-            "price": PRICE_RSS_CHANNEL,
-            "item_name": "📺 +1 Slot Canal RSS"
-        },
-        "buy_rss_feed": {
-            "title": "🔗 Slot Feed RSS (Permanente)",
-            "description": "Añade capacidad para 1 enlace RSS extra.",
-            "payload": "sub_rss_feed",
-            "price": PRICE_RSS_FEED,
-            "item_name": "🔗 +1 Slot Feed RSS"
-        }
+
     }
     
     # ✅ VALIDAR QUE EL PRODUCTO EXISTE
@@ -162,8 +144,6 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         "sub_alerts_extra",
         "sub_tasa_vip",
         "sub_ta_vip",
-        "sub_rss_channel",
-        "sub_rss_feed"
     ]
     
     if query.invoice_payload in valid_payloads:
@@ -211,16 +191,6 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
         elif payload == "sub_ta_vip":
             add_subscription_days(chat_id, "ta_vip", days=30)
             item_name = "📈 TA Pro"
-            
-        elif payload == "sub_rss_channel":
-            add_purchased_slot(chat_id, 'channels', 1)
-            add_subscription_days(chat_id, "rss_channel_slot", days=9999)  # Permanente
-            item_name = "📺 +1 Slot Canal RSS"
-            
-        elif payload == "sub_rss_feed":
-            add_purchased_slot(chat_id, 'feeds', 1)
-            add_subscription_days(chat_id, "rss_feed_slot", days=9999)  # Permanente
-            item_name = "🔗 +1 Slot Feed RSS"
             
         else:
             item_name = "Producto desconocido"

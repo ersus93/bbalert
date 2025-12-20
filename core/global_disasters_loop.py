@@ -5,7 +5,7 @@ import math
 from telegram import Bot
 from telegram.constants import ParseMode
 from utils.file_manager import add_log_line
-from utils.weather_manager import weather_manager
+from utils.weather_manager import weather_manager, buffer_global_event
 from utils.global_disasters_api import disaster_monitor
 
 # ========================================
@@ -175,50 +175,53 @@ async def global_disasters_loop(bot: Bot):
             
             add_log_line(f"📤 Notificando a {len(users_with_global)} usuarios...")
             
-            # 4. Procesar cada evento nuevo
+           # 4. Procesar cada evento nuevo
             for event in new_events:
+                # --- PASO 1: GUARDAR EN BUFFER PARA RESUMENES DIARIOS ---
+                # Lo guardamos independientemente de si enviamos alerta inmediata o no
+                try:
+                    buffer_global_event(event)
+                    add_log_line(f"💾 Evento global guardado en buffer: {event.get('title')}")
+                except Exception as e:
+                    add_log_line(f"⚠️ Error buffereando evento: {e}")
+
+                # --- PASO 2: ALERTAS INMEDIATAS (PUSH) ---
                 event_lat = event.get('lat', 0)
                 event_lon = event.get('lon', 0)
                 has_coords = (event_lat != 0 and event_lon != 0)
-                
                 severity = event.get('severity', 'Green')
                 
                 users_notified = 0
                 
                 for user_id in users_with_global:
                     sub = weather_manager.get_user_subscription(user_id)
+                    if not sub: continue # Seguridad extra
+                    
                     user_lat = sub.get('lat')
                     user_lon = sub.get('lon')
                     
-                    should_send = False
+                    should_send_immediate = False
                     distance_km = None
                     
-                    # ========================================
-                    # LÓGICA DE PRIORIDAD POR DISTANCIA
-                    # ========================================
-                    
-                    # Calcular distancia si hay coordenadas
+                    # Calcular distancia
                     if has_coords and user_lat and user_lon:
-                        distance_km = calculate_distance(
-                            user_lat, user_lon, 
-                            event_lat, event_lon
-                        )
+                        distance_km = calculate_distance(user_lat, user_lon, event_lat, event_lon)
                     
-                    # REGLAS DE ENVÍO:
-                    # 1. Eventos CRÍTICOS (Red): Siempre se envían a TODOS
-                    # 2. Eventos ALTOS (Orange): Siempre se envían a TODOS
-                    # 3. Eventos MODERADOS (Green/Yellow):
-                    #    - Solo si están a menos de 1000 km del usuario
+                    # LÓGICA DE ALERTA INMEDIATA:
+                    # - Rojo/Naranja: SIEMPRE enviar (son graves).
+                    # - Verde: Solo enviar si está cerca (< 800km).
+                    # - Si no cumple esto, NO se envía mensaje ahora (pero saldrá en el resumen mañana gracias al buffer).
                     
                     if severity in ['Red', 'Orange']:
-                        should_send = True
-                    elif distance_km and distance_km < 1000:
-                        should_send = True
+                        should_send_immediate = True
+                    elif distance_km and distance_km < 800:
+                        should_send_immediate = True
                     
-                    if should_send:
+                    if should_send_immediate:
                         try:
                             msg = format_disaster_message(event, distance_km)
                             
+                            # Enviar mensaje
                             await bot.send_message(
                                 chat_id=user_id,
                                 text=msg,
@@ -227,17 +230,13 @@ async def global_disasters_loop(bot: Bot):
                             )
                             
                             users_notified += 1
-                            
-                            add_log_line(
-                                f"✅ Alerta global enviada a {user_id} "
-                                f"(distancia: {distance_km:.0f if distance_km else '∞'} km)"
-                            )
-                            
-                            await asyncio.sleep(0.5)  # Anti-flood
+                            await asyncio.sleep(0.2) # Anti-flood ligero
                             
                         except Exception as e:
-                            add_log_line(f"❌ Error enviando a {user_id}: {str(e)[:100]}")
-                            continue
+                            add_log_line(f"❌ Error enviando a {user_id}: {str(e)[:50]}")
+                
+                # Marcar como procesado en la API Manager para no volver a leerlo de GDACS
+                weather_manager.mark_global_event_sent(event['id'])
                 
                 # ========================================
                 # ✅ MARCAR COMO ENVIADO EN JSON (PERSISTENCIA)

@@ -3,49 +3,13 @@
 import requests
 import json
 from telegram import Update
-from core.config import CMC_API_KEY_ALERTA, CMC_API_KEY_CONTROL, SCREENSHOT_API_KEY, ELTOQUE_API_KEY
+from core.config import CMC_API_KEY_ALERTA, CMC_API_KEY_CONTROL, SCREENSHOT_API_KEY
 from datetime import datetime, timedelta
 from utils.file_manager import load_hbd_thresholds
 from core.i18n import _ 
 # No se necesitan imports de file_manager aquí
 
-# Funciones para obtener datos de CoinMarketCap y ElToque
-def obtener_tasas_eltoque():
-    """
-    Obtiene las tasas de cambio más recientes de la API de eltoque.com.
-    """
 
-    URL_API_ELTOQUE = "https://tasas.eltoque.com/v1/trmi" 
-    
-    if not ELTOQUE_API_KEY:
-        print("❌ Error: La variable ELTOQUE_API_KEY no está configurada en config.py.")
-        return None
-
-
-    headers = {
-        "Authorization": f"Bearer {ELTOQUE_API_KEY}",
-        "Accept": "application/json"
-    }
-
-    try:
-        response = requests.get(URL_API_ELTOQUE, headers=headers, timeout=10)
-        response.raise_for_status() 
-        
-        data = response.json()
-        
-        # --- AGREGAR ESTO TEMPORALMENTE PARA VERIFICAR ---
-        print("🔍 RESPUESTA JSON DE ELTOQUE:", json.dumps(data, indent=2))
-        # -------------------------------------------------
-
-        return data
-        
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Error al contactar la API de ElToque: {e}")
-        return None
-    except (KeyError, json.JSONDecodeError):
-        print("❌ Error al procesar la respuesta JSON de ElToque.")
-        return None
-    
 # === FUNCIONES DE ALERTA DE HBD ===
 def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
     """

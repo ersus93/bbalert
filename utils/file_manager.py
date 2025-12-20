@@ -636,18 +636,3 @@ def get_hbd_alert_recipients() -> list:
             recipients.append(chat_id)
     return recipients
 
-def load_eltoque_history():
-    if not os.path.exists(ELTOQUE_HISTORY_PATH):
-        return {}
-    try:
-        with open(ELTOQUE_HISTORY_PATH, "r", encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return {}
-
-def save_eltoque_history(tasas_dict: dict):
-    try:
-        with open(ELTOQUE_HISTORY_PATH, "w", encoding='utf-8') as f:
-            json.dump(tasas_dict, f, indent=4)
-    except Exception as e:
-        add_log_line(f"❌ Error al guardar el historial de ElToque: {e}")

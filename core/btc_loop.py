@@ -194,7 +194,7 @@ async def btc_monitor_loop(bot: Bot):
                         'descripcion': 'El precio entra en zona alcista (38.2% Fib).',
                         'icon_nivel': '📍', 'icon_precio': '💹', 'icon_target': '🎯', 'icon_rec': '🔝',
                         'target_siguiente': levels['R2'],
-                        'recomendacion': 'Mantener Longs con stop en Pivot.'
+                        'recomendacion': 'Mantener largos con stop en Pivot.'
                     }
 
                 elif current_price > levels['P'] * (1 + threshold) and "P_UP" not in alerted:
@@ -235,7 +235,7 @@ async def btc_monitor_loop(bot: Bot):
                         'descripcion': 'Entrada en zona bajista (38.2% Fib).',
                         'icon_nivel': '📍', 'icon_precio': '📉', 'icon_target': '🔽', 'icon_rec': '⚠️',
                         'target_siguiente': levels['S2'],
-                        'recomendacion': 'Precaución con Longs.'
+                        'recomendacion': 'Precaución con largos.'
                     }
 
                 elif current_price < levels['P'] * (1 - threshold) and "P_DOWN" not in alerted:
