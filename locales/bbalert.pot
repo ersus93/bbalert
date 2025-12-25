@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-12-07 21:25-0500\n"
+"POT-Creation-Date: 2025-12-25 13:16-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -17,36 +17,39 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Generated-By: Babel 2.17.0\n"
 
-#: bbalert.py:63
+#: bbalert.py:90
 #, python-brace-format
 msgid ""
-"🚀 *¡Bot en línea!* 🚀\n"
+"🍞 *¡Llego el pan a la bodega!* 🍞\n"
+"————————————————————\n"
 "\n"
 "🤖 `BitBread Alert v{version}`\n"
 "🪪 `PID: {pid}`\n"
 "🐍 `Python: v{python_version}`\n"
 "\n"
-"✅ Ejecutado y funcionando perfectamente."
+"————————————————————\n"
+"✅ Ácido y aplastado, pero comible. 👍.\n"
+"🫣 ¡Vamos por mas!"
 msgstr ""
 
-#: core/api_client.py:99
+#: core/api_client.py:66
 msgid ""
 "🚨 *Alerta de precio de HBD* 🚨\n"
 "—————————————————\n"
 "\n"
 msgstr ""
 
-#: core/api_client.py:104
+#: core/api_client.py:71
 #, python-brace-format
 msgid "🚀 HBD acaba de *tocar o superar* los *${precio}*."
 msgstr ""
 
-#: core/api_client.py:110
+#: core/api_client.py:77
 #, python-brace-format
 msgid "🔻 HBD acaba de *tocar o bajar* de *${precio}*."
 msgstr ""
 
-#: core/api_client.py:117
+#: core/api_client.py:84
 msgid ""
 "\n"
 "\n"
@@ -55,7 +58,7 @@ msgid ""
 "•\n"
 msgstr ""
 
-#: core/loops.py:172
+#: core/loops.py:173
 #, python-brace-format
 msgid ""
 "📈 ¡Alerta de Precio! 📈\n"
@@ -66,7 +69,7 @@ msgid ""
 "Precio actual: *${current_price:,.4f}*"
 msgstr ""
 
-#: core/loops.py:186
+#: core/loops.py:187
 #, python-brace-format
 msgid ""
 "📉 ¡Alerta de Precio! 📉\n"
@@ -77,15 +80,15 @@ msgid ""
 "Precio actual: *${current_price:,.4f}*"
 msgstr ""
 
-#: core/loops.py:204
+#: core/loops.py:205
 msgid "🗑️ Borrar esta alerta"
 msgstr ""
 
-#: core/loops.py:260 handlers/user_settings.py:401
+#: core/loops.py:261 handlers/user_settings.py:401
 msgid "🔕 Desactivar estas alertas"
 msgstr ""
 
-#: core/loops.py:316
+#: core/loops.py:317
 #, python-brace-format
 msgid ""
 "📊 *Alerta de tus monedas ({intervalo_h}h):*\n"
@@ -93,7 +96,7 @@ msgid ""
 "\n"
 msgstr ""
 
-#: core/loops.py:333
+#: core/loops.py:334
 #, python-brace-format
 msgid ""
 "\n"
@@ -102,11 +105,35 @@ msgid ""
 "_🔰 Alerta configurada cada {intervalo_h} horas._"
 msgstr ""
 
-#: handlers/admin.py:41
+#: core/weather_loop_v2.py:116
+msgid ""
+"—————————————————\n"
+"☔ ¡No olvides el paraguas!"
+msgstr ""
+
+#: core/weather_loop_v2.py:142
+msgid ""
+"—————————————————\n"
+"⚡ Toma precauciones y resguárdate."
+msgstr ""
+
+#: core/weather_loop_v2.py:157
+msgid ""
+"—————————————————\n"
+"🧴 Usa protector solar si vas a salir."
+msgstr ""
+
+#: core/weather_loop_v2.py:192
+msgid ""
+"—————————————————\n"
+"weatherdescriptionmaintempmainhumiditywindspeed"
+msgstr ""
+
+#: handlers/admin.py:50
 msgid "🚫 Comando no autorizado."
 msgstr ""
 
-#: handlers/admin.py:52
+#: handlers/admin.py:61
 msgid ""
 "✍️ *Creación de Mensaje Masivo*\n"
 "\n"
@@ -114,73 +141,73 @@ msgid ""
 "Puedes enviar una imagen, un texto, o una imagen con texto."
 msgstr ""
 
-#: handlers/admin.py:69
+#: handlers/admin.py:78
 msgid "🖼️ Añadir Imagen"
 msgstr ""
 
-#: handlers/admin.py:70
+#: handlers/admin.py:79
 msgid "➡️ Enviar Solo Texto"
 msgstr ""
 
-#: handlers/admin.py:71 handlers/admin.py:157 handlers/admin.py:183
+#: handlers/admin.py:80 handlers/admin.py:166 handlers/admin.py:192
 msgid "❌ Cancelar"
 msgstr ""
 
-#: handlers/admin.py:72
+#: handlers/admin.py:81
 msgid "✍️ Añadir/Editar Texto"
 msgstr ""
 
-#: handlers/admin.py:73
+#: handlers/admin.py:82
 msgid "➡️ Enviar Solo Imagen"
 msgstr ""
 
-#: handlers/admin.py:84
+#: handlers/admin.py:93
 msgid "✅ Texto recibido. ¿Deseas añadir una imagen o enviar el mensaje?"
 msgstr ""
 
-#: handlers/admin.py:104
+#: handlers/admin.py:113
 msgid "✅ Imagen recibida. ¿Deseas añadir o editar el texto del pie de foto?"
 msgstr ""
 
-#: handlers/admin.py:113
+#: handlers/admin.py:122
 msgid "⚠️ Por favor, envía un texto o una imagen."
 msgstr ""
 
-#: handlers/admin.py:128
+#: handlers/admin.py:137
 msgid "✍️ De acuerdo, por favor envía el texto que quieres usar como pie de foto."
 msgstr ""
 
-#: handlers/admin.py:135
+#: handlers/admin.py:144
 msgid "🖼️ Entendido, por favor envía la imagen que quieres adjuntar."
 msgstr ""
 
-#: handlers/admin.py:144 handlers/admin.py:271
+#: handlers/admin.py:153 handlers/admin.py:280
 msgid "🚫 Operación cancelada."
 msgstr ""
 
-#: handlers/admin.py:156 handlers/admin.py:182
+#: handlers/admin.py:165 handlers/admin.py:191
 msgid "🚀 Enviar a todos los usuarios"
 msgstr ""
 
-#: handlers/admin.py:166
+#: handlers/admin.py:175
 msgid "✅ Texto añadido. El mensaje está listo para ser enviado."
 msgstr ""
 
-#: handlers/admin.py:192
+#: handlers/admin.py:201
 msgid "✅ Imagen añadida. El mensaje está listo para ser enviado."
 msgstr ""
 
-#: handlers/admin.py:208
+#: handlers/admin.py:217
 msgid ""
 "⏳ *Enviando mensaje a todos los usuarios...*\n"
 "Esto puede tardar un momento."
 msgstr ""
 
-#: handlers/admin.py:216
+#: handlers/admin.py:225
 msgid "❌ Error interno: La función de envío masivo no ha sido inicializada."
 msgstr ""
 
-#: handlers/admin.py:239
+#: handlers/admin.py:248
 #, python-brace-format
 msgid ""
 "✅ Envío completado.\n"
@@ -191,31 +218,12 @@ msgid ""
 "{fallidos_str}"
 msgstr ""
 
-#: handlers/admin.py:253
+#: handlers/admin.py:262
 #, python-brace-format
 msgid "✅ ¡Éxito! Mensaje enviado a todos los *{total_usuarios}* usuarios."
 msgstr ""
 
-#: handlers/admin.py:336
-msgid "😕 No estás registrado en el sistema."
-msgstr ""
-
-#: handlers/admin.py:357
-#, python-brace-format
-msgid ""
-"👤 *Tu Perfil Registrado*\n"
-"—————————————————\n"
-"  - Nombre: {nombre_completo}\n"
-"  - 🪪 ID: `{user_id}`\n"
-"  - 👤 Usuario: {username_str}\n"
-"  - 🪙 Monedas: `{monedas_str}`\n"
-"  - ⏰ Alerta cada: {intervalo_h}h\n"
-"  - 🔔 Alertas cruce activas: {alertas_activas}\n"
-"—————————————————\n"
-"_Solo puedes ver tu propia información 🙂_"
-msgstr ""
-
-#: handlers/admin.py:552
+#: handlers/admin.py:616
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -229,15 +237,15 @@ msgid ""
 "_Ya, eso es todo lo que puedes ver 🙂👍_"
 msgstr ""
 
-#: handlers/admin.py:580
+#: handlers/admin.py:644
 msgid "❌ Error interno: La función de logs no ha sido inicializada."
 msgstr ""
 
-#: handlers/admin.py:593
+#: handlers/admin.py:657
 msgid "⚠️ El argumento debe ser un número entero."
 msgstr ""
 
-#: handlers/admin.py:621
+#: handlers/admin.py:685
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -355,7 +363,43 @@ msgid ""
 "ID: `{id_chat}`"
 msgstr ""
 
-#: handlers/trading.py:77
+#: handlers/tasa.py:42 handlers/tasa.py:44
+msgid "⏳ Conectando con fuentes (ElToque, CADECA & BCC)..."
+msgstr ""
+
+#: handlers/tasa.py:76
+msgid ""
+"⚠️ *Error de Conexión*.\n"
+"No se pudieron obtener datos de El Toque."
+msgstr ""
+
+#: handlers/tasa.py:79
+msgid "⚠️ *Error de Conexión*."
+msgstr ""
+
+#: handlers/tasa.py:95
+msgid ""
+"📊 *MERCADO INFORMAL (El Toque)*\n"
+"—————————————————\n"
+msgstr ""
+
+#: handlers/tasa.py:206
+msgid "📆"
+msgstr ""
+
+#: handlers/tasa.py:207
+msgid ""
+"*Fuentes de consulta:*\n"
+"🔗 _elToque.com\n"
+"🔗 www.cadeca.cu\n"
+"🔗 www.bc.gob.cu_"
+msgstr ""
+
+#: handlers/tasa.py:253
+msgid "❌ Ocurrió un error inesperado."
+msgstr ""
+
+#: handlers/trading.py:78
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -365,19 +409,19 @@ msgid ""
 "`/graf BTC USDT 1h`"
 msgstr ""
 
-#: handlers/trading.py:105
+#: handlers/trading.py:106
 msgid ""
 "⚠️ *Temporalidad no válida*.\n"
 "\n"
 "Usa: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 msgstr ""
 
-#: handlers/trading.py:119
+#: handlers/trading.py:120
 #, python-brace-format
 msgid "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})..."
 msgstr ""
 
-#: handlers/trading.py:131
+#: handlers/trading.py:132
 #, python-brace-format
 msgid ""
 "📈 *Gráfico de {base}/{quote} ({temporalidad})*\n"
@@ -385,13 +429,13 @@ msgid ""
 "[Ver en TradingView]({url})"
 msgstr ""
 
-#: handlers/trading.py:143
+#: handlers/trading.py:144
 msgid ""
 "❌ Lo siento, no pude generar la captura del gráfico en este momento. "
 "Inténtalo de nuevo más tarde."
 msgstr ""
 
-#: handlers/trading.py:161
+#: handlers/trading.py:162
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
@@ -399,93 +443,46 @@ msgid ""
 "Ejemplo: `/p BTC`"
 msgstr ""
 
-#: handlers/trading.py:176
+#: handlers/trading.py:177
 #, python-brace-format
 msgid "😕 No se pudieron obtener los datos para *{moneda}*."
 msgstr ""
 
-#: handlers/trading.py:193
+#: handlers/trading.py:194
 msgid "Ξ:"
 msgstr ""
 
-#: handlers/trading.py:194
+#: handlers/trading.py:195
 msgid "₿:"
 msgstr ""
 
-#: handlers/trading.py:195
+#: handlers/trading.py:196
 msgid "Cap:"
 msgstr ""
 
-#: handlers/trading.py:196
+#: handlers/trading.py:197
 msgid "Vol:"
 msgstr ""
 
-#: handlers/trading.py:214
+#: handlers/trading.py:223
 #, python-brace-format
 msgid "🔄 Actualizar /p {symbol}"
 msgstr ""
 
-#: handlers/trading.py:249
-msgid "⏳ Conectando con elToque..."
-msgstr ""
-
-#: handlers/trading.py:261
-#, python-brace-format
-msgid "⏳ Reintentando conexión ({i}/{max})..."
-msgstr ""
-
-#: handlers/trading.py:270
-msgid ""
-"⚠️ *Error de Conexión con elToque*.\n"
-"Inténtalo más tarde."
-msgstr ""
-
-#: handlers/trading.py:281
-msgid "🎨 Generando imagen de tasas..."
-msgstr ""
-
-#: handlers/trading.py:290
-msgid "😕 Error de formato en datos."
-msgstr ""
-
-#: handlers/trading.py:298
-msgid ""
-"🏦 *Tasas de Cambio* (Informal)\n"
-"—————————————————\n"
-"\n"
-msgstr ""
-
-#: handlers/trading.py:325
-msgid "Actualizado:"
-msgstr ""
-
-#: handlers/trading.py:342
-msgid "❌ Ocurrió un error inesperado procesando la solicitud."
-msgstr ""
-
-#: handlers/trading.py:439
+#: handlers/trading.py:336
 msgid ""
 "🌍 *Estado de Mercados Globales*\n"
 "—————————————————\n"
 "\n"
 msgstr ""
 
-#: handlers/trading.py:621
+#: handlers/trading.py:566
 msgid "⚠️ Uso: `/ta <SYMBOL> [PAR] [TIME] [TV]`"
 msgstr ""
 
-#: handlers/trading.py:701
-msgid "⚠️ Binance sin datos. Probando TradingView..."
-msgstr ""
-
-#: handlers/trading.py:730
+#: handlers/trading.py:679
 #, python-brace-format
-msgid "❌ No se encontraron datos para *{s}*."
-msgstr ""
-
-#: handlers/trading.py:854
-#, python-brace-format
-msgid "❌ Error inesperado generando gráfico: {e}"
+msgid "❌ No se encontraron datos para *{s}* ni en Binance ni en TV."
 msgstr ""
 
 #: handlers/user_settings.py:69
@@ -528,7 +525,7 @@ msgid ""
 "Tu intervalo de alerta actual es de *{intervalo_actual} horas*.\n"
 "\n"
 "Tu plan actual permite un mínimo de: *{min_val} horas*.\n"
-"Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 2.5`)."
+"Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 8`)."
 msgstr ""
 
 #: handlers/user_settings.py:156
@@ -664,5 +661,57 @@ msgstr ""
 
 #: handlers/user_settings.py:474
 msgid "⚠️ Idioma no soportado."
+msgstr ""
+
+#: handlers/weather.py:270
+msgid ""
+"🌤️ *Centro de Clima BitBread*\n"
+"\n"
+"Consulta el clima detallado de cualquier ciudad o gestiona tus alertas "
+"automáticas.\n"
+"\n"
+"Selecciona una opción:"
+msgstr ""
+
+#: handlers/weather.py:331
+msgid ""
+"📍 *Suscripción a Alertas*\n"
+"\n"
+"Para enviarte alertas precisas y configurar tu zona horaria "
+"automáticamente, necesito tu ubicación.\n"
+"\n"
+"👇 *Pulsa el botón de abajo para compartirla:*"
+msgstr ""
+
+#: handlers/weather.py:576
+msgid "❌ No tienes suscripción activa. Usa /weather_sub."
+msgstr ""
+
+#: handlers/weather.py:596
+msgid "🗑️ Eliminar Suscripción"
+msgstr ""
+
+#: handlers/weather.py:597
+msgid "🔙 Volver"
+msgstr ""
+
+#: handlers/weather.py:601
+msgid ""
+"⚙️ *Configuración de Clima*\n"
+"cityalert_time*Alertas Locales:*\n"
+"Recibe avisos sobre el clima en tu zona.\n"
+"\n"
+"*Alertas Globales:*\n"
+"Terremotos, tsunamis, huracanes y volcanes de impacto mundial.\n"
+"\n"
+"Toca los botones para activar/desactivar:"
+msgstr ""
+
+#: handlers/weather.py:658
+msgid "¿Seguro que quieres dejar de recibir alertas de clima?"
+msgstr ""
+
+#: handlers/weather.py:663
+msgid "🗑️ Suscripción eliminada."
 msgstr ""
 
