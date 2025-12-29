@@ -7,15 +7,19 @@ def get_tv_data(symbol, interval_str="4h"):
     """
     # Mapeo de intervalos
     intervals = {
-        "1m": Interval.INTERVAL_1_MINUTE,
-        "5m": Interval.INTERVAL_5_MINUTES,
-        "15m": Interval.INTERVAL_15_MINUTES,
-        "1h": Interval.INTERVAL_1_HOUR,
-        "4h": Interval.INTERVAL_4_HOURS,
-        "1d": Interval.INTERVAL_1_DAY,
+        "1m": "1m",
+        "5m": "5m",
+        "15m": "15m",
+        "1h": "1h",
+        "2h": "2h",
+        "4h": "4h",
+        "8h": "4h",   # FALLBACK: Redirigimos 8h a 4h para evitar crash
+        "12h": "4h",  # FALLBACK: Redirigimos 12h a 4h para evitar crash
+        "1d": "1d",
+        "1w": "1w"  
     }
     
-    interval = intervals.get(interval_str, Interval.INTERVAL_4_HOURS)
+    interval = intervals.get(interval_str, "4h")
     
     # Manejo de Exchange (BINANCE para crypto)
     exchange = "BINANCE"
@@ -41,6 +45,7 @@ def get_tv_data(symbol, interval_str="4h"):
         macd_sig = ind.get("MACD.signal", 0)
         macd_hist = macd_val - macd_sig
         
+        
         # 2. SMA Trend
         close = ind.get("close", 0)
         sma50 = ind.get("SMA50", 0)
@@ -63,10 +68,12 @@ def get_tv_data(symbol, interval_str="4h"):
             "MACD_hist": macd_hist,
             "SMA50": sma50,
             "SMA200": sma200,
+            "ATR": ind.get("ATR", ind.get("ATR[14]", 0)),
             "vol_change": ind.get("Volume", 0), # Volumen simple
             "recommendation": analysis.summary.get("RECOMMENDATION", "NEUTRAL"), # BUY, STRONG_BUY, etc.
             "buy_count": analysis.summary.get("BUY", 0),
             "sell_count": analysis.summary.get("SELL", 0)
+            
         }
         
     except Exception as e:

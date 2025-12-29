@@ -1,13 +1,16 @@
 # handlers/admin.py
 
-
-import asyncio
 import os
+import time
+import psutil 
+import json
+import asyncio
 import openpyxl 
-from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.error import BadRequest  # <--- NUEVO
 from io import BytesIO
+from datetime import datetime, timedelta
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.error import BadRequest  
+from telegram.constants import ParseMode
 from telegram.ext import (
     ContextTypes, 
     ConversationHandler, 
@@ -16,13 +19,19 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters
 )
-from telegram.constants import ParseMode
-from telegram.ext import ContextTypes
-from telegram.constants import ParseMode
+from utils.weather_manager import load_weather_subscriptions
+from utils.valerts_manager import get_active_symbols, get_valerts_subscribers
+from utils.btc_manager import load_btc_subs
 from collections import Counter
 from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history
 from utils.ads_manager import load_ads, add_ad, delete_ad
-from core.config import VERSION, PID, PYTHON_VERSION, STATE, ADMIN_CHAT_IDS
+from core.config import ( 
+    VERSION, PID, PYTHON_VERSION, STATE, ADMIN_CHAT_IDS, 
+    USUARIOS_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH,
+    CUSTOM_ALERT_HISTORY_PATH, ADS_PATH, ELTOQUE_HISTORY_PATH,
+    LAST_PRICES_PATH, TEMPLATE_PATH, HBD_THRESHOLDS_PATH,
+    WEATHER_SUBS_PATH, WEATHER_LAST_ALERTS_PATH
+    )
 from core.i18n import _
 
 # Definimos los estados para nuestra conversación de mensaje masivo
@@ -318,270 +327,267 @@ def set_logs_util(func):
     global _get_logs_data_ref
     _get_logs_data_ref = func
 
-# COMANDO /users 
+
+# ==============================================================================
+# COMANDO /users (REFORMADO - DASHBOARD SUPER PRO)
+# ==============================================================================
+
+# --- DEFINICIÓN GLOBAL DEL OBJETO PSUTIL
+# Al iniciarlo aquí, el objeto se mantiene vivo todo el tiempo que el bot corre.
+proc_global = psutil.Process(os.getpid())
+# Hacemos una primera lectura "falsa" al arrancar para iniciar el contador
+proc_global.cpu_percent(interval=None)
+
 async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Comando /users mejorado. 
-    - Usuarios normales: Ven su perfil y sus SUSCRIPCIONES detalladas.
-    - Admins: Ven estadísticas globales (sin cambios).
+    Dashboard de Administración SUPER PRO.
+    Muestra estadísticas de Usuarios, Negocio, Carga, BTC, HBD, Clima y Valerts.
     """
-    current_chat_id = update.effective_chat.id
-    current_chat_id_str = str(current_chat_id)
-    usuarios = cargar_usuarios() # Carga users.json
-    all_alerts = load_price_alerts() # Carga price_alerts.json
-
-    # --- VISTA DE USUARIO NORMAL ---
-    if current_chat_id_str not in ADMIN_CHAT_IDS:
-        data = usuarios.get(current_chat_id_str)
-        if not data:
-            await update.message.reply_text(_("😕 No estás registrado en el sistema.", current_chat_id))
+    chat_id = update.effective_chat.id
+    chat_id_str = str(chat_id)
+    
+    # 1. CARGA DE DATOS (Centralizada)
+    usuarios = cargar_usuarios()
+    all_alerts = load_price_alerts()
+    btc_subs = load_btc_subs()
+    
+    # Carga de datos de Clima y Valerts
+    weather_subs = load_weather_subscriptions()
+    valerts_symbols = get_active_symbols()
+    
+    # 2. VISTA DE USUARIO NORMAL (Perfil Propio)
+    if chat_id_str not in ADMIN_CHAT_IDS:
+        user_data = usuarios.get(chat_id_str)
+        if not user_data:
+            await update.message.reply_text("❌ No estás registrado.")
             return
 
-        # 1. Datos básicos
-        monedas_str = ', '.join(data.get('monedas', []))
-        intervalo_h = data.get('intervalo_alerta_h', 1.0)
-        user_id = int(current_chat_id_str)
-        user_alerts = [a for a in all_alerts.get(current_chat_id_str, []) if a['status'] == 'ACTIVE']
-        alertas_activas = len(user_alerts)
-
-        try:
-            chat_info = await context.bot.get_chat(user_id)
-            nombre_completo = chat_info.full_name or "N/A"
-            username_str = f"@{chat_info.username}" if chat_info.username else "N/A"
-        except Exception as e:
-            nombre_completo = data.get('first_name', 'N/A')
-            username_str = f"@{data.get('username', 'N/A')}"
-            if 'Bot blocked' in str(e):
-                nombre_completo += " (Bloqueado)"
+        # Calcular datos del usuario
+        monedas = user_data.get('monedas', [])
+        alerts_count = len([a for a in all_alerts.get(chat_id_str, []) if a['status'] == 'ACTIVE'])
         
-        # --- 2. NUEVA LÓGICA DE SUSCRIPCIONES ---
-        subs = data.get('subscriptions', {})
-        subs_lines = []
+        # Estados de servicios
+        btc_status = "✅ Activado" if btc_subs.get(chat_id_str, {}).get('active') else "❌ Desactivado"
+        hbd_status = "✅ Activado" if user_data.get('hbd_alerts') else "❌ Desactivado"
+        weather_status = "✅ Activado" if str(chat_id) in weather_subs else "❌ Desactivado"
+        
+        # Suscripciones activas
+        subs = user_data.get('subscriptions', {})
+        active_subs = []
         now = datetime.now()
-
-        # Diccionario para nombres bonitos
-        nombres_subs = {
+        
+        map_names = {
             'watchlist_bundle': '📦 Pack Control Total',
             'tasa_vip': '💱 Tasa VIP',
             'ta_vip': '📈 TA Pro',
-            'coins_extra': '🪙 Moneda Extra',
-            'alerts_extra': '🔔 Alerta Cruce Extra'
+            'coins_extra': '🪙 Slot Moneda',
+            'alerts_extra': '🔔 Slot Alerta'
         }
 
-        # A) Procesar Suscripciones de Tiempo (active/expires)
-        for key in ['watchlist_bundle', 'tasa_vip', 'ta_vip']:
-            s_data = subs.get(key, {})
-            # Verificamos si está activa Y si tiene fecha de expiración futura
-            if s_data.get('active'):
-                exp_str = s_data.get('expires')
-                time_msg = ""
-                
-                if exp_str:
+        for key, val in subs.items():
+            # Tipo A: Por tiempo (active + expires)
+            if isinstance(val, dict) and val.get('active'):
+                exp = val.get('expires')
+                if exp:
                     try:
-                        exp_date = datetime.strptime(exp_str, '%Y-%m-%d %H:%M:%S')
-                        if exp_date > now:
-                            diff = exp_date - now
-                            if diff.days > 0:
-                                time_msg = f"Vence en {diff.days} días"
-                            else:
-                                horas = int(diff.seconds / 3600)
-                                time_msg = f"Vence en {horas} horas"
-                        else:
-                            continue # Si ya venció, no la mostramos como activa
-                    except ValueError:
-                        time_msg = "Fecha inválida"
-                
-                subs_lines.append(f"• *{nombres_subs.get(key, key)}*: ✅ ({time_msg})")
+                        if datetime.strptime(exp, '%Y-%m-%d %H:%M:%S') > now:
+                            active_subs.append(f"• {map_names.get(key, key)} (Vence: {exp.split()[0]})")
+                    except: pass
+            # Tipo B: Por cantidad (qty > 0)
+            elif isinstance(val, dict) and val.get('qty', 0) > 0:
+                active_subs.append(f"• {map_names.get(key, key)} (+{val['qty']})")
 
-        # B) Procesar Suscripciones de Cantidad (qty)
-        for key in ['coins_extra', 'alerts_extra']:
-            qty = subs.get(key, {}).get('qty', 0)
-            if qty > 0:
-                subs_lines.append(f"• *{nombres_subs.get(key, key)}*: +{qty} slots")
+        subs_txt = "\n".join(active_subs) if active_subs else "_Sin suscripciones activas_"
 
-        # Generar el string final de suscripciones
-        if not subs_lines:
-            suscripciones_str = "_No tienes suscripciones activas_"
-        else:
-            suscripciones_str = "\n".join(subs_lines)
-        # ----------------------------------------
-
-        mensaje_template = _(
-            "👤 *Tu Perfil Registrado*\n"
-            "—————————————————\n"
-            "📋 *Datos Generales:*\n"
-            "  - Nombre: {nombre_completo}\n"
-            "  - ID: `{user_id}`\n"
-            "  - Usuario: {username_str}\n"
-            "  - Monedas: `{monedas_str}`\n"
-            "  - Alerta Temp: cada {intervalo_h}h\n"
-            "  - Alertas Cruce: {alertas_activas} activas\n\n"
-            "✨ *Tus Suscripciones:*\n"
-            "{suscripciones_str}\n"
-            "—————————————————\n"
-            "_Solo puedes ver tu propia información 🙂_",
-            current_chat_id
+        msg = (
+            f"👤 *TU PERFIL BITBREAD*\n"
+            f"—————————————————\n"
+            f"🆔 ID: `{chat_id}`\n"
+            f"🗣 Idioma: `{user_data.get('language', 'es')}`\n\n"
+            f"📊 *Configuración:*\n"
+            f"• Monedas Lista: `{', '.join(monedas)}`\n"
+            f"• Alertas Cruce: `{alerts_count}` activas\n\n"
+            f"📡 *Servicios Activos:*\n"
+            f"• Monitor BTC: {btc_status}\n"
+            f"• Monitor HBD: {hbd_status}\n"
+            f"• Monitor Clima: {weather_status}\n\n"
+            f"💎 *Suscripciones:*\n"
+            f"{subs_txt}"
         )
-        
-        mensaje = mensaje_template.format(
-            nombre_completo=nombre_completo,
-            user_id=user_id,
-            username_str=username_str,
-            monedas_str=monedas_str,
-            intervalo_h=intervalo_h,
-            alertas_activas=alertas_activas,
-            suscripciones_str=suscripciones_str # <--- Nueva variable insertada
-        )
-        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
         return
 
-    # --- VISTA DE ADMINISTRADOR (NUEVA LÓGICA VIP) ---
-    msg_procesando = await update.message.reply_text("⏳ Calculando estadísticas...")
+    # 3. VISTA DE ADMINISTRADOR (DASHBOARD PRO)
+    msg_loading = await update.message.reply_text("⏳ *Analizando Big Data...*", parse_mode=ParseMode.MARKDOWN)
     
-    # 1. Cálculos Estadísticos Generales
-    total_usuarios = len(usuarios)
+    # --- A. CÁLCULOS DE USUARIOS ---
+    total_users = len(usuarios)
+    active_24h = 0
+    lang_es = 0
+    lang_en = 0
     
-    # Alertas de cruce activas
-    total_alertas_cruce = sum(
-        len([a for a in alerts if a['status'] == 'ACTIVE']) 
-        for alerts in all_alerts.values()
-    )
-    
-    # Alertas HBD
-    total_hbd_users = sum(1 for u in usuarios.values() if u.get('hbd_alerts', False))
-    porcentaje_hbd = (total_hbd_users / total_usuarios * 100) if total_usuarios > 0 else 0
-
-    # --- 2. CÁLCULO DE SUSCRIPCIONES PREMIUM (VIP) ---
-    # Contadores inicializados
+    # Contadores VIP
     vip_stats = {
-        'watchlist_bundle': 0, # Pack Control Total
-        'tasa_vip': 0,         # Tasa VIP
-        'ta_vip': 0,           # TA Pro
-        'coins_extra': 0,      # Espacios Moneda Extra (Usuarios que tienen > 0)
-        'alerts_extra': 0      # Alertas Cruce Extra (Usuarios que tienen > 0)
+        'watchlist_bundle': 0, 
+        'tasa_vip': 0, 
+        'ta_vip': 0,
+        'coins_extra_users': 0,
+        'alerts_extra_users': 0
     }
-
+    
+    # Contadores de Carga (Uso hoy)
+    total_usage_today = 0
+    usage_breakdown = Counter()
+    
     now = datetime.now()
-
-    for u in usuarios.values():
+    
+    for uid, u in usuarios.items():
+        # 1. Actividad (Basado en si el loop de alertas corrió recientemente)
+        last_alert = u.get('last_alert_timestamp')
+        if last_alert:
+            try:
+                last_dt = datetime.strptime(last_alert, '%Y-%m-%d %H:%M:%S')
+                if (now - last_dt).days < 1:
+                    active_24h += 1
+            except: pass
+            
+        # 2. Idioma
+        if u.get('language') == 'en': lang_en += 1
+        else: lang_es += 1
+        
+        # 3. VIP Check
         subs = u.get('subscriptions', {})
+        # Check tiempo
+        for k in ['watchlist_bundle', 'tasa_vip', 'ta_vip']:
+            s = subs.get(k, {})
+            if s.get('active') and s.get('expires'):
+                try:
+                    if datetime.strptime(s['expires'], '%Y-%m-%d %H:%M:%S') > now:
+                        vip_stats[k] += 1
+                except: pass
+        # Check cantidad
+        if subs.get('coins_extra', {}).get('qty', 0) > 0: vip_stats['coins_extra_users'] += 1
+        if subs.get('alerts_extra', {}).get('qty', 0) > 0: vip_stats['alerts_extra_users'] += 1
         
-        # Verificar Pack Control Total
-        wb = subs.get('watchlist_bundle', {})
-        if wb.get('active') and wb.get('expires'):
-            try:
-                if datetime.strptime(wb['expires'], '%Y-%m-%d %H:%M:%S') > now:
-                    vip_stats['watchlist_bundle'] += 1
-            except ValueError: pass
+        # 4. Uso Diario (Carga del Bot)
+        daily = u.get('daily_usage', {})
+        if daily.get('date') == now.strftime('%Y-%m-%d'):
+            for cmd, count in daily.items():
+                if cmd != 'date' and isinstance(count, int):
+                    usage_breakdown[cmd] += count
+                    total_usage_today += count
 
-        # Verificar Tasa VIP
-        tv = subs.get('tasa_vip', {})
-        if tv.get('active') and tv.get('expires'):
-            try:
-                if datetime.strptime(tv['expires'], '%Y-%m-%d %H:%M:%S') > now:
-                    vip_stats['tasa_vip'] += 1
-            except ValueError: pass
-
-        # Verificar TA Pro
-        tav = subs.get('ta_vip', {})
-        if tav.get('active') and tav.get('expires'):
-            try:
-                if datetime.strptime(tav['expires'], '%Y-%m-%d %H:%M:%S') > now:
-                    vip_stats['ta_vip'] += 1
-            except ValueError: pass
-
-        # Verificar Extras (Monedas)
-        ce = subs.get('coins_extra', {})
-        if ce.get('qty', 0) > 0:
-            # Aquí podríamos contar usuarios O contar total de slots vendidos. 
-            # Contaremos usuarios que han comprado al menos 1 slot.
-            vip_stats['coins_extra'] += 1
-
-        # Verificar Extras (Alertas)
-        ae = subs.get('alerts_extra', {})
-        if ae.get('qty', 0) > 0:
-            vip_stats['alerts_extra'] += 1
-
-    # Total de usuarios únicos con ALGO pagado (aprox)
-    # Nota: Es una aproximación simple, un usuario puede tener varios packs.
-    # Para ser exacto habría que usar un set de IDs.
+    # --- B. CÁLCULOS DE ALERTAS & MONEDAS ---
+    total_alerts_active = 0
+    coin_popularity = Counter()
     
-    # --- 3. Top Monedas y Usuarios Pesados ---
-    todas_monedas = []
-    for u in usuarios.values():
-        todas_monedas.extend(u.get('monedas', []))
-    conteo_monedas = Counter(todas_monedas)
-    top_5_monedas = conteo_monedas.most_common(5)
-    top_5_monedas_str = ", ".join([f"{m} ({c})" for m, c in top_5_monedas])
-
-    # Usuarios más pesados
-    users_by_alerts = []
     for uid, alerts in all_alerts.items():
-        active_count = len([a for a in alerts if a['status'] == 'ACTIVE'])
-        if active_count > 0:
-            users_by_alerts.append((uid, active_count))
+        for a in alerts:
+            if a['status'] == 'ACTIVE':
+                total_alerts_active += 1
+                coin_popularity[a['coin']] += 1
     
-    users_by_alerts.sort(key=lambda x: x[1], reverse=True)
-    top_3_users_data = users_by_alerts[:3]
+    top_coins = coin_popularity.most_common(5)
+    top_coins_str = ", ".join([f"{c[0]} ({c[1]})" for c in top_coins]) if top_coins else "N/A"
+
+    # --- C. CÁLCULOS DE SERVICIOS (BTC, HBD, CLIMA, VALERTS) ---
     
-    top_3_str = ""
-    for idx, (uid, count) in enumerate(top_3_users_data):
-        u_data = usuarios.get(uid, {})
-        name_display = u_data.get('username', uid) 
-        top_3_str += f"{idx+1}. {name_display}: {count} alertas\n"
-    if not top_3_str: top_3_str = "N/A"
+    # 1. BTC
+    btc_subscribers = sum(1 for s in btc_subs.values() if s.get('active'))
+    
+    # 2. HBD
+    hbd_subscribers = sum(1 for u in usuarios.values() if u.get('hbd_alerts'))
+    
+    # 3. CLIMA (Weather)
+    weather_subscribers = len(weather_subs)
+    
+    # 4. VALERTS (Volatilidad)
+    valerts_active_symbols_count = len(valerts_symbols)
+    valerts_unique_users = set()
+    
+    for sym in valerts_symbols:
+        # Obtenemos lista de IDs suscritos a cada símbolo
+        subs_list = get_valerts_subscribers(sym)
+        if subs_list:
+            for uid in subs_list:
+                valerts_unique_users.add(uid)
+                
+    valerts_total_users = len(valerts_unique_users)
 
-    # --- 4. Últimos Registros ---
-    lista_ids_usuarios = list(usuarios.keys())
-    ultimos_5_ids = lista_ids_usuarios[-5:]
-    ultimos_5_ids.reverse()
+    # --- D. CÁLCULOS DE RECURSOS (RAM, CPU, Uptime) ---
+    # 0. Proceso actual
+    process = psutil.Process(os.getpid())
 
-    detalles_ultimos = []
-    for chat_id_str in ultimos_5_ids:
-        data = usuarios[chat_id_str]
-        chat_id = int(chat_id_str)
-        monedas_user = ', '.join(data.get('monedas', []))
+    # 1. Uso de Memoria y CPU
+    mem_usage = process.memory_info().rss / 1024 / 1024 # MB
+    mem_asignada = process.memory_info().vms / 1024 / 1024 # MB
+    cpu_percent = proc_global.cpu_percent(interval=None)
+
+    # 2. Uptime
+    process = psutil.Process(os.getpid())
+    uptime_seconds = time.time() - process.create_time()
+    uptime_str = str(timedelta(seconds=int(uptime_seconds)))
+
+    # 3. Size file
+    size={"file_size": 0}
+    archivos = [
+        USUARIOS_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH,
+        CUSTOM_ALERT_HISTORY_PATH, ADS_PATH, ELTOQUE_HISTORY_PATH,
+        LAST_PRICES_PATH, TEMPLATE_PATH, HBD_THRESHOLDS_PATH,
+        WEATHER_SUBS_PATH, WEATHER_LAST_ALERTS_PATH
+    ]
+    
+    total_kb = 0
+    for ruta in archivos:
         try:
-            chat_info = await context.bot.get_chat(chat_id)
-            nombre_completo = chat_info.full_name or "N/A"
-            username_str = f"@{chat_info.username}" if chat_info.username else "N/A"
+            if os.path.exists(ruta): # Verificamos que el archivo exista
+                total_kb += os.path.getsize(ruta)
         except Exception:
-            nombre_completo = "Desconocido"
-            username_str = "N/A"
+            continue
+            
+    size["file_size"] = total_kb / 1024 / 1024  # MB
 
-        detalles_ultimos.append(
-            f"🔹 {nombre_completo} ({username_str}) | ID: {chat_id}\n"
-            f"   Monedas: {monedas_user}"
-        )
+    # --- CONSTRUCCIÓN DEL DASHBOARD ---
+    dashboard = (
+        f"👮‍♂️ *PANEL DE CONTROL* v{VERSION}\n"
+        f"📅 {now.strftime('%d/%m/%Y %H:%M')}\n"
+        f"———————————————————\n\n"
 
-    # --- 5. Construcción del Mensaje ---
-    mensaje_admin = (
-        f"📊 *ESTADÍSTICAS GENERALES\n🤖 BitBread Alert* (v{VERSION})\n"
-        f"—————————————————\n" 
-        f"👥 *Usuarios Totales:* `{total_usuarios}`\n"
-        f"🔔 *Alertas Cruce:* `{total_alertas_cruce}` activas\n"
-        f"📢 *Subs HBD:* `{total_hbd_users}` ({porcentaje_hbd:.1f}%)\n•\n"
+        f"*🖥️ ESTADO DEL SISTEMA*\n"
+        f"├ *Uptime:* `{uptime_str}`\n"
+        f"├ *RAM:* `{mem_usage:.2f} MB`\n"
+        f"├ *VMS:* `{mem_asignada:.2f} MB`\n"
+        f"├ *CPU:* `{cpu_percent}%`\n"
+        f"└ *DATA:* `{size['file_size']:.2f} MB`\n\n"
+
+        f"⚙️ *CARGA DEL SISTEMA (Hoy)*\n"
+        f"├ Comandos Procesados: `{total_usage_today}`\n"
+        f"├ Desglose: Ver({usage_breakdown['ver']}) | Tasa({usage_breakdown['tasa']}) | TA({usage_breakdown['ta']})\n"
+        f"└ Alertas Cruce Vigilando: `{total_alerts_active}`\n\n"
+
+        f"👥 *USUARIOS*\n"
+        f"├ Totales: `{total_users}`\n"
+        f"├ Activos (24h): `{active_24h}` ({int(active_24h/total_users*100) if total_users else 0}%)\n"
+        f"└ Idiomas: 🇪🇸 {lang_es} | 🇺🇸 {lang_en}\n\n"
         
-        f"💎 *ESTADÍSTICAS PREMIUM (Activos)*\n"
+        f"💎 *NEGOCIO (Suscripciones Activas)*\n"
         f"📦 Pack Control Total: `{vip_stats['watchlist_bundle']}`\n"
         f"💱 Tasa VIP: `{vip_stats['tasa_vip']}`\n"
         f"📈 TA Pro: `{vip_stats['ta_vip']}`\n"
-        f"🪙 Extra Monedas: `{vip_stats['coins_extra']}` usuarios\n"
-        f"🔔 Extra Alertas: `{vip_stats['alerts_extra']}` usuarios\n•\n"
+        f"➕ Extras: `{vip_stats['coins_extra_users']}` Coins | `{vip_stats['alerts_extra_users']}` Alertas\n\n"
         
-        f"🏆 *Top 5 Monedas:*\n"
-        f"`{top_5_monedas_str}`\n•\n"
+        f"📢 *SERVICIOS DE NOTIFICACIÓN*\n"
+        f"🦁 Monitor BTC: `{btc_subscribers}` usuarios\n"
+        f"🐝 Monitor HBD: `{hbd_subscribers}` usuarios\n"
+        f"🌦️ Monitor Clima: `{weather_subscribers}` usuarios\n"
+        f"🚀 Valerts (Volatilidad): `{valerts_total_users}` usuarios en `{valerts_active_symbols_count}` monedas\n\n"
         
-        f"⚡ *Top 3 Heavy Users (Alertas):*\n"
-        f"{top_3_str}\n"
-        
-        f"🆕 *Últimos 5 Registrados:*\n"
-        f"—————————————————\n"
-        f"```{chr(10).join(detalles_ultimos)}```"
+        f"🏆 *TENDENCIAS DE MERCADO*\n"
+        f"🔥 Top Monedas Vigiladas:\n"
+        f"`{top_coins_str}`\n"
     )
 
-    await msg_procesando.delete() 
-    await update.message.reply_text(mensaje_admin, parse_mode=ParseMode.MARKDOWN)
+    await msg_loading.edit_text(dashboard, parse_mode=ParseMode.MARKDOWN)
 
 
 

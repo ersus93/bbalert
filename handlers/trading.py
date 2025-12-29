@@ -682,6 +682,8 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
             else:
                 await msg_wait.edit_text(err_txt, parse_mode=ParseMode.MARKDOWN)
             return
+    
+    
 
     # === CONSTRUCCIÓN DEL MENSAJE ===
     def fmt_cell(val, width=7):
@@ -700,6 +702,42 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
         table_msg += f"{l:<6} {fmt_cell(v[0])}  {fmt_cell(v[1])}  {fmt_cell(v[2])}\n"
     table_msg += "```"
 
+    # 1. Definimos el precio ANTES de usarlo en los if
+    price = final_data.get('close', 0)
+
+    # 2. Inicializamos valores por defecto (para evitar errores si usamos TV)
+    sr = {}
+    kijun_val = 0
+    fib_val = 0
+    zone = "⚖️ NEUTRAL (TV)"
+    kijun_icon = "➖"
+    kijun_label = "N/A"
+    fib_label = "N/A"
+
+    # 3. Solo calculamos lógica avanzada si 'analyzer' existe (Modo Binance Local)
+    if 'analyzer' in locals():
+        sr = analyzer.get_support_resistance_dynamic()
+        
+        # Ichimoku Kijun
+        kijun_val = sr.get('KIJUN', 0)
+        if price > kijun_val:
+            kijun_label = "Soporte Dinámico" 
+            kijun_icon = "🛡️"
+        else:
+            kijun_label = "Resistencia Dinámica"
+            kijun_icon = "🚧"
+
+        # Fibonacci 0.618
+        fib_val = sr.get('FIB_618', 0)
+        if price > fib_val:
+            fib_label = "Zona de Rebote (Bullish)"
+        else:
+            fib_label = "Techo de Tendencia (Bearish)"
+
+        # Zona General
+        zone = sr.get('status_zone', "⚖️ NEUTRAL")
+
+
     price = final_data.get('close', 0)
     macd_s = "Bullish 🟢" if final_data.get('MACD_hist', 0) > 0 else "Bearish 🔴"
     trend_s = "Alcista" if price > final_data.get('SMA_50', 0) else "Bajista"
@@ -716,6 +754,12 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
         f"🧐 *Diagnóstico de Momentum*\n"
         f"🌊 *Tendencia:* {trend_s}\n"
         f"❌ *MACD:* {macd_s}\n"
+        f"*Confluencia y Estado:*\n"
+        f"📍 *Zona:* `{zone}`\n"
+        f"☁️ *Ichimoku:* `${kijun_val:,.0f}`\n"
+        f"   ↳ _{kijun_icon} {kijun_label}_\n"
+        f"🟡 *FIB 0.618:* `${fib_val:,.0f}`\n"
+        f"   ↳ _📐 {fib_label}_\n\n"
     )
     if reasons_list: msg += f"💡 *Nota:* _{reasons_list[0]}_\n"
     

@@ -83,6 +83,15 @@ class BTCAdvancedAnalyzer:
         # Reemplazamos cualquier NaN restante con 0 o valores neutros para evitar crash
         self.df.fillna(0, inplace=True)
 
+        # 6. Ichimoku Kinko Hyo (Línea Base / Kijun-sen)
+        # Es el punto medio de los últimos 26 periodos. Muy respetado en BTC.
+        ichimoku = ta.ichimoku(self.df['high'], self.df['low'], self.df['close'])[0]
+        if ichimoku is not None:
+            # ISA_9 = Tenkan-sen, ISB_26 = Kijun-sen
+            self.df['KIJUN_SEN'] = ichimoku.iloc[:, 1] # Kijun es la columna 1
+        else:
+            self.df['KIJUN_SEN'] = self.df['close']
+
     def get_current_values(self):
         """Devuelve la última fila como diccionario asegurando tipos nativos (no numpy)."""
         last_row = self.df.iloc[-1].to_dict()
@@ -193,29 +202,80 @@ class BTCAdvancedAnalyzer:
             emoji = "🐻"
             
         return (signal, emoji, (buy_score, sell_score), reasons)
+    
 
-    def get_support_resistance_dynamic(self) -> Dict:
+    #   --- esta es la actual   ---
+
+    def get_support_resistance_dynamic(self, interval="1d") -> Dict:
         """
-        Calcula Pivotes de Fibonacci basados en la vela CERRADA anterior.
-        Estos niveles son estáticos para toda la duración de la vela actual (4H).
+        Calcula Pivotes de Fibonacci basados en un Lookback de 100 velas.
+        Esta lógica ignora la ventana de 24h y se centra en la estructura 
+        técnica de las últimas 100 unidades de tiempo del gráfico actual.
         """
-        if len(self.df) < 2:
+        # Necesitamos un mínimo de datos para que el análisis sea serio
+        if len(self.df) < 10:
             return {}
+
+        # --- LÓGICA DE VENTANA MÓVIL (LOOKBACK n VELAS) ---
+        # Definimos el tamaño de la ventana
+        lookback_window = 10
+        
+        # Si el DataFrame es más pequeño que n, usamos lo que tengamos
+        actual_lookback = min(len(self.df) - 1, lookback_window)
+        
+        try:
+            # Tomamos desde [-(100 + 1)] hasta [-1] (exclusivo)
+            # Esto garantiza que analizamos velas CERRADAS, excluyendo la actual en formación
+            start_idx = -(actual_lookback + 1)
+            end_idx = -1 
             
-        # Tomamos la penúltima fila (la última vela cerrada completa)
-        prev = self.df.iloc[-2]
-        
-        # Datos para cálculo
-        high = float(prev['high'])
-        low = float(prev['low'])
-        close = float(prev['close'])
-        
-        # Fórmula PIVOTS FIBONACCI
+            subset = self.df.iloc[start_idx:end_idx]
+            
+            # Calculamos Máximo, Mínimo y Cierre de este bloque de n velas
+            high = float(subset['high'].max())
+            low = float(subset['low'].min())
+            # El cierre es el de la última vela cerrada del bloque
+            close = float(subset.iloc[-1]['close'])
+            
+        except Exception as e:
+            print(f"⚠️ Error cálculo 100-candles pivot: {e}. Usando vela anterior.")
+            prev = self.df.iloc[-2]
+            high, low, close = float(prev['high']), float(prev['low']), float(prev['close'])
+
+        # --- 1. CÁLCULO DE PIVOTES ---
         p = (high + low + close) / 3
         rango = high - low
         
+        # --- 2. CONFLUENCIAS (KIJUN-SEN & FIB 0.618) ---
+        # Kijun-sen (Punto medio de las últimas 26 velas)
+        k_look = 26
+        if len(self.df) >= k_look:
+            k_high = self.df['high'].tail(k_look + 1).iloc[:-1].max()
+            k_low = self.df['low'].tail(k_look + 1).iloc[:-1].min()
+            kijun = (k_high + k_low) / 2
+        else:
+            kijun = p
+
+        # Golden Pocket (0.618) de todo el rango de las 100 velas
+        # Calculamos desde el mínimo hacia arriba (Retracement alcista común)
+        fib_618 = low + (rango * 0.618)
+        
+        # --- 3. ESTADO DE LA ZONA (DINÁMICO) ---
+        # Usamos el precio de la vela actual (vela abierta)
+        price = float(self.df.iloc[-1]['close'])
+        
+        if price > p and price > kijun:
+            status_zone = "🐂 ALCISTA (Sólido)"
+        elif price < p and price < kijun:
+            status_zone = "🐻 BAJISTA (Débil)"
+        elif price > p and price < kijun:
+             status_zone = "⚠️ TRAMPA ALCISTA"
+        else:
+            status_zone = "⚖️ NEUTRAL / RANGO"
+
         return {
-            'current_price': float(self.df.iloc[-1]['close']), # Precio vela actual
+            'current_price': price,
+            'status_zone': status_zone,
             'P': p,
             'R1': p + (rango * 0.382),
             'R2': p + (rango * 0.618),
@@ -223,9 +283,12 @@ class BTCAdvancedAnalyzer:
             'S1': p - (rango * 0.382),
             'S2': p - (rango * 0.618),
             'S3': p - (rango * 1.000),
+            'FIB_618': fib_618,
+            'KIJUN': kijun,
             'atr': self.df.iloc[-1].get('ATR', 0)
         }
-    
+
+       
     # Añadido para que btc_loop.py no falle si llama a esta función
     def detect_rsi_divergence(self, lookback=5):
         return None

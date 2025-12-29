@@ -1,3 +1,4 @@
+
 # handlers/btc_handlers.py
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -7,67 +8,130 @@ import json
 import os
 import pandas as pd
 from core.i18n import _
-from utils.btc_manager import is_btc_subscribed, toggle_btc_subscription, load_btc_state
+from utils.btc_manager import (
+    is_btc_subscribed, 
+    toggle_btc_subscription, 
+    load_btc_state, 
+    load_btc_subs 
+)
 from utils.ads_manager import get_random_ad_text
 from datetime import datetime
 from core.config import DATA_DIR
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
-from core.btc_loop import get_btc_klines
+from core.btc_loop import get_btc_klines, get_btc_candle_data
 from utils.tv_helper import get_tv_data 
 
-# === GESTIÓN DE SUSCRIPCIONES (Manteniendo tu lógica original) ===
-BTC_SUBS_PATH = os.path.join(DATA_DIR, "btc_subs.json")
+# --- Función Auxiliar para Generar Botones ---
+def _get_btc_keyboard(user_id, current_source="BINANCE", current_tf="1d"):
+    # 1. Cargar suscripciones
+    subs_data = load_btc_subs().get(str(user_id), {}).get('subscriptions', [])
+    
+    # Función auxiliar para texto del botón
+    def get_sub_text(tf):
+        is_active = tf in subs_data 
+        return f"🔔 {tf.upper()}" if is_active else f"🔕 {tf.upper()}"
 
-def load_btc_subs():
-    if not os.path.exists(BTC_SUBS_PATH):
-        return {}
-    try:
-        with open(BTC_SUBS_PATH, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
-        return {}
+    # --- SECCIÓN 1: BOTONES DE SUSCRIPCIÓN (Filas de 3 máximo) ---
+    subs_buttons = [
+        InlineKeyboardButton(get_sub_text("1h"), callback_data=f"toggle_btc_alerts|1h"),
+        InlineKeyboardButton(get_sub_text("2h"), callback_data=f"toggle_btc_alerts|2h"),
+        InlineKeyboardButton(get_sub_text("4h"), callback_data=f"toggle_btc_alerts|4h"),
+        InlineKeyboardButton(get_sub_text("8h"), callback_data=f"toggle_btc_alerts|8h"),
+        InlineKeyboardButton(get_sub_text("12h"), callback_data=f"toggle_btc_alerts|12h"),
+        InlineKeyboardButton(get_sub_text("1d"), callback_data=f"toggle_btc_alerts|1d"),
+        InlineKeyboardButton(get_sub_text("1w"), callback_data=f"toggle_btc_alerts|1w")
+    ]
+    
+    # Organizar suscripciones en filas de 3 para que no ocupen tanto verticalmente
+    keyboard = []
+    row = []
+    for btn in subs_buttons:
+        row.append(btn)
+        if len(row) == 3: # Cambia a 2 si prefieres botones más grandes
+            keyboard.append(row)
+            row = []
+    if row: keyboard.append(row)
 
-def save_btc_subs(subs):
-    try:
-        temp_path = f"{BTC_SUBS_PATH}.tmp"
-        with open(temp_path, 'w', encoding='utf-8') as f:
-            json.dump(subs, f, indent=4)
-        os.replace(temp_path, BTC_SUBS_PATH)
-    except Exception as e:
-        print(f"Error guardando subs BTC: {e}")
+    # --- SECCIÓN 2: CAMBIO DE TEMPORALIDAD (Filas de 2) ---
+    # Solo mostramos las que NO estamos viendo
+    tf_buttons = []
+    for tf in ["1h", "2h", "4h", "8h", "12h", "1d", "1w"]: # Asegúrate de usar "12h" no "12"
+        if tf != current_tf:
+            tf_buttons.append(InlineKeyboardButton(f"⏳ Ver {tf.upper()}", callback_data=f"btc_switch_view|{current_source}|{tf}"))
+    
+    # Organizar botones de vista en filas de 2
+    row = []
+    for btn in tf_buttons:
+        row.append(btn)
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row: keyboard.append(row)
 
-def toggle_btc_subscription(user_id):
-    subs = load_btc_subs()
-    uid = str(user_id)
-    if uid in subs:
-        current = subs[uid].get('active', False)
-        subs[uid]['active'] = not current
-    else:
-        subs[uid] = {'active': True, 'joined_at': datetime.now().isoformat()}
-    save_btc_subs(subs)
-    return subs[uid]['active']
+    # --- SECCIÓN 3: FUENTE Y ACTUALIZAR ---
+    other_source = "TV" if current_source == "BINANCE" else "BINANCE"
+    source_text = "📊 Ir a TradingView" if current_source == "BINANCE" else "🦁 Ir a Local"
+    
+    # Botón de fuente y botón de refrescar manual en la misma fila
+    control_row = [
+        InlineKeyboardButton(source_text, callback_data=f"btc_switch_view|{other_source}|{current_tf}"),
+        # Un botón para forzar recarga si el precio no cambió
+        InlineKeyboardButton("🔄", callback_data=f"btc_switch_view|{current_source}|{current_tf}")
+    ]
+    keyboard.append(control_row)
+    
+    return InlineKeyboardMarkup(keyboard)
 
 # === COMANDO PRINCIPAL CON LÓGICA DE SWITCH ===
 
 async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE, source="BINANCE"):
-    """
-    Muestra el análisis de BTC.
-    source: "BINANCE" (Cálculo local PRO) o "TV" (TradingView Simple).
-    """
-    # 1. Detectar contexto (Callback vs Comando)
+    # 1. Variables iniciales
     is_callback = update.callback_query is not None
     user_id = update.effective_user.id
-    
-    # Si el usuario escribe "/btcalerts TV", forzamos TV
-    if not is_callback and context.args and "TV" in [a.upper() for a in context.args]:
-        source = "TV"
+    user_id_str = str(user_id)
+    target_tf = "1d" # Valor por defecto
 
-    # Estado de suscripción para el botón
-    subscribed = is_btc_subscribed(user_id)
-    status_icon = "✅ ACTIVADAS" if subscribed else "☑️ DESACTIVADAS"
+    # 2. DETERMINAR TEMPORALIDAD (target_tf) PRIMERO
+    if is_callback:
+        query = update.callback_query
+        data_parts = query.data.split("|")
+        # data_parts ejemplo: ["btc_switch_view", "BINANCE", "4h"]
+        if len(data_parts) >= 3:
+            source = data_parts[1]
+            target_tf = data_parts[2] # Aquí capturamos "4h" u "8h"
+        elif len(data_parts) == 2:
+            source = data_parts[1]
+
+    if not is_callback and context.args:
+        args_upper = [a.upper() for a in context.args]
+        if "TV" in args_upper: source = "TV"
+        # Detectar si el usuario escribió una temporalidad manualmente
+        for tf in ["1h", "2h", "4h", "8h", "12h", "1d", "1w"]:
+            if tf.upper() in args_upper: 
+                target_tf = tf.lower()
+
+    # 3. AHORA VERIFICAR SUSCRIPCIÓN (Con el target_tf ya correcto)
+    subs_data = load_btc_subs()
+    user_subs = subs_data.get(user_id_str, {}).get('subscriptions', [])
     
+    # La lógica que pediste:
+    is_active = target_tf in user_subs
+    status_text = "✅ ACTIVADAS" if is_active else "☑️ DESACTIVADAS"
+
+    # --- FIN DE LA CORRECCIÓN DE LÓGICA ---
+
     msg = ""
     switch_btn = []
+    
+    
+    # --- CAMBIO: Pasar interval explícito ---
+    df = get_btc_klines(interval=target_tf, limit=150)
+    
+    if df is None or df.empty:
+        await update.message.reply_text("⚠️ Error obteniendo datos de Binance.")
+        return
+    
+    
 
     # ==================================================================
     # CASO A: VISTA TRADINGVIEW (ESTILO PRO / VALERTS)
@@ -75,7 +139,7 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
     if source == "TV":
         try:
             # 1. Obtener datos de TradingView
-            tv_data = get_tv_data("BTCUSDT", interval_str="4h")
+            tv_data = get_tv_data("BTCUSDT", interval_str=target_tf)
             
             if not tv_data:
                 raise Exception("Sin datos de TV")
@@ -85,6 +149,7 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
             rec = tv_data.get('recommendation', 'NEUTRAL')
             buy_score = tv_data.get('buy_count', 0)
             sell_score = tv_data.get('sell_count', 0)
+            atr_val = tv_data.get('ATR', 0)
             
             rsi_val = tv_data.get('RSI', 50)
             macd_hist = tv_data.get('MACD_hist', 0)
@@ -127,9 +192,9 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
 
             # 4. Construcción del Mensaje PRO
             msg = (
-                f"🦁 *Monitor BTC (TradingView)*\n"
+                f"🦁 *Monitor BTC (TradingView) [{target_tf.upper()}]*\n"
                 f"—————————————————\n"
-                f"📊 *Estructura BTC (4H)*\n"
+                f"📊 *Estructura BTC*\n"
                 f"📡 Fuente: _TradingView API_\n"
                 f"{sig_icon} *Señal:* `{sig_txt}`\n"
                 f"⚖️ *Score:* {buy_score} Compra | {sell_score} Venta\n\n"
@@ -149,8 +214,9 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 f"🕳️ S3: `${tv_data.get('S3', 0):,.0f}`\n\n"
                 
                 f"💰 *Precio:* `${curr:,.2f}`\n"
+                f"💸 *ATR*: `${atr_val:,.0f}`\n"
                 f"—————————————————\n"
-                f"🔔 *Suscripción:* {status_icon}"
+                f"🔔 Suscripción {target_tf.upper()}: {status_text}"
             )
             
             # El botón switch llevará a la vista LOCAL (Binance)
@@ -167,7 +233,7 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
     else:
         try:
             # 1. Obtener Velas (Limit 10000 para precisión en EMA200)
-            df = get_btc_klines(limit=1000)
+            df = get_btc_klines(interval=target_tf, limit=1000)
             
             if df is None or len(df) < 200:
                 msg = "⚠️ *Datos insuficientes de Binance.*\nIntenta de nuevo en unos segundos."
@@ -178,7 +244,8 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 # 3. Obtener Datos
                 curr_values = analyzer.get_current_values()
                 momentum_signal, emoji_mom, (buy, sell), reasons = analyzer.get_momentum_signal()
-                sr = analyzer.get_support_resistance_dynamic()
+                sr = analyzer.get_support_resistance_dynamic(interval=target_tf)
+                #sr = analyzer.get_support_resistance_dynamic()
                 
                 # 4. Formatear Valores
                 price = curr_values.get('close', 0)
@@ -187,16 +254,16 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 adx = curr_values.get('ADX_14', curr_values.get('ADX', 0))
                 if adx >= 50:
                     adx_txt = "🔥 Tendencia Muy Fuerte"
-                elif adx >= 25:
+                elif adx >= 20:
                     adx_txt = "💪 Tendencia Fuerte"
                 else:
                     adx_txt = "💤 Rango / Sin Tendencia"
                 # Intentamos buscar STOCHk_14... o similar
                 stoch_k = curr_values.get('stoch_k', 50)
                 if stoch_k >= 80:
-                    stoch_txt = "🔴 Sobrecompra (Posible Caída)"
+                    stoch_txt = "🔴 Tope, Sobrecompra (Posible Caída)"
                 elif stoch_k <= 20:
-                    stoch_txt = "🟢 Sobrevendido (Posible Rebote)"
+                    stoch_txt = "🟢 Suelo, Sobrevendido (Posible Rebote)"
                 else:
                     stoch_txt = "⚖️ Neutro"
                 macd_hist = curr_values.get('MACD_HIST', 0)
@@ -211,16 +278,31 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 
                 trend_str = "ALCISTA (Sobre EMA50)" if price > ema_50 else "BAJISTA (Bajo EMA50)"
                 
-                # Zona de precio vs Niveles
-                if price > sr.get('R2', 0): zone = "🚀 EXTENSIÓN"
-                elif price > sr.get('R1', 0): zone = "🐂 ALCISTA"
-                elif price < sr.get('S2', 0): zone = "🩸 EXTENSIÓN"
-                elif price < sr.get('S1', 0): zone = "🐻 BAJISTA"
-                else: zone = "⚖️ NEUTRAL"
+                # --- ETIQUETAS DINÁMICAS (NUEVO) ---
+                # Definimos qué significan los niveles según donde esté el precio hoy
+                
+                # Ichimoku Kijun
+                kijun_val = sr.get('KIJUN', 0)
+                if price > kijun_val:
+                    kijun_label = "Soporte Dinámico" 
+                    kijun_icon = "🛡️"
+                else:
+                    kijun_label = "Resistencia Dinámica"
+                    kijun_icon = "🚧"
+
+                # Fibonacci 0.618
+                fib_val = sr.get('FIB_618', 0)
+                if price > fib_val:
+                    fib_label = "Zona de Rebote (Bullish)"
+                else:
+                    fib_label = "Techo de Tendencia (Bearish)"
+
+                # Zona General
+                zone = sr.get('status_zone', "⚖️ NEUTRAL")
 
                 # 5. Construir Mensaje PRO
                 msg = (
-                    f"🦁 *Monitor BTC PRO (Local)*\n"
+                    f"🦁 *ANÁLISIS BTC PRO ({target_tf.upper()}) (Local)*\n"
                     f"—————————————————\n"
                     f"{emoji_mom} *Señal:* {momentum_signal}\n"
                     f"⚖️ *Score:* {buy} Compra vs {sell} Venta\n\n"
@@ -235,20 +317,29 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
                     f"📉 *Estructura:* _{trend_str}_\n"
                     f"EMA 200: `${ema_200:,.0f}` _(Tendencia LP)_\n\n"
                     
+                    f"*Confluencia y Estado:*\n"
+                    f"📍 *Zona:* `{zone}`\n"
+                    f"☁️ *Ichimoku:* `${kijun_val:,.0f}`\n"
+                    f"   ↳ _{kijun_icon} {kijun_label}_\n"
+                    f"🟡 *FIB 0.618:* `${fib_val:,.0f}`\n"
+                    f"   ↳ _📐 {fib_label}_\n\n"
+
                     f"—————————————————\n"
-                    f"💹 *Niveles Fibonacci (4H)*\n"
-                    f"Estado: {zone}\n"
-                    f"🧗 R3: `${sr.get('R3',0):,.0f}`\n"
-                    f"🟥 R2: `${sr.get('R2',0):,.0f}`\n"
-                    f"🟧 R1: `${sr.get('R1',0):,.0f}`\n"
+                    f"💹 *Niveles Claves ({target_tf.upper()})*\n"  
+                    
+                   
+                    f"🧗 R3 (Ext): `${sr.get('R3',0):,.0f}`\n"
+                    f"🟥 R2 (Res): `${sr.get('R2',0):,.0f}`\n"
+                    f"🟧 R1 (Res): `${sr.get('R1',0):,.0f}`\n"                    
                     f"⚖️ *PIVOT: ${sr.get('P',0):,.0f}*\n"
-                    f"🟦 S1: `${sr.get('S1',0):,.0f}`\n"
-                    f"🟩 S2: `${sr.get('S2',0):,.0f}`\n"
-                    f"🕳️ S3: `${sr.get('S3',0):,.0f}`\n\n"
+                    f"🟦 S1 (Sup): `${sr.get('S1',0):,.0f}`\n"
+                    f"🟩 S2 (Sup): `${sr.get('S2',0):,.0f}`\n"
+                    f"🕳️ S3 (Pánico): `${sr.get('S3',0):,.0f}`\n\n"
                     
                     f"💰 *Precio Actual:* `${price:,.0f}`\n"
+                    f"💸 *ATR*: `${sr.get('atr' ,0):,.0f}`\n"
                     f"—————————————————\n"
-                    f"🔔 *Suscripción:* {status_icon}"
+                    f"🔔 Suscripción {target_tf.upper()}: {status_text}"
                 )
                 
                 # Agregar razones si existen
@@ -272,97 +363,94 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
     
     # Agregar publicidad
     msg += get_random_ad_text()
-    
-    kb = []
-    # Botón de Suscripción
-    sub_text = "🔕 Desactivar Alertas" if subscribed else "🔔 Activar Alertas"
-    kb.append([InlineKeyboardButton(sub_text, callback_data="toggle_btc_alerts")])
-    
-    # Botón de Switch
-    if switch_btn:
-        kb.append(switch_btn)
-    
-    reply_markup = InlineKeyboardMarkup(kb)
 
+    # --- RESPUESTA ---
+    kb = _get_btc_keyboard(user_id, current_source=source, current_tf=target_tf)
+    
     if is_callback:
-        # Editar mensaje existente (Switch suave)
-        await update.callback_query.answer()
+        # Importante: Responder al callback primero para quitar el relojito de carga
+        # Si el mensaje no cambia, al menos el usuario ve una notificación flotante
         try:
-            await update.callback_query.edit_message_text(
-                text=msg, 
-                reply_markup=reply_markup, 
-                parse_mode=ParseMode.MARKDOWN
-            )
-        except Exception:
-            pass # Si el mensaje es idéntico, ignora el error
-    else:
-        # Enviar mensaje nuevo
-        await update.message.reply_text(
-            msg, 
-            reply_markup=reply_markup, 
-            parse_mode=ParseMode.MARKDOWN
-        )
+            await update.callback_query.answer("Analizando...") 
+        except:
+            pass
 
+        try:
+            from telegram.error import BadRequest # Asegúrate de importar esto arriba o usarlo así
+            await update.callback_query.edit_message_text(msg, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
+        except BadRequest as e:
+            error_str = str(e)
+            # Si el error es "Message is not modified", lo ignoramos porque significa
+            # que el usuario clicó, pero el precio/análisis es idéntico al anterior.
+            if "not modified" in error_str:
+                pass 
+            else:
+                print(f"Error editando mensaje BTC: {e}")
+                # Opcional: Reintentar sin Markdown si falló por formato
+    else:
+        await update.message.reply_text(msg, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
+    
 
 # === HANDLERS DE CALLBACK ===
 
 async def btc_switch_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Maneja el cambio de vista entre Binance y TradingView.
+    Simplemente redirige la llamada a la función principal btc_alerts_command.
+    La función principal ahora es inteligente y sabrá leer la temporalidad del botón.
     """
-    query = update.callback_query
-    
-    # --- INICIO MODIFICACIÓN ---
-    # Si recibimos el callback antiguo, forzamos a BINANCE
-    if query.data == "btcalerts_view":
-        target_source = "BINANCE"
-    else:
-        # Lógica estándar con argumentos
-        data = query.data.split("|")
-        if len(data) < 2:
-            await query.answer("Error en datos.")
-            return
-        target_source = data[1] 
-    # --- FIN MODIFICACIÓN ---
-
-    # Llamamos a la función principal
-    await btc_alerts_command(update, context, source=target_source)
+    # Llamamos a tu función PRO directamente
+    await btc_alerts_command(update, context)
 
 
 async def btc_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Activa o desactiva alertas y actualiza solo el botón."""
+    """Activa o desactiva alertas para una temporalidad específica."""
     query = update.callback_query
     await query.answer()
     
-    new_status = toggle_btc_subscription(query.from_user.id)
-    btn_text = "🔕 Desactivar Alertas" if new_status else "🔔 Activar Alertas"
+    # 1. Extraer la temporalidad del callback (ej: toggle_btc_alerts|1d)
+    data = query.data.split("|")
+    target_tf = data[1] if len(data) > 1 else "1d"
     
-    # Recuperamos el teclado actual para no perder el botón de Switch
-    current_kb = query.message.reply_markup.inline_keyboard
-    new_kb = []
+    # 2. Ejecutar el cambio en la base de datos (Manager)
+    new_state = toggle_btc_subscription(query.from_user.id, timeframe=target_tf)
     
-    for row in current_kb:
-        new_row = []
-        for btn in row:
-            if btn.callback_data == "toggle_btc_alerts":
-                new_row.append(InlineKeyboardButton(btn_text, callback_data="toggle_btc_alerts"))
-            else:
-                new_row.append(btn)
-        new_kb.append(new_row)
+    # 3. Detectar qué vista (tf) y fuente tenía el usuario en ese momento
+    current_source = "BINANCE" 
+    current_tf_view = "1d" 
     
     try:
-        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(new_kb))
-        msg_toast = "✅ Alertas ACTIVADAS" if new_status else "🔕 Alertas DESACTIVADAS"
-        await query.answer(msg_toast, show_alert=False)
+        for row in query.message.reply_markup.inline_keyboard:
+            for btn in row:
+                if "btc_switch_view" in btn.callback_data:
+                    # El botón es "Ver X", así que la vista actual es la contraria
+                    # O el botón de fuente: "btc_switch_view|TV|4h"
+                    parts = btn.callback_data.split("|")
+                    if len(parts) > 2:
+                        current_tf_view = parts[2]
+                        # Si el botón dice "ir a TV", es que estamos en BINANCE
+                        current_source = "BINANCE" if "TV" in parts[1] else "TV"
+                    break
     except:
         pass
+
+    # 4. Regenerar el teclado completo con el nuevo estado
+    new_kb = _get_btc_keyboard(query.from_user.id, current_source, current_tf_view)
+    
+    # 5. Actualizar el mensaje
+    try:
+        await query.edit_message_reply_markup(reply_markup=new_kb)
+        
+        status_msg = f"✅ Alertas {target_tf.upper()} ACTIVADAS" if new_state else f"🔕 Alertas {target_tf.upper()} DESACTIVADAS"
+        await query.answer(status_msg, show_alert=False)
+    except Exception as e:
+        print(f"Error actualizando teclado BTC: {e}")
 
 # === LISTA DE HANDLERS PARA MAIN.PY ===
 
 btc_handlers_list = [
     CommandHandler("btcalerts", btc_alerts_command),
-    CallbackQueryHandler(btc_toggle_callback, pattern="^toggle_btc_alerts$"),
-    CallbackQueryHandler(btc_switch_view_callback, pattern="^btc_switch_view\\|"),
-    # Mantenemos compatibilidad con botones viejos si existen
-    CallbackQueryHandler(btc_switch_view_callback, pattern="^btcalerts_view") 
+    # Ahora el toggle también acepta parámetros
+    CallbackQueryHandler(btc_toggle_callback, pattern="^toggle_btc_alerts"), 
+    CallbackQueryHandler(btc_switch_view_callback, pattern="^btc_switch_view"),
+    CallbackQueryHandler(btc_switch_view_callback, pattern="^btcalerts_view"),
 ]

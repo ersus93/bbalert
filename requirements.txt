@@ -16,3 +16,6 @@ chardet
 aiohttp 
 beautifulsoup4 
 lxml
+brotli
+beautifulsoup4
+psutil

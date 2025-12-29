@@ -133,9 +133,9 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not es_dato_viejo:
                 save_cadeca_history(tasas_cadeca)
             
-            titulo_cadeca = "🏢 *CADECA (Casas de Cambio)*\n└── _Aeropuertos, Puertos y Hoteles_\n"
+            titulo_cadeca = "🏢 *CADECA (Casas de Cambio)*\n└── _Aeropuertos, Puertos y Hoteles_"
             if es_dato_viejo:
-                titulo_cadeca += " ⚠️ _(Caché) WEB OUT_"
+                titulo_cadeca += "\n⚠️ _(Caché) WEB OUT_"
                 
             mensaje_texto_final += f"\n\n•••\n\n{titulo_cadeca}\n—————————————————\n"
             orden_cadeca = ['EUR', 'USD', 'MLC', 'CAD', 'MXN', 'GBP', 'CHF', 'RUB', 'AUD', 'JPY']

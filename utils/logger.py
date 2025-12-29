@@ -30,7 +30,7 @@ if not _file_logger.handlers:
         handler = RotatingFileHandler(
             LOG_FILE_PATH, 
             maxBytes=5 * 1024 * 1024, 
-            backupCount=5, 
+            backupCount=2, 
             encoding='utf-8'
         )
         

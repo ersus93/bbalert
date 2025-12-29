@@ -19,60 +19,79 @@ def set_btc_sender(func):
     global _enviar_msg_func
     _enviar_msg_func = func
 
-def get_btc_klines(limit=1000): # <--- CAMBIO AQUÍ: 1000 es el máximo seguro
-    """Obtiene velas de BTC/USDT de Binance (Max 1000 para estabilidad)."""
+def get_btc_klines(interval="1d", limit=1000): 
+    """
+    Obtiene velas de BTC/USDT con intervalo dinámico.
+    CORREGIDO: Mantiene 'open_time' (int) y crea 'time' (datetime).
+    """
     endpoints = [
         "https://api.binance.us/api/v3/klines",
         "https://api.binance.com/api/v3/klines",
         "https://api1.binance.com/api/v3/klines"
     ]
-    # Aseguramos que el limit no exceda 1000 para evitar error de API
-    safe_limit = min(limit, 1000) 
     
-    params = {"symbol": "BTCUSDT", "interval": "4h", "limit": safe_limit}
+    try:
+        safe_limit = int(limit)
+    except:
+        safe_limit = 1000
+
+    params = {"symbol": "BTCUSDT", "interval": interval, "limit": safe_limit}
     
     for url in endpoints:
         try:
-            r = requests.get(url, params=params, timeout=10)
-            r.raise_for_status()
-            data = r.json()
-            
-            # Comprobación mejorada
-            if not isinstance(data, list) or len(data) < 200: # Necesitamos mínimo 200 para EMA200
+            r = requests.get(url, params=params, timeout=5)
+            if r.status_code != 200:
                 continue
             
-            # Convertir a DataFrame
+            data = r.json()
+            if not data or not isinstance(data, list):
+                continue
+                
+            # 1. DEFINICIÓN DE COLUMNAS (Usamos nombres estándar de Binance)
+            # Antes tenías 'time' aquí, ahora ponemos 'open_time' para evitar el KeyError
             df = pd.DataFrame(data, columns=[
-                "open_time", "open", "high", "low", "close", "volume",
-                "close_time", "quote_asset_volume", "trades",
-                "taker_base", "taker_quote", "ignore"
+                'open_time', 'open', 'high', 'low', 'close', 'volume', 
+                'close_time', 'quote_asset_volume', 'number_of_trades', 
+                'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
             ])
             
-            # Convertir a números
-            for col in ["open", "high", "low", "close", "volume"]:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
+            # 2. CONVERSIÓN DE TIPOS
+            df['open_time'] = df['open_time'].astype(int) # Mantenemos el int original
+            df['close'] = df['close'].astype(float)
+            df['high'] = df['high'].astype(float)
+            df['low'] = df['low'].astype(float)
+            df['open'] = df['open'].astype(float)
+            df['volume'] = df['volume'].astype(float)
+            
+            # 3. CREAR COLUMNA 'time' (DATETIME)
+            # Necesaria para el BTCAdvancedAnalyzer y para gráficos
+            df['time'] = pd.to_datetime(df['open_time'], unit='ms')
             
             return df
+            
         except Exception as e:
-            print(f"Error en endpoint {url}: {e}")
+            print(f"⚠️ Error conectando con {url}: {e}")
             continue
 
+    print("❌ Error crítico: No se pudo obtener datos de ningún endpoint de Binance.")
     return None
 
-def get_btc_4h_candle():
-    """Obtiene la última vela cerrada de 4H de Binance."""
-    # AUMENTADO A 10000: Necesitamos historial para que EMA200 y RSI se calculen bien
-    df = get_btc_klines(limit=20000)
+def get_btc_candle_data(interval="1d"):
+    """
+    Obtiene la última vela cerrada del intervalo especificado.
+    """
+    df = get_btc_klines(interval=interval, limit=1000)
     
-    # COMPROBACIÓN MEJORADA - Aseguramos que hay al menos 2 velas
     if df is None or len(df) < 2:
         return None
 
+    # Obtenemos las velas
     closed_candle = df.iloc[-2]
     current_candle = df.iloc[-1]
 
+    # CORREGIDO: Ahora 'open_time' existe en el DataFrame, así que esto no fallará
     return {
-        "time": int(closed_candle['open_time']),
+        "time": int(closed_candle['open_time']), 
         "high": float(closed_candle['high']),
         "low": float(closed_candle['low']),
         "close": float(closed_candle['close']),
@@ -81,123 +100,181 @@ def get_btc_4h_candle():
     }
 
 async def btc_monitor_loop(bot: Bot):
-    """Bucle principal de monitoreo BTC usando lógica Fibonacci unificada."""
-    add_log_line("🦁 Iniciando Monitor BTC PRO (Modo Fibonacci)...")
+    """Bucle principal Multi-Timeframe (4h, 1d, 1w)."""
+    add_log_line("🦁 Iniciando Monitor BTC PRO (Multi-Timeframe)...")
+    
+    # Definimos las temporalidades a monitorear
+    TIMEFRAMES = ["1h", "2h", "4h", "8h", "12h", "1d", "1w"]
     
     while True:
         try:
-            # 1. Obtener datos (Limit 1000 es suficiente y seguro)
-            # Usamos get_btc_klines directamente para tener el DF fresco
-            df = get_btc_klines(limit=1000)
-            
-            if df is None or len(df) < 200:
-                await asyncio.sleep(60)
-                continue
+            # Cargamos estado GLOBAL (contiene todas las temporalidades)
+            global_state = load_btc_state()
+            state_changed = False
 
-            # Datos de tiempo
-            last_closed_candle = df.iloc[-2]
-            current_candle = df.iloc[-1]
-            current_candle_time = int(last_closed_candle['open_time']) # Usamos open_time para identificar la vela
-            current_price = float(current_candle['close'])
+            # --- ITERAMOS POR CADA TEMPORALIDAD ---
+            for interval in TIMEFRAMES:
+                
+                # 1. Obtener suscriptores de ESTE intervalo
+                subs = get_btc_subscribers(interval)
+                if not subs:
+                    continue # Si nadie sigue 1W, saltamos análisis para ahorrar recursos
 
-            # 2. Cargar estado y suscriptores
-            state = load_btc_state()
-            subs = get_btc_subscribers()
-            
-            if not subs:
-                await asyncio.sleep(60)
-                continue
-            
-            # 3. ANÁLISIS TÉCNICO CENTRALIZADO
-            # Calculamos todo AQUÍ para que alertas y mensaje 'Ver' sean idénticos
-            analyzer = BTCAdvancedAnalyzer(df)
-            levels_fib = analyzer.get_support_resistance_dynamic() # Trae P, R1-R3, S1-S3 (Fibonacci)
-            momentum_signal, emoji, (buy, sell), reasons = analyzer.get_momentum_signal()
-            divergence = analyzer.detect_rsi_divergence(lookback=5)
-            
-            # Guardamos análisis en estado para que el comando /btcalerts lo use rápido
-            state['analysis'] = {
-                'momentum': momentum_signal,
-                'rsi': analyzer.get_current_values().get('RSI', 50),
-                'macd_hist': analyzer.get_current_values().get('MACD_HIST', 0),
-                'divergence': divergence[0] if divergence else None
-            }
+                # 2. Obtener datos
+                df = get_btc_klines(interval=interval, limit=1000)
+                if df is None or len(df) < 200:
+                    continue
 
-            # 4. GESTIÓN DE NIVELES (Recálculo por Nueva Vela)
-            last_saved_time = state.get('last_candle_time', 0)
-            
-            # Si detectamos nueva vela cerrada O si el estado está vacío
-            if current_candle_time > last_saved_time or 'levels' not in state or not state['levels']:
-                
-                # Actualizamos niveles en el estado con los de Fibonacci calculados
-                state['levels'] = levels_fib
-                state['last_candle_time'] = current_candle_time
-                state['alerted_levels'] = [] # Reseteamos alertas para la nueva sesión
-                save_btc_state(state)
-                
-                add_log_line(f"🦁 Nuevos niveles Fib BTC. Pivot: ${levels_fib['P']:,.2f}")
-                
-                # Notificación de Recálculo (Opcional, mantiene tu formato)
-                if _enviar_msg_func:
-                    msg_recalc = (
-                        "🔄 *Actualización de Niveles BTCUSDT (4H)*\n"
-                        "—————————————————\n"
-                        "📊 La vela ha cerrado. Niveles Fibonacci actualizados.\n\n"
-                        f"⚖️ *Nuevo Pivot:* `${levels_fib['P']:,.0f}`\n"
-                        f"💰 *Precio Actual:* `${current_price:,.0f}`\n\n"
-                        "🔁 _Alertas listas para la nueva sesión._"
-                    )
-                    msg_recalc += get_random_ad_text()
-                    kb = [[InlineKeyboardButton("📊 Ver Análisis PRO", callback_data="btc_switch_view|BINANCE")]]
-                    await _enviar_msg_func(msg_recalc, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+                # Datos de tiempo y precio
+                last_closed_candle = df.iloc[-2]
+                current_candle = df.iloc[-1]
+                current_candle_time = int(last_closed_candle['open_time'])
+                current_price = float(current_candle['close'])
 
-            # 5. VERIFICACIÓN DE ALERTAS (Dentro de la vela actual)
-            else:
-                # Actualizamos precio actual en estado
-                state['levels']['current_price'] = current_price
-                save_btc_state(state)
+                # 3. Análisis Técnico
+                analyzer = BTCAdvancedAnalyzer(df)
+                #levels_fib = analyzer.get_support_resistance_dynamic()
+                levels_fib = analyzer.get_support_resistance_dynamic(interval=interval)
+                momentum_signal, emoji, (buy, sell), reasons = analyzer.get_momentum_signal()
+                if 'atr' in levels_fib:
+                    levels_fib['atr'] = float(levels_fib['atr'])
+                divergence = analyzer.detect_rsi_divergence(lookback=5)
+
+                # Accedemos al sub-estado correspondiente al intervalo
+                # load_btc_state garantiza que las claves existan
+                current_state = global_state[interval]
+                last_saved_time = current_state.get('last_candle_time', 0)
+                loaded_levels = current_state.get('levels', {})
+                is_legacy_state = 'FIB_618' not in loaded_levels
+
+                # 4. GESTIÓN DE VELA NUEVA VS ACTUALIZACIÓN
+                if current_candle_time > last_saved_time or not loaded_levels or is_legacy_state:
+                    
+                    # --- CASO A: NUEVA VELA (Recalcular Niveles) ---
+                    #levels_fib = analyzer.get_support_resistance_dynamic()
+                    levels_fib = analyzer.get_support_resistance_dynamic(interval=interval)
+                    if 'atr' in levels_fib:
+                        levels_fib['atr'] = float(levels_fib['atr'])
+
+                    current_state['levels'] = levels_fib
+                    current_state['last_candle_time'] = current_candle_time 
+                    current_state['alerted_levels'] = []                   
+                    pre_filled_alerts = []
+                    c_price = current_price
+                    
+                    # 1. Verificar Zona Alcista (Si estamos arriba, silenciamos los de abajo)
+                    if c_price > levels_fib['R3']:
+                        pre_filled_alerts.extend(['R3', 'R2', 'R1', 'P_UP'])
+                    elif c_price > levels_fib['R2']:
+                        pre_filled_alerts.extend(['R2', 'R1', 'P_UP'])
+                    elif c_price > levels_fib['R1']:
+                        pre_filled_alerts.extend(['R1', 'P_UP'])
+                    elif c_price > levels_fib['P']:
+                        pre_filled_alerts.append('P_UP')
+                        
+                    # 2. Verificar Zona Bajista (Si estamos abajo, silenciamos los de arriba)
+                    if c_price < levels_fib['S3']:
+                        pre_filled_alerts.extend(['S3', 'S2', 'S1', 'P_DOWN'])
+                    elif c_price < levels_fib['S2']:
+                        pre_filled_alerts.extend(['S2', 'S1', 'P_DOWN'])
+                    elif c_price < levels_fib['S1']:
+                        pre_filled_alerts.extend(['S1', 'P_DOWN'])
+                    elif c_price < levels_fib['P']:
+                        pre_filled_alerts.append('P_DOWN')
+
+                    current_state['alerted_levels'] = pre_filled_alerts
+                    
+                    state_changed = True
+                    add_log_line(f"🦁 [{interval.upper()}] Nuevos niveles. Pivot: ${levels_fib['P']:,.2f}. Alertas silenciadas: {pre_filled_alerts}")
+                    
+                    # Notificación de Recálculo (Opcional, reducida para no saturar)
+                    if _enviar_msg_func and interval in ["1h", "2h", "4h", "8h", "12h", "1d", "1w"]:
+                        msg_recalc = (
+                            f"🔄 *Niveles BTC Actualizados ({interval.upper()})*\n"
+                            f"—————————————————\n"
+                            f"📊 La vela ha cerrado. Niveles Fibonacci actualizados.\n\n"
+                            f"⚖️ *Nuevo Pivot:* `${levels_fib['P']:,.0f}`\n"
+                            f"💰 *Precio Actual:* `${current_price:,.0f}`\n\n"
+                            f"🔁 _Alertas listas para la nueva sesión._"
+                        )
+                        msg_recalc += get_random_ad_text()
+                        kb = [[InlineKeyboardButton(f"📊 Ver Análisis {interval.upper()}", callback_data=f"btc_switch_view|BINANCE|{interval}")]]
+                        await _enviar_msg_func(msg_recalc, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+                        # (He comentado el envío para no hacer spam cada 4h, descomenta si lo quieres)
+
+                else:
+                    # --- CASO B: MISMA VELA (Solo actualizamos precio) ---
+                    # Esto es lo que te faltaba para que sea dinámico
+                    if 'levels' in current_state and current_state['levels']:
+                        current_state['levels']['current_price'] = current_price
+                        # NO recalcula S1, R1, P... esos se quedan fijos hasta la siguiente vela.
+                        state_changed = True
+
+                # ========================================================
+                # 5. INICIALIZACIÓN DE VARIABLES (CORRECCIÓN DEL ERROR)
+                # ========================================================
+                # Esto debe estar FUERA del if/else para que 'levels' siempre exista
                 
-                levels = state.get('levels', {})
-                alerted = state.get('alerted_levels', [])
-                threshold = 0.001 # 0.1% de filtro para evitar ruido
+                # Actualizamos el objeto en el estado global
+                global_state[interval] = current_state
                 
+                # Definimos las variables LOCALES para la lógica de abajo
+                levels = current_state.get('levels', {})
+                alerted = current_state.get('alerted_levels', [])
+                check_price = current_price
+                # Variables de control
+                threshold = 0.001 
                 trigger_level = None
                 alert_data = {}
+
+                # --- DEBUG --- 
+                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S1: ${levels['S1']}")
+                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S2: ${levels['S2']}")
+                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S3: ${levels['S3']}")
+                add_log_line(f"[{interval}] Precio: ${check_price} vs Pivot: ${levels['P']}")
+                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R1: ${levels['R1']}")
+                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R2: ${levels['R2']}")
+                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R3: ${levels['R3']}")
+
+
+                # Si por error levels está vacío, saltamos esta iteración para no crashear
+                if not levels:
+                    continue
 
                 # --- Lógica de Cruces (Usando los niveles Fibonacci cargados) ---
                 
                 # RUPTURAS ALCISTAS
-                if current_price > levels['R3'] * (1 + threshold) and "R3" not in alerted:
+                if check_price > levels['R3'] * (1 + threshold) and "R3" not in alerted:
                     trigger_level = "R3"
                     alert_data = {
-                        'emoji': '🚀', 'titulo': 'Ruptura de BTC R3 - Extensión Fibonacci',
+                        'emoji': '🚀', 'titulo': f'Ruptura R3 ({interval.upper()})',
                         'descripcion': 'Precio en zona de extensión máxima. Posible agotamiento o "parada de tren".',
                         'icon_nivel': '🧗', 'icon_precio': '💰', 'icon_target': '🌌', 'icon_rec': '⚡',
                         'target_siguiente': levels['R3'] * 1.05,
                         'recomendacion': 'Zona de toma de ganancias. Precaución extrema.'
                     }
                 
-                elif current_price > levels['R2'] * (1 + threshold) and "R2" not in alerted:
+                elif check_price > levels['R2'] * (1 + threshold) and "R2" not in alerted:
                     trigger_level = "R2"
                     alert_data = {
-                        'emoji': '🌊', 'titulo': 'BTC R2 Superado - Impulso Fuerte',
+                        'emoji': '🌊', 'titulo': f'R2 Superado ({interval.upper()}) - Impulso Fuerte',
                         'descripcion': 'Ruptura de nivel clave Fibonacci (61.8%). Momentum sólido.',
                         'icon_nivel': '🔺', 'icon_precio': '💰', 'icon_target': '🎯', 'icon_rec': '✅',
                         'target_siguiente': levels['R3'],
                         'recomendacion': 'Buscar continuación hacia R3.'
                     }
 
-                elif current_price > levels['R1'] * (1 + threshold) and "R1" not in alerted:
+                elif check_price > levels['R1'] * (1 + threshold) and "R1" not in alerted:
                     trigger_level = "R1"
                     alert_data = {
-                        'emoji': '📈', 'titulo': 'Resistencia BTC R1 Superada',
+                        'emoji': '📈', 'titulo': f'R1 Superado ({interval.upper()}) Superada',
                         'descripcion': 'El precio entra en zona alcista (38.2% Fib).',
                         'icon_nivel': '📍', 'icon_precio': '💹', 'icon_target': '🎯', 'icon_rec': '🔝',
                         'target_siguiente': levels['R2'],
                         'recomendacion': 'Mantener largos con stop en Pivot.'
                     }
 
-                elif current_price > levels['P'] * (1 + threshold) and "P_UP" not in alerted:
+                elif check_price > levels['P'] * (1 + threshold) and "P_UP" not in alerted:
                     trigger_level = "P_UP"                        
                     alert_data = {
                         'emoji': '⚖️', 'titulo': 'BTC Recupera el Pivot',
@@ -207,38 +284,49 @@ async def btc_monitor_loop(bot: Bot):
                         'recomendacion': 'Sesgo intradía positivo.'
                     }
 
+                # --- ALERTA GOLDEN POCKET (FIB 0.618) ---
+                elif check_price > levels['FIB_618'] * (1 + threshold) and "FIB_618_UP" not in alerted:
+                    trigger_level = "FIB_618_UP"
+                    alert_data = {
+                        'emoji': '🟡', 'titulo': f'Golden Pocket Recuperado ({interval.upper()})',
+                        'descripcion': 'El precio ha superado el nivel crítico 61.8% de Fibonacci. Señal de reversión alcista importante.',
+                        'icon_nivel': '🔱', 'icon_precio': '💰', 'icon_target': '🎯', 'icon_rec': '💎',
+                        'target_siguiente': levels['R1'], # Apuntamos al siguiente nivel técnico
+                        'recomendacion': 'Soporte institucional detectado. Sesgo alcista reforzado.'
+                    }
+
                 # RUPTURAS BAJISTAS
-                elif current_price < levels['S3'] * (1 - threshold) and "S3" not in alerted:
+                elif check_price < levels['S3'] * (1 - threshold) and "S3" not in alerted:
                     trigger_level = "S3"
                     alert_data = {
-                        'emoji': '🕳️', 'titulo': 'Caída Extrema - BTC S3 Perforado',
+                        'emoji': '🕳️', 'titulo': f'S3 Perforado ({interval.upper()})',
                         'descripcion': 'Extensión bajista máxima alcanzada.',
                         'icon_nivel': '🧗', 'icon_precio': '💸', 'icon_target': '⬇️', 'icon_rec': '⚠️',
                         'target_siguiente': levels['S3'] * 0.95,
                         'recomendacion': 'Esperar rebote por sobreventa extrema.'
                     }
 
-                elif current_price < levels['S2'] * (1 - threshold) and "S2" not in alerted:
-                    trigger_level = "S2"
-                    alert_data = {
-                        'emoji': '📉', 'titulo': 'Soporte BTC S2 Perforado',
+                elif check_price < levels['S2'] * (1 - threshold) and "S2" not in alerted:
+                        trigger_level = "S2"
+                        alert_data = {
+                            'emoji': '📉', 'titulo': f'BTC S2 Perforado ({interval.upper()})',
                         'descripcion': 'Pérdida del nivel clave Fibonacci (61.8%). Debilidad seria.',
                         'icon_nivel': '🔻', 'icon_precio': '💸', 'icon_target': '🔴', 'icon_rec': '🛑',
                         'target_siguiente': levels['S3'],
                         'recomendacion': 'No buscar compras todavía.'
                     }
 
-                elif current_price < levels['S1'] * (1 - threshold) and "S1" not in alerted:
-                    trigger_level = "S1"
-                    alert_data = {
-                        'emoji': '⚠️', 'titulo': 'BTC Pierde Soporte S1',
+                elif check_price < levels['S1'] * (1 - threshold) and "S1" not in alerted:
+                        trigger_level = "S1"
+                        alert_data = {
+                            'emoji': '⚠️', 'titulo': f'BTC S1 Perdido ({interval.upper()})',
                         'descripcion': 'Entrada en zona bajista (38.2% Fib).',
                         'icon_nivel': '📍', 'icon_precio': '📉', 'icon_target': '🔽', 'icon_rec': '⚠️',
                         'target_siguiente': levels['S2'],
                         'recomendacion': 'Precaución con largos.'
                     }
 
-                elif current_price < levels['P'] * (1 - threshold) and "P_DOWN" not in alerted:
+                elif check_price < levels['P'] * (1 - threshold) and "P_DOWN" not in alerted:
                     trigger_level = "P_DOWN"
                     alert_data = {
                         'emoji': '⚖️', 'titulo': 'BTC Pierde el Pivot',
@@ -246,6 +334,16 @@ async def btc_monitor_loop(bot: Bot):
                         'icon_nivel': '⚖️', 'icon_precio': '↘️', 'icon_target': '⬅️', 'icon_rec': '👁️',
                         'target_siguiente': levels['S1'],
                         'recomendacion': 'Sesgo intradía negativo.'
+                    }
+
+                elif check_price < levels['FIB_618'] * (1 - threshold) and "FIB_618_DOWN" not in alerted:
+                    trigger_level = "FIB_618_DOWN"
+                    alert_data = {
+                        'emoji': '💀', 'titulo': f'Pérdida del Golden Pocket ({interval.upper()})',
+                        'descripcion': 'El precio ha caído por debajo del 61.8% de Fibonacci. Los compradores han perdido el control de la estructura.',
+                        'icon_nivel': '🔱', 'icon_precio': '💸', 'icon_target': '🔽', 'icon_rec': '🆘',
+                        'target_siguiente': levels['S2'],
+                        'recomendacion': 'Riesgo de capitulación. El Golden Pocket ahora actuará como resistencia.'
                     }
 
                 # --- ENVIO DE ALERTA ---
@@ -286,22 +384,32 @@ async def btc_monitor_loop(bot: Bot):
                         f"`${alert_data['target_siguiente']:,.0f}`\n\n"
                         f"{alert_data['icon_rec']} *Recomendación:*\n"
                         f"_{alert_data['recomendacion']}_\n\n"
-                        f"⏳ *Marco Temporal:* 4H"
+                        f"⏳ *Marco Temporal:* {interval.upper()}"
                     )
                     
                     msg += get_random_ad_text()
-                    kb = [[InlineKeyboardButton("📊 Ver Análisis PRO", callback_data="btc_switch_view|BINANCE")]]
+                    kb = [[InlineKeyboardButton(f"📊 Ver Análisis PRO {interval.upper()}", callback_data=f"btc_switch_view|BINANCE|{interval}")]]
                     
                     await _enviar_msg_func(msg, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
                     
-                    # Guardamos que ya alertamos este nivel
-                    state['alerted_levels'].append(trigger_level)
-                    save_btc_state(state)
-                    add_log_line(f"🦁 Alerta BTC Enviada: {trigger_level}")
+                    # Actualizar estado local y global
+                    current_state['alerted_levels'].append(trigger_level)
+                    global_state[interval] = current_state
+                    state_changed = True
+                    add_log_line(f"🦁 Alerta BTC Enviada: {trigger_level} ({interval})")
+
+                # Pausa pequeña entre iteraciones de intervalos para no saturar CPU/API
+                await asyncio.sleep(2) 
+
+            # Guardamos estado global si hubo cambios
+            if state_changed:
+                save_btc_state(global_state)
 
         except Exception as e:
-            add_log_line(f"Error en loop BTC: {e}")
+            add_log_line(f"Error Loop BTC ({interval}): {e}") # Agregamos el intervalo para saber cual falla
+            if "int64" in str(e) or "float64" in str(e) or "serializable" in str(e):
+                print("❌ ERROR CRÍTICO JSON: Datos de Numpy detectados. Usa float() o int().")
             import traceback
-            traceback.print_exc() # Esto ayuda a ver errores en consola
+            traceback.print_exc()# Esto ayuda a ver errores en consola
         
         await asyncio.sleep(60)
