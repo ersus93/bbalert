@@ -12,7 +12,7 @@ from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from tradingview_ta import TA_Handler, Interval, Exchange
 from datetime import timedelta, datetime
-
+from core.ai_logic import get_groq_crypto_analysis
 # Importamos configuraciones y utilidades existentes
 from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS
 from core.api_client import obtener_datos_moneda
@@ -776,20 +776,27 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
     # === CONSTRUCCIÓN DEL BOTÓN SWITCH ===
     kb = []
     
-    # Callback Data Structure: ta_switch|TARGET_SOURCE|SYMBOL|PAIR|TIMEFRAME
-    # Nota: Si used_tv es True, el botón debe ofrecer ir a BINANCE.
-    # Si used_tv es False (usó Binance), el botón debe ofrecer ir a TV.
-    
+    # 1. Definimos la fuente actual para la IA antes del IF
+    current_source = "TV" if used_tv else "BINANCE"
+
+    # 2. Botón de Cambio de Vista (Alternar entre TV y Binance)
     if used_tv:
-        # Estamos en TV -> Ofrecer Local
-        # Datos: ta_switch|BINANCE|BTC|USDT|4h
+        # Estamos en TV -> Ofrecer botón para volver a Binance
         btn_data = f"ta_switch|BINANCE|{symbol_base}|{pair}|{timeframe}"
         kb.append([InlineKeyboardButton("🦁 Ver Local (Binance)", callback_data=btn_data)])
     else:
-        # Estamos en Local -> Ofrecer TV
-        # Datos: ta_switch|TV|BTC|USDT|4h
+        # Estamos en Local -> Ofrecer botón para ir a TV
         btn_data = f"ta_switch|TV|{symbol_base}|{pair}|{timeframe}"
         kb.append([InlineKeyboardButton("📊 Ver en TradingView", callback_data=btn_data)])
+
+    # 3. Botón de Análisis IA (FUERA DEL IF para que salga SIEMPRE)
+    # Lo ponemos en una fila nueva
+    kb.append([
+        InlineKeyboardButton(
+            "🤖 Análisis IA Profesional", 
+            callback_data=f"ai_analyze|{current_source}|{symbol_base}|{pair}|{timeframe}"
+        )
+    ])
 
     reply_markup = InlineKeyboardMarkup(kb)
 
@@ -807,6 +814,74 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
             pass
     else:
         await msg_wait.edit_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=reply_markup)
+
+
+async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback del botón IA. 
+    Funciona tanto para reportes de BINANCE (Local) como de TRADINGVIEW (TV).
+    """
+    query = update.callback_query
+    await query.answer("🧠 Analizando datos...") 
+    
+    try:
+        # 1. Extraer todos los datos del botón
+        # Estructura: ['ai_analyze', SOURCE, SYMBOL, PAIR, TIMEFRAME]
+        data = query.data.split("|")
+        
+        source = data[1]      # "BINANCE" o "TV"
+        symbol = data[2]
+        pair = data[3]
+        timeframe = data[4]
+        full_symbol = f"{symbol}{pair}"
+        
+        await query.message.reply_chat_action("typing")
+        
+        # 2. Capturar el TEXTO visible del mensaje (sea Binace o TV)
+        # Si es foto (TV suele serlo), usa caption. Si es texto, usa text.
+        original_report_text = query.message.caption if query.message.caption else query.message.text
+        
+        if not original_report_text:
+             await query.message.reply_text("❌ Error: No se pudo leer el reporte en pantalla.", parse_mode=ParseMode.MARKDOWN)
+             return
+
+        # 3. Preparar el texto enriquecido para la IA
+        # Le decimos explícitamente de dónde viene la data para que ajuste su análisis
+        if source == "TV":
+            source_context = "FUENTE: TradingView (Consenso de indicadores y medias móviles)."
+        else:
+            source_context = "FUENTE: Binance Local (Cálculo matemático directo del Bot)."
+
+        final_text_for_ai = f"{source_context}\n\n{original_report_text}"
+
+        loop = asyncio.get_running_loop()
+
+        # 4. Llamar a la IA (usando la función que ya arreglamos antes)
+        ai_response = await loop.run_in_executor(
+            None, 
+            get_groq_crypto_analysis, 
+            full_symbol, 
+            timeframe, 
+            final_text_for_ai  # <--- Enviamos el texto con la etiqueta de la fuente
+        )
+
+        # 5. Enviar respuesta con encabezado dinámico
+        # Usamos un icono diferente según la fuente
+        icon = "📡" if source == "TV" else "📊"
+        header = f"🤖 *IA Insight* | {icon} *{source}*\nMoneda: *{full_symbol}* ({timeframe})\n—————————————————\n"
+        
+        await query.message.reply_text(
+            header + ai_response, 
+            parse_mode=ParseMode.MARKDOWN,
+            reply_to_message_id=query.message.message_id
+        )
+
+    except Exception as e:
+        print(f"Error en callback IA: {e}")
+        try:
+            await query.message.reply_text("⚠️ La IA está ocupada, intenta de nuevo.", parse_mode=ParseMode.MARKDOWN)
+        except:
+            pass
 
 
 # === HANDLER DEL BOTÓN ===

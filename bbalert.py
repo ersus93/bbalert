@@ -35,7 +35,7 @@ from handlers.alerts import (
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
 )
-from handlers.trading import graf_command, p_command, refresh_command_callback, mk_command, ta_command, ta_switch_callback 
+from handlers.trading import graf_command, p_command, refresh_command_callback, mk_command, ta_command, ta_switch_callback, ai_analysis_callback
 from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
 
@@ -291,6 +291,7 @@ def main():
     
     # Callbacks de Trading
     app.add_handler(CallbackQueryHandler(ta_switch_callback, pattern="^ta_switch\\|"))
+    app.add_handler(CallbackQueryHandler(ai_analysis_callback, pattern="^ai_analyze\\|"))
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(CallbackQueryHandler(eltoque_refresh_callback, pattern="^eltoque_refresh$"))
     app.add_handler(CallbackQueryHandler(eltoque_provincias_callback, pattern="^eltoque_provincias$"))

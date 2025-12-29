@@ -19,6 +19,7 @@ SCREENSHOT_API_KEY = os.environ.get("SCREENSHOT_API_KEY")
 ELTOQUE_API_KEY = os.environ.get("ELTOQUE_API_KEY")
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY")
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 # Construye las rutas a los archivos dentro de la carpeta /data
 DATA_DIR = os.path.join(BASE_DIR, "data")
 USUARIOS_PATH = os.path.join(DATA_DIR, "users.json")

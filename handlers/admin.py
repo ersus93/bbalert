@@ -25,6 +25,7 @@ from utils.btc_manager import load_btc_subs
 from collections import Counter
 from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history
 from utils.ads_manager import load_ads, add_ad, delete_ad
+from utils.logger import LOG_FILE_PATH
 from core.config import ( 
     VERSION, PID, PYTHON_VERSION, STATE, ADMIN_CHAT_IDS, 
     USUARIOS_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH,
