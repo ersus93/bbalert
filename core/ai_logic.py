@@ -37,20 +37,20 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
         f"{technical_report_text}\n"
         f"--- FIN REPORTE ---\n\n"
 
-        "OBJETIVO: Interpretar los datos (Precio, RSI, MACD, Zonas, Niveles) y crear una narrativa fluida. No hagas listas simples.\n\n"
+        "OBJETIVO: Interpretar los datos (Precio, RSI, MACD, Zonas, Niveles y lo demas del reporte tecnico) para crear una narrativa fluida. No hagas listas simples.\n\n"
 
         "ESTRUCTURA EXACTA:\n"
-        "📚 **Contexto de Mercado**\n"
-        "[Integra precio, score y volatilidad (ATR) en un párrafo narrativo sobre el sentimiento actual].\n\n"
+        "📚 *Contexto de Mercado*\n"
+        "[Integra precio, score y volatilidad (ATR) en un párrafo narrativo sobre el significado y sentimiento actual].\n\n"
         
-        "📚 **Interpretación Técnica**\n"
-        "[Analiza la confluencia de indicadores. ¿Qué dicen el RSI y el MACD juntos? ¿Confirman la tendencia?].\n\n"
+        "📚 *Interpretación Técnica*\n"
+        "[Analiza la confluencia de indicadores. ¿Qué dicen y significan la tabla de indicadores y el Diagnóstico de Momentum juntos?, ¿Confirman la tendencia?].\n\n"
         
-        "📚 **Niveles y Estructura**\n"
+        "📚 *Niveles y Estructura*\n"
         "[Evalúa la posición respecto a los Pivotes, Ichimoku o Fibonacci mencionados en el reporte].\n\n"
         
-        "📚 **Veredicto y Gestión**\n"
-        "[Conclusión directa de compra/venta/espera y un consejo de riesgo].\n\n"
+        "📚 *Veredicto y Gestión*\n"
+        "[Conclusión directa de compra/venta/espera y un consejo de riesgo, tambien puedes opinar algun criterio extra].\n\n"
 
         "REGLAS:\n"
         "- Idioma: Español Profesional.\n"
