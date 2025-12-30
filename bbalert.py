@@ -85,28 +85,28 @@ async def post_init(app: Application):
     
     add_log_line("✅ Todas las tareas de fondo han sido iniciadas.")
 
-    try:
-        startup_message_template = _(
-            "🍞 *¡Llego el pan a la bodega!* 🍞\n————————————————————\n\n"
-            "🤖 `BitBread Alert v{version}`\n"
-            "🪪 `PID: {pid}`\n"
-            "🐍 `Python: v{python_version}`\n\n————————————————————\n"
-            "✅ Ácido y aplastado, pero comible. 👍.\n"
-            "🫣 ¡Vamos por mas!",
-            None
-        )
-        startup_message = startup_message_template.format(
-            version=VERSION,
-            pid=PID,
-            python_version=PYTHON_VERSION
-        )
+    # try:
+    #     startup_message_template = _(
+    #         "🍞 *¡Llego el pan a la bodega!* 🍞\n————————————————————\n\n"
+    #         "🤖 `BitBread Alert v{version}`\n"
+    #         "🪪 `PID: {pid}`\n"
+    #         "🐍 `Python: v{python_version}`\n\n————————————————————\n"
+    #         "✅ Ácido y aplastado, pero comible. 👍.\n"
+    #         "🫣 ¡Vamos por mas!",
+    #         None
+    #     )
+    #     startup_message = startup_message_template.format(
+    #         version=VERSION,
+    #         pid=PID,
+    #         python_version=PYTHON_VERSION
+    #     )
 
-        for admin_id in ADMIN_CHAT_IDS:
-            await app.bot.send_message(chat_id=admin_id, text=startup_message, parse_mode=ParseMode.MARKDOWN)
+    #     for admin_id in ADMIN_CHAT_IDS:
+    #         await app.bot.send_message(chat_id=admin_id, text=startup_message, parse_mode=ParseMode.MARKDOWN)
 
-        add_log_line("📬 Notificación de inicio enviada a los administradores.")
-    except Exception as e:
-        add_log_line(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
+    #     add_log_line("📬 Notificación de inicio enviada a los administradores.")
+    # except Exception as e:
+    #     add_log_line(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
         
     # Inicio de Loops de Monitoreo (BTC y VALERTS)
     asyncio.create_task(btc_monitor_loop(app.bot))

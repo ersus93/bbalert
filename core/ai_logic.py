@@ -37,11 +37,11 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
         f"{technical_report_text}\n"
         f"--- FIN REPORTE ---\n\n"
 
-        "OBJETIVO: Interpretar los datos (Precio, RSI, MACD, Zonas, Niveles y lo demas del reporte tecnico) para crear una narrativa fluida. No hagas listas simples.\n\n"
+        "OBJETIVO: Interpretar los datos (Precio, RSI, MACD, Zonas, Niveles y los demas indicadores del reporte tecnico) para crear una narrativa fluida. No hagas listas simples.\n\n"
 
         "ESTRUCTURA EXACTA:\n"
         "📚 *Contexto de Mercado*\n"
-        "[Integra precio, score y volatilidad (ATR) en un párrafo narrativo sobre el significado y sentimiento actual].\n\n"
+        "[Integra precio, score y volatilidad (ATR si esta, si es 0 y la fuente es TV, solo di que tradinview no lo proporciona) en un párrafo narrativo sobre el significado y sentimiento actual].\n\n"
         
         "📚 *Interpretación Técnica*\n"
         "[Analiza la confluencia de indicadores. ¿Qué dicen y significan la tabla de indicadores y el Diagnóstico de Momentum juntos?, ¿Confirman la tendencia?].\n\n"
@@ -54,7 +54,7 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
 
         "REGLAS:\n"
         "- Idioma: Español Profesional.\n"
-        "- Basa tu análisis SOLO en el texto proporcionado.\n"
+        "- Basa tu análisis SOLO en los datos del texto proporcionado.\n"
         "- Máximo 1500 caracteres."
     )
 
@@ -69,7 +69,7 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.6,
-        "max_tokens": 1000
+        "max_tokens": 2000
     }
 
     try:
