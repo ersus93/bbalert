@@ -228,13 +228,13 @@ async def btc_monitor_loop(bot: Bot):
                 alert_data = {}
 
                 # --- DEBUG --- 
-                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S1: ${levels['S1']}")
-                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S2: ${levels['S2']}")
-                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S3: ${levels['S3']}")
-                add_log_line(f"[{interval}] Precio: ${check_price} vs Pivot: ${levels['P']}")
-                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R1: ${levels['R1']}")
-                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R2: ${levels['R2']}")
-                add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R3: ${levels['R3']}")
+                # add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S1: ${levels['S1']}")
+                # add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S2: ${levels['S2']}")
+                # add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-S3: ${levels['S3']}")
+                # add_log_line(f"[{interval}] Precio: ${check_price} vs Pivot: ${levels['P']}")
+                # add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R1: ${levels['R1']}")
+                # add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R2: ${levels['R2']}")
+                # add_log_line(f"[{interval}] Precio: ${check_price} vs Nivel-R3: ${levels['R3']}")
 
 
                 # Si por error levels está vacío, saltamos esta iteración para no crashear
