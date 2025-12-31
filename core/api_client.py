@@ -128,49 +128,64 @@ def obtener_precios_alerta():
 def obtener_precios_control(monedas):
     return _obtener_precios(monedas, CMC_API_KEY_CONTROL)
 
-# En core/api_client.py
+
 
 def obtener_high_low_24h(moneda):
     """
-    Obtiene el High y Low de las últimas 24h usando Binance (Gratis).
-    Intenta buscar el par contra USDT.
+    Obtiene el High y Low de las últimas 24h.
+    Estrategia en cascada: 
+    1. Binance (Pares USDT, USDC)
+    2. CryptoCompare (Universal, soporta HBD, HIVE, etc.)
     """
-    # Estandarizamos el símbolo a mayúsculas y le pegamos USDT
     symbol = moneda.upper()
-    pair = f"{symbol}USDT"
     
-    url = [
-        "https://api.binance.us/api/v3/ticker/24hr",
-        "https://api.binance.com/api/v3/ticker/24hr"
-        ]
-    params = {"symbol": pair}
-
-    try:
-        # Timeout corto para no bloquear el bot si Binance tarda
-        response = requests.get(url, params=params, timeout=2)
-        
-        # Si la moneda no existe en Binance (400 Bad Request), devolvemos 0,0 silenciosamente
-        if response.status_code != 200:
-            return 0, 0
+    # --- INTENTO 1: BINANCE (Rápido y preciso) ---
+    binance_pairs = [f"{symbol}USDT", f"{symbol}USDC"]
+    for pair in binance_pairs:
+        try:
+            url = "https://api.binance.com/api/v3/ticker/24hr"
+            response = requests.get(url, params={"symbol": pair}, timeout=2)
             
+            if response.status_code == 200:
+                data = response.json()
+                high = float(data.get('highPrice', 0))
+                low = float(data.get('lowPrice', 0))
+                if high > 0:
+                    return high, low
+        except Exception:
+            pass # Si falla, continuamos al siguiente intento
+
+    # --- INTENTO 2: CRYPTOCOMPARE (El salvavidas universal) ---
+    # Ideal para monedas que no estan en Binance (HBD, Altcoins raras)
+    try:
+        url_cc = "https://min-api.cryptocompare.com/data/pricemultifull"
+        params_cc = {
+            "fsyms": symbol,
+            "tsyms": "USD"
+        }
+        # Timeout corto para no congelar el bot
+        response = requests.get(url_cc, params=params_cc, timeout=3)
         data = response.json()
         
-        high = float(data.get('highPrice', 0))
-        low = float(data.get('lowPrice', 0))
+        # CryptoCompare devuelve una estructura RAW -> SYMBOL -> USD
+        raw_data = data.get("RAW", {}).get(symbol, {}).get("USD", {})
+        
+        high = float(raw_data.get("HIGH24HOUR", 0))
+        low = float(raw_data.get("LOW24HOUR", 0))
         
         return high, low
 
     except Exception as e:
-        # En caso de error de conexión, retornamos 0 sin explotar
+        print(f"Error obteniendo High/Low fallback para {symbol}: {e}")
         return 0, 0
+
 def obtener_datos_moneda(moneda):
-    """Obtiene datos detallados de una moneda de CoinMarketCap."""
+    """Obtiene datos detallados de una moneda de CoinMarketCap y enriquece con High/Low."""
     headers = {
         "X-CMC_PRO_API_KEY": CMC_API_KEY_CONTROL,
         "Accept": "application/json"
     }
     
-    # Solicitamos la moneda, ETH y BTC
     params = {
         "symbol": f"{moneda},ETH,BTC", 
         "convert": "USD" 
@@ -181,30 +196,30 @@ def obtener_datos_moneda(moneda):
         
         full_data = response.json()['data']
         
-        # Verificar que las tres monedas estén en la respuesta
         if moneda not in full_data or 'ETH' not in full_data or 'BTC' not in full_data:
-            print(f"Error: La respuesta de la API no contiene datos para {moneda}, ETH o BTC.")
             return None
 
         data_moneda = full_data[moneda]
         data_eth = full_data['ETH']
-        data_btc = full_data['BTC'] # <-- Obtenemos datos de BTC
+        data_btc = full_data['BTC']
         
         quote_usd_moneda = data_moneda['quote']['USD']
         price_usd_eth = data_eth['quote']['USD']['price']
-        price_usd_btc = data_btc['quote']['USD']['price'] # <-- Obtenemos precio de BTC en USD
+        price_usd_btc = data_btc['quote']['USD']['price']
 
-        # Calcular el precio en ETH y BTC manualmente
         price_in_eth = quote_usd_moneda['price'] / price_usd_eth if price_usd_eth != 0 else 0
-        price_in_btc = quote_usd_moneda['price'] / price_usd_btc if price_usd_btc != 0 else 0 # <-- Calculamos precio en BTC
+        price_in_btc = quote_usd_moneda['price'] / price_usd_btc if price_usd_btc != 0 else 0
+
+        # --- AQUI LLAMAMOS A LA NUEVA FUNCIÓN ---
+        hl_high, hl_low = obtener_high_low_24h(moneda)
 
         return {
             'symbol': data_moneda['symbol'],
             'price': quote_usd_moneda['price'],
             'price_eth': price_in_eth,
-            'price_btc': price_in_btc, # <-- Añadimos al diccionario
-            'high_24h': obtener_high_low_24h(moneda)[0],
-            'low_24h': obtener_high_low_24h(moneda)[1],
+            'price_btc': price_in_btc,
+            'high_24h': hl_high, # <--- Usamos el valor recuperado
+            'low_24h': hl_low,   # <--- Usamos el valor recuperado
             'percent_change_1h': quote_usd_moneda['percent_change_1h'],
             'percent_change_24h': quote_usd_moneda['percent_change_24h'],
             'percent_change_7d': quote_usd_moneda['percent_change_7d'],
@@ -215,4 +230,3 @@ def obtener_datos_moneda(moneda):
     except (requests.exceptions.RequestException, KeyError) as e:
         print(f"Error al obtener datos de {moneda}: {e}")
         return None
-

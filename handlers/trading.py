@@ -158,76 +158,81 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if not context.args:
-        mensaje_error_formato = _(
-            "⚠️ *Formato incorrecto*.\n\nUso: `/p <MONEDA>`\n"
-            "Ejemplo: `/p BTC`",
-            user_id
-        )
         await update.message.reply_text(
-            mensaje_error_formato,
+            _("⚠️ *Formato incorrecto*.\nUso: `/p <MONEDA>` (ej: `/p BTC`)", user_id),
             parse_mode=ParseMode.MARKDOWN
         )
         return
 
     moneda = context.args[0].upper()
+    
+    # Notificar que estamos 'escribiendo' para dar feedback visual si tarda la API
+    await update.message.reply_chat_action("typing")
+    
     datos = obtener_datos_moneda(moneda)
 
     if not datos:
-        mensaje_error_datos = _(
-            "😕 No se pudieron obtener los datos para *{moneda}*.",
-            user_id
-        ).format(moneda=moneda)
-        await update.message.reply_text(mensaje_error_datos, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(
+            _("😕 No se pudieron obtener los datos para *{moneda}*.", user_id).format(moneda=moneda),
+            parse_mode=ParseMode.MARKDOWN
+        )
         return
 
+    # Helper para formatear cambios porcentuales
     def format_change(change):
-        if change > 0.5:
-            return f"+{change:.2f}%   😄"
-        elif change > -0.5:
-            return f"{change:.2f}%   😕"
-        elif change > -5:
-            return f"{change:.2f}%   😔"
-        else:
-            return f"{change:.2f}%   😢"
-            
+        if change is None: return "0.00%"
+        icon = "😄" if change > 0.5 else ("😕" if change > -0.5 else ("😔" if change > -5 else "😢"))
+        sign = "+" if change > 0 else ""
+        return f"{sign}{change:.2f}%  {icon}"
 
-    etiqueta_eth = _("Ξ:", user_id)
-    etiqueta_btc = _("₿:", user_id)
-    etiqueta_cap = _("Cap:", user_id)
-    etiqueta_vol = _("Vol:", user_id)
+    # Helpers de etiquetas
+    lbl_eth = _("Ξ:", user_id)
+    lbl_btc = _("₿:", user_id)
+    lbl_cap = _("Cap:", user_id)
+    lbl_vol = _("Vol:", user_id)
 
-    # Obtenemos high y low del diccionario de datos
+    # --- LÓGICA HIGH / LOW ---
     high_24h = datos.get('high_24h', 0)
     low_24h = datos.get('low_24h', 0)
+    
+    # Si high es 0, asumimos que no hay datos disponibles y mostramos N/A
+    if high_24h > 0:
+        str_high = f"${high_24h:,.4f}"
+        str_low = f"${low_24h:,.4f}"
+    else:
+        str_high = "N/A"
+        str_low = "N/A"
 
-    # Construimos el mensaje agregando la linea de High/Low
+    # Construcción del Mensaje
     mensaje = (
         f"*{datos['symbol']}*\n—————————————————\n"
         f"💰 *Precio:* ${datos['price']:,.4f}\n"
-        f"📈 *24h High:* ${high_24h:,.4f}\n"  # <--- NUEVA LÍNEA
-        f"📉 *24h Low:* ${low_24h:,.4f}\n"  # <--- NUEVA LÍNEA
+        f"📈 *High 24h:* {str_high}\n"
+        f"📉 *Low 24h:* {str_low}\n"
         f"—————————————————\n"
-        f"{etiqueta_eth} {datos['price_eth']:.8f}\n"
-        f"{etiqueta_btc} {datos['price_btc']:.8f}\n"
-        f"1h {format_change(datos['percent_change_1h'])}\n"
+        f"{lbl_eth} {datos['price_eth']:.8f}\n"
+        f"{lbl_btc} {datos['price_btc']:.8f}\n"
+        f"1h  {format_change(datos['percent_change_1h'])}\n"
         f"24h {format_change(datos['percent_change_24h'])}\n"
-        f"7d {format_change(datos['percent_change_7d'])}\n"
-        f"{etiqueta_cap} {datos['market_cap_rank']}st | ${datos['market_cap']:,.0f}\n"
-        f"{etiqueta_vol} ${datos['volume_24h']:,.0f}"
+        f"7d  {format_change(datos['percent_change_7d'])}\n"
+        f"{lbl_cap} #{datos['market_cap_rank']} | ${datos['market_cap']:,.0f}\n"
+        f"{lbl_vol} ${datos['volume_24h']:,.0f}"
     )
 
-    # --- INYECCIÓN DE ANUNCIO ---
+    # Inyección de publicidad
     mensaje += get_random_ad_text()
-    # ----------------------------
 
-    button_text_template = _("🔄 Actualizar /p {symbol}", user_id)
-    button_text = button_text_template.format(symbol=datos['symbol'])
-
+    # Botón de actualizar
+    btn_text = _("🔄 Actualizar /p {symbol}", user_id).format(symbol=datos['symbol'])
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(button_text, callback_data=f"refresh_{datos['symbol']}")]
+        [InlineKeyboardButton(btn_text, callback_data=f"refresh_{datos['symbol']}")]
     ])
 
     message = update.message or update.callback_query.message
+    
+    # Enviar o Editar (si viene de un botón refresh)
+    # Nota: Si es nuevo mensaje usa reply_text, si es refresh a veces es mejor editar, 
+    # pero reply_text es más seguro para evitar errores de "mensaje no modificado".
     await message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
 
 async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -868,7 +873,7 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         # 5. Enviar respuesta con encabezado dinámico
         # Usamos un icono diferente según la fuente
         icon = "📡" if source == "TV" else "📊"
-        header = f"🤖 *@BitBreadIAbot* (_Experimental_)\n {icon} *{source}* | Moneda: *{full_symbol}* ({timeframe})\n—————————————————\n"
+        header = f"🤖 *BitBread IA* (_Experimental_)\n {icon} *{source}* | Moneda: *{full_symbol}* ({timeframe})\n—————————————————\n"
         
         await query.message.reply_text(
             header + ai_response, 

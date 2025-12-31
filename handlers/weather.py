@@ -1,5 +1,5 @@
 # handlers/weather.py
-
+import asyncio
 import requests
 from datetime import datetime, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, Mess
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
 from core.config import OPENWEATHER_API_KEY
+from core.ai_logic import get_groq_weather_advice
 from utils.weather_manager import (
     subscribe_user, unsubscribe_user, get_user_subscription, 
     toggle_alert_type, load_weather_subscriptions
@@ -14,6 +15,7 @@ from utils.weather_manager import (
 from core.i18n import _
 from utils.ads_manager import get_random_ad_text
 from utils.file_manager import add_log_line
+from utils.weather_api import get_current_weather, get_forecast, get_uv_index, get_air_quality, reverse_geocode
 
 # Estados para la conversación
 LOCATION_INPUT = range(1)
@@ -154,10 +156,132 @@ def geocode_location(query_text): # <--- NUEVA FUNCIÓN para uso en loops
 
 # --- COMANDOS PRINCIPALES ---
 
-async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el clima detallado o el menú."""
+# === NUEVA FUNCIÓN MAESTRA PARA ENVIAR EL REPORTE ===
+async def responder_clima_actual(update: Update, context: ContextTypes.DEFAULT_TYPE, lat: float, lon: float, ciudad_guardada=None):
+    """
+    Genera el reporte manual detallado + IA y lo responde al usuario.
+    """
+    user = update.effective_user
     
-    # Determinar user_id y función de respuesta según el origen (Callback o Mensaje)
+    # 1. Notificar que estamos 'escribiendo' (para dar feedback mientras la IA piensa)
+    if update.message:
+        await update.message.reply_chat_action("typing")
+
+    # 2. Obtener datos técnicos (Paralelismo básico si quisieras, pero secuencial está bien por ahora)
+    current = get_current_weather(lat, lon)
+    if not current: return
+
+    # OBTENER FORECAST
+    forecast_data = get_forecast(lat, lon)
+    forecast_list = []
+    if isinstance(forecast_data, dict) and 'list' in forecast_data:
+        forecast_list = forecast_data['list']
+    elif isinstance(forecast_data, list):
+        forecast_list = forecast_data
+    uv_val = get_uv_index(lat, lon)
+    air_data = get_air_quality(lat, lon)
+
+    # 3. Procesar Máximas/Mínimas (usando próximas 24h del forecast)
+    temps_today = []
+    if forecast_list:
+        for item in forecast_list[:8]:
+            temps_today.append(item['main']['temp'])
+    
+    max_temp = max(temps_today) if temps_today else current['main']['temp']
+    min_temp = min(temps_today) if temps_today else current['main']['temp']
+
+    # 4. Extraer variables visuales
+    temp = current['main']['temp']
+    feels_like = current['main']['feels_like']
+    humidity = current['main']['humidity']
+    wind_speed = current['wind']['speed']
+    description = current['weather'][0]['description'].capitalize()
+    pressure = current['main']['pressure']
+    clouds = current['clouds']['all']
+    
+    # UV y Aire
+    aqi_val = air_data if air_data else 1
+    uv_text = "Alto" if uv_val > 5 else "Bajo" if uv_val < 3 else "Moderado"
+    
+    aqi_text = {1: "Bueno", 2: "Justo", 3: "Moderado", 4: "Malo", 5: "Pésimo"}.get(aqi_val, "Desconocido")
+
+    # Fechas y Sol
+    timezone_offset = current.get('timezone', 0)
+    local_time = datetime.now(timezone.utc) + timedelta(seconds=timezone_offset)
+    sunrise = datetime.fromtimestamp(current['sys']['sunrise'], timezone.utc) + timedelta(seconds=timezone_offset)
+    sunset = datetime.fromtimestamp(current['sys']['sunset'], timezone.utc) + timedelta(seconds=timezone_offset)
+
+    # Emoji del clima (puedes usar tu función get_emoji si la tienes importada, o un map simple aquí)
+    # Si tienes la funcion get_emoji definida en este archivo o importada, úsala:
+    try:
+        weather_emoji = WEATHER_EMOJIS.get(current['weather'][0]['main'].lower(), "🌤️")
+    except:
+        weather_emoji = "🌤️"
+
+    city_name = ciudad_guardada if ciudad_guardada else current.get('name', 'Ubicación')
+    country = current.get('sys', {}).get('country', '')
+
+    # 5. CONSTRUCCIÓN DEL MENSAJE (Formato Rico)
+    msg = (
+        f"{weather_emoji} *Clima en {city_name}, {country}*\n"
+        f"—————————————————\n"
+        f"• {description}\n"
+        f"• 🌡 *Temperatura:* {temp:.1f}°C\n"
+        f"• 🤔 *Sensación:* {feels_like:.1f}°C\n"
+        f"• 📈 *Máx:* {max_temp:.1f}°C | 📉 *Mín:* {min_temp:.1f}°C\n"
+        f"• 💧 *Humedad:* {humidity}%\n"
+        f"• 💨 *Viento:* {wind_speed} m/s\n"
+        f"• ☁️ *Nubosidad:* {clouds}%\n"
+        f"• 📊 *Presión:* {pressure} hPa\n"
+        f"• ☀️ *UV:* {uv_val} ({uv_text})\n"
+        f"• 🌫️ *Calidad aire:* {aqi_text} (AQI: {aqi_val})\n"
+        f"• 🕐 *Hora local:* {local_time.strftime('%H:%M')}\n"
+        f"• 🌅 *Amanecer:* {sunrise.strftime('%H:%M')}\n"
+        f"• 🌇 *Atardecer:* {sunset.strftime('%H:%M')}\n\n"
+    )
+
+    # Añadir Pronóstico Breve (Próximas horas)
+    if forecast_list:
+        msg += "📅 *Próximas horas:*\n"
+        # Usamos forecast_list en lugar de forecast
+        for item in forecast_list[:4]: 
+            f_time = datetime.fromtimestamp(item['dt'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
+            f_temp = item['main']['temp']
+            f_desc = item['weather'][0]['description'].capitalize()
+            msg += f"  {f_time.strftime('%H:%M')}: {f_temp:.1f}°C - {f_desc}\n"
+
+    # 6. INYECCIÓN DE INTELIGENCIA ARTIFICIAL (IA)
+    # Llamamos a Groq sin bloquear el bot
+    try:
+        loop = asyncio.get_running_loop()
+        # Pasamos el mensaje actual para que la IA lea los datos técnicos
+        ai_recommendation = await loop.run_in_executor(
+            None, 
+            get_groq_weather_advice, 
+            msg
+        )
+        msg += f"\n\n💡 *Consejos de 🤖 @BitBreadIAbot:*\n—————————————————\n\n{ai_recommendation}\n"
+    except Exception as e:
+        add_log_line(f"⚠️ Error IA Manual: {e}")
+        msg += "\n💡 *Consejo:* Lleva lo necesario según el clima.\n"
+
+    # 7. Publicidad y Envío
+    msg += "\n" + get_random_ad_text()
+
+    if update.message:
+        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+    elif update.callback_query:
+        # Si venimos de un botón, usamos edit_text o send_message según prefieras
+        await update.callback_query.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+
+async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Maneja el comando /w.
+    - Si tiene argumentos (/w Madrid): Muestra el reporte.
+    - Si NO tiene argumentos (/w): Muestra el MENÚ (Botones).
+    """
+    
+    # Determinar origen (Callback o Mensaje)
     if update.callback_query:
         user_id = update.callback_query.from_user.id
         message_func = update.callback_query.message.edit_text
@@ -166,102 +290,36 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id = update.effective_user.id
         message_func = update.message.reply_text
 
-    # 1. Si el usuario escribió argumentos: "/w Madrid"
+    # CASO 1: El usuario escribió una ciudad (/w Madrid)
+    # O el sistema le pasó argumentos internamente
     if context.args:
         query = ' '.join(context.args)
+        
+        # Usamos tu función helper para buscar coordenadas
         loc = get_location_from_query(query)
         
         if loc:
-            # Obtener todos los datos necesarios
-            current = get_current_weather(loc['lat'], loc['lon'])
-            forecast = get_forecast(loc['lat'], loc['lon'])
-            uv = get_uv_index(loc['lat'], loc['lon'])
-            aqi = get_air_quality(loc['lat'], loc['lon']) # <--- OBTENER AQI
-            
-            if current:
-                # -- Cálculos de Tiempo Local --
-                tz_offset = current.get("timezone", 0)
-                local_now = datetime.now(timezone.utc) + timedelta(seconds=tz_offset)
-                
-                sunrise = datetime.fromtimestamp(current['sys']['sunrise'], timezone.utc) + timedelta(seconds=tz_offset)
-                sunset = datetime.fromtimestamp(current['sys']['sunset'], timezone.utc) + timedelta(seconds=tz_offset)
-                
-                # -- Formateo de Datos --
-                desc = current['weather'][0]['description'].capitalize()
-                emoji_main = get_weather_emoji(desc)
-                
-                # Nivel UV Texto
-                uv_text = "Bajo"
-                if uv > 2: uv_text = "Moderado"
-                if uv > 5: uv_text = "Alto"
-                if uv > 7: uv_text = "Muy Alto"
-                if uv > 10: uv_text = "Extremo"
+            # ✅ Usamos la NUEVA función maestra para que salga con IA, AQI, etc.
+            await responder_clima_actual(update, context, loc['lat'], loc['lon'], loc['name'])
+        else:
+            await message_func("❌ No encontré esa ciudad. Intenta con un nombre más común.")
+        return
 
-                # Calidad Aire Texto
-                aqi_text = get_aqi_text(aqi)
-
-                # Construcción del Mensaje Detallado
-                msg = (
-                    f"{emoji_main} *Clima en {current['name']}, {current['sys']['country']}*\n"
-                    f"—————————————————\n"
-                    f"• *{desc}*\n"
-                    f"• 🌡 Temperatura: *{current['main']['temp']:.1f}°C*\n"
-                    f"• 🤔 Sensación: {current['main']['feels_like']:.1f}°C\n"
-                    f"• 💧 Humedad: {current['main']['humidity']}%\n"
-                    f"• 💨 Viento: {current['wind']['speed']:.1f} m/s\n"
-                    f"• ☁️ Nubosidad: {current['clouds']['all']}%\n"
-                    f"• 📊 Presión: {current['main']['pressure']} hPa\n"
-                    f"• ☀️ UV: {uv:.1f} ({uv_text})\n"
-                    f"• 🌫️ Calidad aire: {aqi_text} (AQI: {aqi})\n" # <--- LÍNEA AQI
-                    f"• 🕐 Hora local: {local_now.strftime('%H:%M')}\n"
-                    f"• 🌅 Amanecer: {sunrise.strftime('%H:%M')}\n"
-                    f"• 🌇 Atardecer: {sunset.strftime('%H:%M')}\n\n"
-                )
-                
-                # -- Añadir Pronóstico Corto --
-                if forecast and 'list' in forecast:
-                    msg += "📅 *Próximas horas:*\n"
-                    # Aseguramos que solo mostramos los 4 más cercanos
-                    for item in forecast['list'][:4]: 
-                        # Calcular hora del item ajustada a la zona horaria de la ciudad
-                        dt_item = datetime.fromtimestamp(item['dt'], timezone.utc) + timedelta(seconds=tz_offset)
-                        t_str = dt_item.strftime('%H:%M')
-                        t_temp = item['main']['temp']
-                        t_desc = item['weather'][0]['description']
-                        t_emoji = get_weather_emoji(t_desc)
-                        msg += f"  `{t_str}`: {t_temp:.0f}°C {t_emoji} {t_desc}\n"
-                
-                msg += ""
-                msg += get_random_ad_text() # Publicidad
-                
-                if update.message:
-                    await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
-                else:
-                    await context.bot.send_message(
-                        chat_id=update.effective_chat.id,
-                        text=msg,
-                        parse_mode=ParseMode.MARKDOWN
-                    )
-                return
-
-    # 2. Si NO hay argumentos, mostrar el Menú Principal
+    # CASO 2: Sin argumentos -> MOSTRAR MENÚ (Lógica antigua restaurada)
     sub = get_user_subscription(user_id)
     
-    # Determinar el primer botón dinámico
     if sub:
-        # Si está suscrito, el primer botón es la consulta rápida de su ciudad
+        # Si está suscrito, mostramos botón para consultar SU ciudad
         city_name = sub['city']
-        keyboard_option1 = InlineKeyboardButton(f"📍 Consultar Clima en {city_name}", callback_data=f"weather_query_{city_name}")
         keyboard = [
-            [keyboard_option1],
+            [InlineKeyboardButton(f"📍 Consultar Clima en {city_name}", callback_data=f"weather_query_{city_name}")],
             [InlineKeyboardButton("🔔 Suscribirse a Alertas", callback_data="weather_subscribe_start")],
             [InlineKeyboardButton("⚙️ Configurar Mis Alertas", callback_data="weather_settings")]
         ]
     else:
-        # Si no está suscrito, el primer botón son las instrucciones
-        keyboard_option1 = InlineKeyboardButton("🔍 Consultar Clima Detallado", callback_data="weather_help")
+        # Si NO está suscrito, mostramos ayuda
         keyboard = [
-            [keyboard_option1],
+            [InlineKeyboardButton("🔍 Consultar Clima Detallado", callback_data="weather_help")],
             [InlineKeyboardButton("🔔 Suscribirse a Alertas", callback_data="weather_subscribe_start")],
             [InlineKeyboardButton("⚙️ Configurar Mis Alertas", callback_data="weather_settings")]
         ]
@@ -273,7 +331,12 @@ async def weather_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id
     )
     
-    await message_func(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    # Enviamos el menú
+    try:
+        await message_func(msg, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    except BadRequest:
+        # A veces telegram da error si intentas editar un mensaje con el mismo contenido
+        pass
 
 # --- NUEVA FUNCIÓN PARA EL BOTÓN DE AYUDA / CONSULTA RÁPIDA ---
 async def weather_default_query_or_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -430,6 +493,8 @@ async def location_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     }
     
     add_log_line(f"💾 Datos guardados en context.user_data")
+
+    await responder_clima_actual(update, context, lat, lon, city_name)
     
     # ✅ TECLADO MEJORADO CON MÁS OPCIONES
     keyboard = [

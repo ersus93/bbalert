@@ -12,7 +12,8 @@ from utils.weather_manager import (
     should_send_alert,
     get_recent_global_events  
 )
-from utils.weather_api import get_current_weather, get_forecast, get_uv_index
+from utils.weather_api import get_current_weather, get_forecast, get_uv_index, get_air_quality # <--- Añadido air_quality
+from core.ai_logic import get_groq_weather_advice
 from utils.ads_manager import get_random_ad_text
 from core.i18n import _
 
@@ -176,52 +177,99 @@ async def weather_alerts_loop(bot: Bot):
                 
                 # Ventana de 10 minutos para enviar el resumen y comprobación de 'daily' en last_alerts
                 if local_now.hour == target_hour and 0 <= local_now.minute < 10:
-                    if should_send_alert(user_id, 'daily_summary', cooldown_hours=20):
+                    if alert_types.get('daily_summary', True):
+                        # 1. Obtener Datos Completos (Igual que en manual)
+                        current = get_current_weather(lat, lon)
+                        forecast = get_forecast(lat, lon)
+                        uv_data = get_uv_index(lat, lon)
+                        air_data = get_air_quality(lat, lon) # Nuevo
                         
-                        # Generar Resumen Estilo V2
-                        today_forecast = forecast.get('list', [])[:8] # Próximas 24h
-                        if not today_forecast: continue
+                        if not current:
+                            continue
 
-                        # Estadísticas para el consejo inteligente
-                        temps = [x['main']['temp'] for x in today_forecast]
-                        w_ids = [x['weather'][0]['id'] for x in today_forecast]
+                        # 2. Procesar Datos para Resumen (Max/Min del día)
+                        # El forecast trae datos cada 3 horas. Tomamos las próximas 24h (8 items)
+                        temps_today = []
+                        if forecast:
+                            for item in forecast[:8]: 
+                                temps_today.append(item['main']['temp'])
                         
-                        advice = get_smart_advice(min(temps), max(temps), w_ids, uv_index)
+                        max_temp = max(temps_today) if temps_today else current['main']['temp']
+                        min_temp = min(temps_today) if temps_today else current['main']['temp']
+
+                        # Datos básicos
+                        temp = current['main']['temp']
+                        feels_like = current['main']['feels_like']
+                        humidity = current['main']['humidity']
+                        wind_speed = current['wind']['speed']
+                        description = current['weather'][0]['description'].capitalize()
+                        clouds = current['clouds']['all']
+                        pressure = current['main']['pressure']
                         
-                        msg = _(
-                            f"🌅 *Resumen Diario - {city}*\n"
+                        # Datos Extra (UV / Aire)
+                        uv_val = uv_data.get('value', 0) if uv_data else 0
+                        uv_text = "Alto" if uv_val > 5 else "Bajo" if uv_val < 3 else "Moderado"
+                        
+                        aqi_val = air_data.get('main', {}).get('aqi', 1) if air_data else 1
+                        aqi_text = {1: "Bueno", 2: "Justo", 3: "Moderado", 4: "Malo", 5: "Pésimo"}.get(aqi_val, "Desconocido")
+
+                        # Iconos y Fechas
+                        emoji_weather = get_emoji(description)
+                        local_time = datetime.now(timezone.utc) + timedelta(seconds=current.get('timezone', 0))
+                        sunrise = datetime.fromtimestamp(current['sys']['sunrise'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
+                        sunset = datetime.fromtimestamp(current['sys']['sunset'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
+
+                        # 3. Construir el Mensaje "Rico" (Estilo Manual)
+                        city_name = current.get('name', 'Tu Ubicación')
+                        country = current.get('sys', {}).get('country', '')
+
+                        msg = (
+                            f"{emoji_weather} *Resumen Diario - {city_name}, {country}*\n"
                             f"—————————————————\n"
-                            f"📅 {local_now.strftime('%d/%m/%Y')} | 🕐 {local_now.strftime('%H:%M')}\n\n"
-                            f"*Actual:* {current['weather'][0]['description'].capitalize()}, {current['main']['temp']:.1f}°C\n"
-                            f"💧 Humedad: {current['main']['humidity']}%\n"
-                            f"💨 Viento: {current['wind']['speed']:.1f} m/s\n\n",
-                            user_id
+                            f"📅 *{local_time.strftime('%d/%m/%Y')}* | 🕐 *{local_time.strftime('%H:%M')}*\n\n"
+                            f"• {description}\n"
+                            f"• 🌡 *Temp:* {temp:.1f}°C (Sens: {feels_like:.1f}°C)\n"
+                            f"• 📈 *Máx:* {max_temp:.1f}°C | 📉 *Mín:* {min_temp:.1f}°C\n" # Línea nueva importante
+                            f"• 💧 *Humedad:* {humidity}%\n"
+                            f"• 💨 *Viento:* {wind_speed} m/s\n"
+                            f"• ☀️ *UV:* {uv_val} ({uv_text})\n"
+                            f"• 🌫️ *Aire:* {aqi_text} (AQI: {aqi_val})\n"
+                            f"• 🌅 *Sol:* {sunrise.strftime('%H:%M')} ⇾ 🌇 {sunset.strftime('%H:%M')}\n\n"
                         )
+
+                        # 4. Sección Pronóstico (Breve, próximas 4 lecturas)
+                        if forecast:
+                            msg += "📅 *Próximas horas:*\n"
+                            for item in forecast[:4]:
+                                f_time = datetime.fromtimestamp(item['dt'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
+                                f_temp = item['main']['temp']
+                                f_desc = item['weather'][0]['description']
+                                f_emoji = get_emoji(f_desc)
+                                msg += f"  {f_time.strftime('%H:%M')}: {f_temp:.0f}°C {f_emoji} {f_desc}\n"
                         
-                        msg += "*Pronóstico Hoy:*\n"
-                        for entry in today_forecast[:4]: # Próximas 12h
-                            dt_entry = datetime.fromtimestamp(entry['dt']) + timedelta(seconds=tz_offset)
-                            emoji = get_emoji(entry['weather'][0]['description'])
-                            temp = entry['main']['temp']
-                            msg += f"`{dt_entry.strftime('%H:%M')}` {emoji} {temp:.0f}°C\n"
-
-                        msg += f"\n💡 *Consejo:* {advice}\n"
-
-                        # --- INYECCIÓN DE DESASTRES GLOBALES ---
-                        if alert_types.get('global_disasters', True):
-                            # Obtenemos eventos de las últimas 24 horas
-                            global_events = get_recent_global_events(hours=24)
+                        # 5. INTEGRACIÓN IA (Nuevo)
+                        # Usamos run_in_executor para no bloquear el bot mientras la IA piensa
+                        try:
+                            loop = asyncio.get_running_loop()
+                            # Pasamos 'msg' que contiene todos los datos técnicos para que la IA los lea
+                            ai_recommendation = await loop.run_in_executor(
+                                None, 
+                                get_groq_weather_advice, 
+                                msg
+                            )
                             
-                            if global_events:
-                                msg += "\n🌍 *Actualidad Global (últimas 24h):*\n"
-                                for event in global_events:
-                                    # Icono según severidad
-                                    icon = "🔴" if event['severity'] == 'Red' else "🟠" if event['severity'] == 'Orange' else "⚠️"
-                                    msg += f"{icon} *{event['title']}*\n"
-                        # ---------------------------------------
+                            # Añadimos la respuesta de la IA
+                            msg += f"\n💡 *Consejo Inteligente:*\n{ai_recommendation}\n"
+                        
+                        except Exception as e_ai:
+                            add_log_line(f"⚠️ Error IA Clima: {e_ai}")
+                            # Fallback simple si la IA falla
+                            msg += "\n💡 *Consejo:* Revisa el pronóstico antes de salir."
 
+                        # 6. Publicidad (Opcional, ya estaba en tu código)
                         msg += "\n" + get_random_ad_text()
                         
+                        # 7. Enviar
                         await _enviar_seguro(bot, user_id, msg)
                         update_last_alert_time(user_id, 'daily_summary')
 
