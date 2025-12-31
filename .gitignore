@@ -19,5 +19,5 @@ env/
 
 # Configuraciones específicas de VS Code
 .vscode/
-
-.log
+logs/
+*.log
