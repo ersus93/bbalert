@@ -68,10 +68,6 @@ async def weather_alerts_loop(bot: Bot):
                 await asyncio.sleep(600)
                 continue
             
-            # Cargamos eventos globales UNA VEZ por ciclo para tenerlos listos si hay resumenes
-            # Nota: Solo los leemos/borramos si realmente vamos a enviar un resumen,
-            # pero para simplificar, los leeremos dentro de la función de resumen.
-            
             for user_id_str, sub in subs.items():
                 if not sub.get('alerts_enabled', True):
                     continue
@@ -82,15 +78,18 @@ async def weather_alerts_loop(bot: Bot):
                 lat = sub.get('lat')
                 lon = sub.get('lon')
                 
-                # Sin coordenadas no podemos trabajar
                 if not lat or not lon:
                     continue
 
-                # 1. Obtener Datos API
+                # ==========================================================
+                # 1. OBTENCIÓN DE DATOS (Una sola vez para todo el ciclo)
+                # ==========================================================
                 try:
                     current = get_current_weather(lat, lon)
-                    forecast = get_forecast(lat, lon) # Forecast de 5 dias / 3 horas
-                    uv_index = get_uv_index(lat, lon)
+                    forecast = get_forecast(lat, lon)
+                    # CORRECCIÓN: get_uv_index y get_air_quality devuelven números, no dicts
+                    uv_val = get_uv_index(lat, lon) 
+                    aqi_val = get_air_quality(lat, lon)
                 except Exception as e:
                     add_log_line(f"⚠️ Error API clima para {user_id}: {e}")
                     continue
@@ -98,120 +97,102 @@ async def weather_alerts_loop(bot: Bot):
                 if not current or not forecast:
                     continue
 
-                # --- ALERTA 1: LLUVIA (Lógica V1: Forecast próximos 4 items ~12h) ---
+                # ==========================================================
+                # 2. ALERTAS DE EMERGENCIA (Lluvia, Tormenta, UV)
+                # ==========================================================
+
+                # --- ALERTA 1: LLUVIA ---
                 if alert_types.get('rain', True) and should_send_alert(user_id, 'rain', cooldown_hours=6):
-                    # Buscamos lluvia en las próximas 12 horas (4 periodos de 3h)
                     upcoming_rain = None
                     for entry in forecast.get('list', [])[:4]:
                         wid = entry['weather'][0]['id']
-                        if 300 <= wid < 600: # Códigos de llovizna/lluvia
+                        if 300 <= wid < 600:
                             upcoming_rain = entry
                             break
                     
                     if upcoming_rain:
-                        # Crear mensaje estilo V2
                         dt_rain = datetime.fromtimestamp(upcoming_rain['dt'])
                         desc = upcoming_rain['weather'][0]['description'].capitalize()
-                        
-                        msg = _(
-                            f"🌧️ *Alerta de Lluvia en {city}*\n"
-                            f"—————————————————\n"
-                            f"Se espera: *{desc}*\n"
-                            f"🕐 Hora aprox: {dt_rain.strftime('%H:%M')}\n"
-                            f"☔ ¡No olvides el paraguas!",
-                            user_id
-                        )
-                        msg += "\n\n" + get_random_ad_text()
-                        
+                        msg = _(f"🌧️ *Alerta de Lluvia en {city}*\n—————————————————\nSe espera: *{desc}*\n🕐 Hora aprox: {dt_rain.strftime('%H:%M')}\n☔ ¡No olvides el paraguas!", user_id)
+                        msg += "" + get_random_ad_text()
                         await _enviar_seguro(bot, user_id, msg)
                         update_last_alert_time(user_id, 'rain')
 
-                # --- ALERTA 2: TORMENTA (Lógica V1) ---
+                # --- ALERTA 2: TORMENTA ---
                 if alert_types.get('storm', True) and should_send_alert(user_id, 'storm', cooldown_hours=6):
                     upcoming_storm = None
                     for entry in forecast.get('list', [])[:4]:
                         wid = entry['weather'][0]['id']
-                        if 200 <= wid < 300: # Códigos de tormenta
+                        if 200 <= wid < 300:
                             upcoming_storm = entry
                             break
                     
                     if upcoming_storm:
                         dt_storm = datetime.fromtimestamp(upcoming_storm['dt'])
                         desc = upcoming_storm['weather'][0]['description'].capitalize()
-                        
-                        msg = _(
-                            f"⛈️ *Alerta de Tormenta en {city}*\n"
-                            f"—————————————————\n"
-                            f"⚠️ Condición: *{desc}*\n"
-                            f"🕐 Hora aprox: {dt_storm.strftime('%H:%M')}\n"
-                            f"⚡ Toma precauciones y resguárdate.",
-                            user_id
-                        )
-                        msg += "\n\n" + get_random_ad_text()
-                        
+                        msg = _(f"⛈️ *Alerta de Tormenta en {city}*\n—————————————————\n⚠️ Condición: *{desc}*\n🕐 Hora aprox: {dt_storm.strftime('%H:%M')}\n⚡ Toma precauciones.", user_id)
+                        msg += "" + get_random_ad_text()
                         await _enviar_seguro(bot, user_id, msg)
                         update_last_alert_time(user_id, 'storm')
 
-                # --- ALERTA 3: UV ALTO (Lógica V1) ---
-                if alert_types.get('uv_high', True) and uv_index >= 6 and should_send_alert(user_id, 'uv_high', cooldown_hours=6):
-                    msg = _(
-                        f"☀️ *Alerta UV Alto en {city}*\n"
-                        f"—————————————————\n"
-                        f"Índice actual: *{uv_index:.1f}*\n"
-                        f"🧴 Usa protector solar si vas a salir.",
-                        user_id
-                    )
-                    msg += "\n\n" + get_random_ad_text()
+                # --- ALERTA 3: UV ALTO ---
+                # Usamos uv_val directamente (ya es un float)
+                if alert_types.get('uv_high', True) and uv_val >= 6 and should_send_alert(user_id, 'uv_high', cooldown_hours=6):
+                    msg = _(f"☀️ *Alerta UV Alto en {city}*\n—————————————————\nÍndice actual: *{uv_val:.1f}*\n🧴 Usa protector solar si vas a salir.", user_id)
+                    msg += "" + get_random_ad_text()
                     await _enviar_seguro(bot, user_id, msg)
                     update_last_alert_time(user_id, 'uv_high')
 
-                # --- ALERTA 4: RESUMEN DIARIO (Con Global Disasters) ---
-                # Verificar hora local
-                alert_time_conf = sub.get('alert_time', '07:00')
-                target_hour = int(alert_time_conf.split(':')[0])
+                # ==========================================================
+                # 3. RESUMEN DIARIO (Corregido y Optimizado)
+                # ==========================================================
                 
-                # Calcular hora local del usuario
+                alert_time_conf = sub.get('alert_time', '07:00')
+                try:
+                    target_hour = int(alert_time_conf.split(':')[0])
+                except:
+                    target_hour = 7
+                
+                # Calcular hora local
                 utc_now = datetime.utcnow()
                 tz_offset = current.get("timezone", 0)
                 local_now = utc_now + timedelta(seconds=tz_offset)
                 
-                # Ventana de 10 minutos para enviar el resumen y comprobación de 'daily' en last_alerts
-                if local_now.hour == target_hour and 0 <= local_now.minute < 10:
-                    if alert_types.get('daily_summary', True):
-                        # 1. Obtener Datos Completos (Igual que en manual)
-                        current = get_current_weather(lat, lon)
-                        forecast = get_forecast(lat, lon)
-                        uv_data = get_uv_index(lat, lon)
-                        air_data = get_air_quality(lat, lon) # Nuevo
+                # CONDICIÓN: Hora coincide + Minutos dentro de rango + NO se ha enviado hoy
+                # Importante: should_send_alert con 20h de cooldown evita duplicados si el loop corre rápido
+                is_time_window = (local_now.hour == target_hour and 0 <= local_now.minute < 30)
+                
+                if is_time_window and alert_types.get('daily_summary', True):
+                    
+                    should_send = should_send_alert(user_id, 'daily_summary', cooldown_hours=20)
+                    
+                    if should_send:
+                        add_log_line(f"🚀 Procesando Resumen Diario para {user_id} ({city})...")
                         
-                        if not current:
-                            continue
-
-                        # 2. Procesar Datos para Resumen (Max/Min del día)
-                        # El forecast trae datos cada 3 horas. Tomamos las próximas 24h (8 items)
+                        # --- Procesar Datos (Reutilizamos current, forecast, uv_val, aqi_val) ---
                         temps_today = []
-                        if forecast:
-                            for item in forecast[:8]: 
+                        forecast_list = forecast.get('list', []) # Extraemos la lista de forma segura
+
+                        if forecast_list:
+                            # Tomamos los próximos 8 registros (aprox 24h)
+                            for item in forecast_list[:8]: 
                                 temps_today.append(item['main']['temp'])
-                        
+
                         max_temp = max(temps_today) if temps_today else current['main']['temp']
                         min_temp = min(temps_today) if temps_today else current['main']['temp']
 
-                        # Datos básicos
                         temp = current['main']['temp']
                         feels_like = current['main']['feels_like']
                         humidity = current['main']['humidity']
                         wind_speed = current['wind']['speed']
                         description = current['weather'][0]['description'].capitalize()
-                        clouds = current['clouds']['all']
-                        pressure = current['main']['pressure']
                         
-                        # Datos Extra (UV / Aire)
-                        uv_val = uv_data.get('value', 0) if uv_data else 0
-                        uv_text = "Alto" if uv_val > 5 else "Bajo" if uv_val < 3 else "Moderado"
+                        # Textos para UV y AQI (Validando que sean números)
+                        uv_num = uv_val if isinstance(uv_val, (int, float)) else 0
+                        uv_text = "Alto" if uv_num > 5 else "Bajo" if uv_num < 3 else "Moderado"
                         
-                        aqi_val = air_data.get('main', {}).get('aqi', 1) if air_data else 1
-                        aqi_text = {1: "Bueno", 2: "Justo", 3: "Moderado", 4: "Malo", 5: "Pésimo"}.get(aqi_val, "Desconocido")
+                        aqi_num = aqi_val if isinstance(aqi_val, (int, float)) else 1
+                        aqi_text = {1: "Bueno", 2: "Justo", 3: "Moderado", 4: "Malo", 5: "Pésimo"}.get(aqi_num, "Desconocido")
 
                         # Iconos y Fechas
                         emoji_weather = get_emoji(description)
@@ -219,7 +200,7 @@ async def weather_alerts_loop(bot: Bot):
                         sunrise = datetime.fromtimestamp(current['sys']['sunrise'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
                         sunset = datetime.fromtimestamp(current['sys']['sunset'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
 
-                        # 3. Construir el Mensaje "Rico" (Estilo Manual)
+                        # Construir Mensaje
                         city_name = current.get('name', 'Tu Ubicación')
                         country = current.get('sys', {}).get('country', '')
 
@@ -229,55 +210,50 @@ async def weather_alerts_loop(bot: Bot):
                             f"📅 *{local_time.strftime('%d/%m/%Y')}* | 🕐 *{local_time.strftime('%H:%M')}*\n\n"
                             f"• {description}\n"
                             f"• 🌡 *Temp:* {temp:.1f}°C (Sens: {feels_like:.1f}°C)\n"
-                            f"• 📈 *Máx:* {max_temp:.1f}°C | 📉 *Mín:* {min_temp:.1f}°C\n" # Línea nueva importante
+                            f"• 📈 *Máx:* {max_temp:.1f}°C | 📉 *Mín:* {min_temp:.1f}°C\n"
                             f"• 💧 *Humedad:* {humidity}%\n"
                             f"• 💨 *Viento:* {wind_speed} m/s\n"
-                            f"• ☀️ *UV:* {uv_val} ({uv_text})\n"
-                            f"• 🌫️ *Aire:* {aqi_text} (AQI: {aqi_val})\n"
+                            f"• ☀️ *UV:* {uv_num:.1f} ({uv_text})\n"
+                            f"• 🌫️ *Aire:* {aqi_text} (AQI: {aqi_num})\n"
                             f"• 🌅 *Sol:* {sunrise.strftime('%H:%M')} ⇾ 🌇 {sunset.strftime('%H:%M')}\n\n"
                         )
 
-                        # 4. Sección Pronóstico (Breve, próximas 4 lecturas)
-                        if forecast:
+                        # Pronóstico Breve
+                        if forecast_list: # Usar la variable forecast_list que creamos arriba
                             msg += "📅 *Próximas horas:*\n"
-                            for item in forecast[:4]:
+                            for item in forecast_list[:4]: # Cambiado de forecast[:4] a forecast_list[:4]
                                 f_time = datetime.fromtimestamp(item['dt'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
                                 f_temp = item['main']['temp']
                                 f_desc = item['weather'][0]['description']
                                 f_emoji = get_emoji(f_desc)
                                 msg += f"  {f_time.strftime('%H:%M')}: {f_temp:.0f}°C {f_emoji} {f_desc}\n"
                         
-                        # 5. INTEGRACIÓN IA (Nuevo)
-                        # Usamos run_in_executor para no bloquear el bot mientras la IA piensa
+                        # Integración IA
                         try:
                             loop = asyncio.get_running_loop()
-                            # Pasamos 'msg' que contiene todos los datos técnicos para que la IA los lea
                             ai_recommendation = await loop.run_in_executor(
-                                None, 
-                                get_groq_weather_advice, 
-                                msg
+                                None, get_groq_weather_advice, msg
                             )
-                            
-                            # Añadimos la respuesta de la IA
                             msg += f"\n💡 *Consejo Inteligente:*\n{ai_recommendation}\n"
-                        
                         except Exception as e_ai:
                             add_log_line(f"⚠️ Error IA Clima: {e_ai}")
-                            # Fallback simple si la IA falla
                             msg += "\n💡 *Consejo:* Revisa el pronóstico antes de salir."
 
-                        # 6. Publicidad (Opcional, ya estaba en tu código)
-                        msg += "\n" + get_random_ad_text()
+                        msg += "" + get_random_ad_text()
                         
-                        # 7. Enviar
+                        # ENVIAR Y REGISTRAR
                         await _enviar_seguro(bot, user_id, msg)
                         update_last_alert_time(user_id, 'daily_summary')
 
-            # Esperar 5 minutos antes de la siguiente vuelta (Estilo V1)
+                else:
+                        # ESTO ES LO QUE TE FALTABA: Un log para saber por qué falló
+                    add_log_line(f"⏳ Resumen diario saltado para {user_id}: Cooldown activo (ya se envió en las últimas 20h)")
+
+            # Esperar 5 minutos antes de la siguiente vuelta
             await asyncio.sleep(300)
 
         except Exception as e:
-            add_log_line(f"❌ Error en Loop Clima: {e}")
+            add_log_line(f"❌ Error CRÍTICO en Loop Clima: {e}")
             await asyncio.sleep(60)
 
 async def _enviar_seguro(bot, user_id, text):

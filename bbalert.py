@@ -38,7 +38,8 @@ from handlers.alerts import (
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
 )
-from handlers.trading import graf_command, p_command, refresh_command_callback, mk_command, ta_command, ta_switch_callback, ai_analysis_callback
+from handlers.trading import graf_command, p_command, refresh_command_callback, mk_command
+from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback
 from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
 
