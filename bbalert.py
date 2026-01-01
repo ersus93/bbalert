@@ -24,6 +24,9 @@ from core.i18n import _
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
 
+from handlers.year_handlers import year_command, year_sub_callback
+from core.year_loop import year_progress_loop
+
 
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command,
@@ -61,6 +64,11 @@ async def post_init(app: Application):
     """
     
     add_log_line("🤖 Bot inicializado. Iniciando tareas de fondo...")
+
+    # Progreso Anual 
+    asyncio.create_task(year_progress_loop(app.bot))
+    add_log_line("✅ Bucle de Progreso Anual iniciado.")
+
 
     # Iniciar bucle de clima
     asyncio.create_task(weather_alerts_loop(app.bot))
@@ -289,7 +297,11 @@ def main():
         else:
             app.add_handler(weather_callback_handlers)
     
+
+    app.add_handler(CommandHandler("y", year_command))
+    
     # Callbacks de Trading
+    app.add_handler(CallbackQueryHandler(year_sub_callback, pattern="^year_sub_"))
     app.add_handler(CallbackQueryHandler(ta_switch_callback, pattern="^ta_switch\\|"))
     app.add_handler(CallbackQueryHandler(ai_analysis_callback, pattern="^ai_analyze\\|"))
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))

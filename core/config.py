@@ -33,9 +33,11 @@ ADS_PATH = os.path.join(DATA_DIR, "ads.json")
 HBD_THRESHOLDS_PATH = os.path.join(DATA_DIR, "hbd_thresholds.json")
 WEATHER_SUBS_PATH = os.path.join(DATA_DIR, "weather_subs.json")
 WEATHER_LAST_ALERTS_PATH = os.path.join(DATA_DIR, "weather_last_alerts.json")
+YEAR_QUOTES_PATH = os.path.join(DATA_DIR, "year_quotes.json")
+YEAR_SUBS_PATH = os.path.join(DATA_DIR, "year_subs.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.051"
+VERSION = "0.1.050"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---

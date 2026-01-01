@@ -16,6 +16,7 @@ from utils.ads_manager import get_random_ad_text
 from utils.bcc_scraper import obtener_tasas_bcc
 from utils.cadeca_scraper import obtener_tasas_cadeca
 from core.i18n import _
+from utils.year_manager import get_simple_year_string
 
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -133,7 +134,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not es_dato_viejo:
                 save_cadeca_history(tasas_cadeca)
             
-            titulo_cadeca = "🏢 *CADECA (Casas de Cambio)*\n└── _Aeropuertos, Puertos y Hoteles_"
+            titulo_cadeca = "🏢 *CADECA (Casas de Cambio)*\n↳ _Aeropuertos, Puertos y Hoteles_"
             if es_dato_viejo:
                 titulo_cadeca += "\n⚠️ _(Caché) WEB OUT_"
                 
@@ -163,7 +164,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     linea = f" *{m}*          {compra:6.2f}       {venta:6.2f}  {indicador}"
                     mensaje_texto_final += linea + "\n"
         else:
-             mensaje_texto_final += "\n•••\n\n🏢 *CADECA (Casas de Cambio)*\n└── _Aeropuertos, Puertos y Hoteles_\n—————————————————\n ⚠️ No disponible\n_Probablemente esten sin corriente 🫣_"
+             mensaje_texto_final += "\n•••\n\n🏢 *CADECA (Casas de Cambio)*\n↳ _Aeropuertos, Puertos y Hoteles_\n—————————————————\n ⚠️ No disponible\n_Probablemente esten sin corriente 🫣_"
 
         # 3. BLOQUE BCC (Oficial) - CON HISTORIAL
         if tasas_bcc:
@@ -203,9 +204,10 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
              mensaje_texto_final += "\n\n•••\n\n🏛 *TASA OFICIAL (BCC)\n—————————————————\n ⚠️ No disponible"
 
         # Footer
+        ytext = get_simple_year_string()
         actualizado_label = _("📆", user_id)
         fuente_label = _("*Fuentes de consulta:*\n🔗 _elToque.com\n🔗 www.cadeca.cu\n🔗 www.bc.gob.cu_", user_id)
-        mensaje_texto_final += f"\n—————————————————\n_{actualizado_label} {timestamp_str}_\n{fuente_label}"
+        mensaje_texto_final += f"\n—————————————————\n_{actualizado_label} {timestamp_str}_\n{fuente_label}\n\n{ytext}"
         mensaje_texto_final += get_random_ad_text()
 
         # Generar Imagen
