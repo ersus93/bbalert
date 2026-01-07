@@ -69,7 +69,7 @@ def generar_imagen_tasas_eltoque():
     
     # Calculamos el espacio entre líneas dinámicamente según cuántas monedas hay
     # Espacio disponible aprox 40% de la altura total
-    espacio_disponible = H * 0.28
+    espacio_disponible = H * 0.30
     row_height = espacio_disponible / (len(monedas_orden) + 1)
 
     for i, moneda_key in enumerate(monedas_orden):
@@ -83,10 +83,10 @@ def generar_imagen_tasas_eltoque():
 
             # Dibujar Moneda (Alineada a la izquierda, con margen del 20% del ancho)
             # El margen izquierdo del pan parece estar al 20%
-            draw.text((W * 0.30, y_pos), f"{moneda_display}:", fill=COLOR_TINTA, anchor="lm", font=font_lg)
+            draw.text((W * 0.32, y_pos), f"{moneda_display}:", fill=COLOR_TINTA, anchor="lm", font=font_lg)
             
             # Dibujar Valor (Alineada a la derecha, con margen del 20% del ancho)
-            draw.text((W * 0.70, y_pos), valor_str, fill=COLOR_TINTA, anchor="rm", font=font_val)
+            draw.text((W * 0.73, y_pos), valor_str, fill=COLOR_TINTA, anchor="rm", font=font_val)
 
     # --- 5. FOOTER (Fecha y Fuente) ---
     # Colocamos esto justo encima de las líneas decorativas inferiores (aprox 82% de altura)
@@ -94,7 +94,7 @@ def generar_imagen_tasas_eltoque():
     footer_text = f"Actualizado: {fecha_gen}\nFuente: elTOQUE"
     
     # Posición Y: Un poco más abajo de la última moneda, cerca de las líneas del dibujo
-    footer_y = H * 0.75
+    footer_y = H * 0.77
     draw.text((W / 2, footer_y), footer_text, fill=COLOR_TINTA, anchor="mm", font=font_sm)
 
     # 6. Guardar y retornar

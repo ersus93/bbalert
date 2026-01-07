@@ -44,6 +44,13 @@ def _get_btc_keyboard(user_id, current_source="BINANCE", current_tf="1d"):
     
     # Organizar suscripciones en filas de 3 para que no ocupen tanto verticalmente
     keyboard = []
+    keyboard.append([
+        InlineKeyboardButton(
+            "✨ Análisis IA", 
+            callback_data=f"ai_analyze|{current_source}|BTC|USDT|{current_tf}"
+        )
+    ])
+    
     row = []
     for btn in subs_buttons:
         row.append(btn)

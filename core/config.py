@@ -37,7 +37,6 @@ YEAR_QUOTES_PATH = os.path.join(DATA_DIR, "year_quotes.json")
 YEAR_SUBS_PATH = os.path.join(DATA_DIR, "year_subs.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
-VERSION = "0.1.050"
 STATE = "RUNNING"
 PYTHON_VERSION = platform.python_version()
 # --- Configuración de Logs y Loops ---
@@ -45,3 +44,11 @@ LOG_MAX = 45
 LOG_LINES = []
 INTERVALO_ALERTA = 300
 INTERVALO_CONTROL = 480
+
+try:
+    with open(os.path.join(BASE_DIR, "version.txt"), "r") as f:
+        VERSION = f.read().strip()
+except Exception as e:
+    print(f"⚠️ No se pudo leer version.txt: {e}")
+    VERSION = "0.0.0"
+    

@@ -120,14 +120,14 @@ def generate_progress_bar(percent, length=15):
 def get_simple_year_string():
     """Para inyectar en otros mensajes (versión compacta)."""
     data = get_year_progress_data()
-    bar = generate_progress_bar(data['percent'], length=10)
-    return f"📅 {data['year']} Progress: {bar} {data['percent']:.1f}%"
+    bar = generate_progress_bar(data['percent'], length=12)
+    return f"📅 {data['year']} Progress: \n{bar} {data['percent']:.2f}%"
 
 def get_detailed_year_message():
     """Mensaje completo y divertido para el comando /y o el loop."""
     data = get_year_progress_data()
     quote = get_daily_quote()
-    bar = generate_progress_bar(data['percent'], length=18)
+    bar = generate_progress_bar(data['percent'], length=20)
     
     # Textos dinámicos según el porcentaje
     status_mood = ""

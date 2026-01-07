@@ -506,12 +506,15 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     valerts_active_symbols_count = len(valerts_symbols)
     valerts_unique_users = set()
     
+    timeframes = ["4h", "1d"]
+    
     for sym in valerts_symbols:
-        # Obtenemos lista de IDs suscritos a cada símbolo
-        subs_list = get_valerts_subscribers(sym)
-        if subs_list:
-            for uid in subs_list:
-                valerts_unique_users.add(uid)
+        for tf in timeframes:
+            # Ahora usamos la función correcta que devuelve una LISTA de IDs
+            subs_list = get_valerts_subscribers(sym, tf)
+            if subs_list:
+                for uid in subs_list:
+                    valerts_unique_users.add(uid)
                 
     valerts_total_users = len(valerts_unique_users)
 

@@ -21,6 +21,22 @@ def clean_data(data):
             cleaned[k] = v
     return cleaned
 
+
+# # --- INICIO FORMATEO MARKDOWN A HTML TELEGRAM ---
+# # 1. Negrita: **texto** -> <b>texto</b>
+# content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)                        
+# # 2. Encabezados: ### Texto -> <b>Texto</b> (Telegram no soporta h1-h3, usamos negrita)
+# content = re.sub(r'#{1,6}\s+(.*?)$', r'<b>\1</b>', content, flags=re.MULTILINE)                        
+# # 3. Listas: * item o - item -> • item (Mejora visual)
+# content = re.sub(r'(?m)^[\*\-]\s+', '• ', content)                        
+#  4. Código inline: `texto` -> <code>texto</code>
+# content = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', content)                        
+# # 5. Bloques de código: ```python ... ``` -> <pre><code> ... </code></pre>
+# # Nota: Esto es básico. Si el modelo envía ```python, Telegram a veces requiere <pre><code class="language-python">
+# # Para simplificar y evitar errores de parseo, usamos pre+code genérico:
+# content = re.sub(r'```(\w+)?\n(.*?)```', r'<pre><code>\2</code></pre>', content, flags=re.DOTALL)
+# # --- FIN FORMATEO ---
+
 def escape_markdown(text):
     """
     Escapa o elimina caracteres que rompen el ParseMode.MARKDOWN de Telegram.
@@ -40,32 +56,43 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
 
     # Prompt Narrativo basado en el texto del mensaje
     prompt = (
-        f"Eres un Analista Senior de Inversiones Institucionales. "
-        f"Analiza este reporte técnico de {symbol} ({timeframe}) y escribe un MEMORANDO ESTRATÉGICO.\n\n"
+        f"Eres un Analista Experto en Inversiones Institucionales, Trading y criptomonedas."
+        f"Analiza este reporte técnico de {symbol} ({timeframe}) y escribe un Informe Completo en base a los datos del reporte.\n\n"
         
         f"--- REPORTE TÉCNICO ---\n"
         f"{technical_report_text}\n"
         f"--- FIN REPORTE ---\n\n"
 
-        "OBJETIVO: Interpretar los datos (Precio, RSI, MACD, Zonas, Niveles y lo demas del reporte tecnico) para crear una narrativa fluida. No hagas listas simples.\n\n"
+        "OBJETIVO: Interpretar los datos y usar una narrativa fluida y facil de entender pero sin dejar de ser profecional\n"
+        "Proporciona contexto y explicacion a las siguientes secciones sin repetir los datos del reporte a no ser que sea necesario.\n"
+        "No repitas explicaciones en diferentes secciones usa para cada seccion el contexto que lleva.\n"
 
         "ESTRUCTURA EXACTA:\n"
-        "📚 *Contexto de Mercado*\n"
-        "[Integra precio, score y volatilidad (ATR) en un párrafo narrativo sobre el significado y sentimiento actual].\n\n"
+        "📚 *Analisis y Tendencia*"
+        "[pequeño reusmen del reporte y una analisis de la tendencia segun los datos]\n\n"
         
-        "📚 *Interpretación Técnica*\n"
-        "[Analiza la confluencia de indicadores. ¿Qué dicen y significan la tabla de indicadores y el Diagnóstico de Momentum juntos?, ¿Confirman la tendencia?].\n\n"
+        "📚 *Fuerza de la Tendencia*\n"
+        "[].\n\n"
         
-        "📚 *Niveles y Estructura*\n"
-        "[Evalúa la posición respecto a los Pivotes, Ichimoku o Fibonacci mencionados en el reporte].\n\n"
+        "📚 *Osciladores y Momentum*\n"
+        "[].\n\n"
         
-        "📚 *Veredicto y Gestión*\n"
-        "[Conclusión directa de compra/venta/espera y un consejo de riesgo, tambien puedes opinar algun criterio extra].\n\n"
+        "📚 *Niveles de Soporte y Resistencia*\n"
+        "[].\n\n"
+
+        "📚*Riesgo y Oportunidad*Riesgo y Oportunidad*\n"
+        "[]\n\n"
+        
+        "📚 *Recomendación*\n"
+        "[]\n\n"
+
+        "📚 *Conclusión*\n"
+        "[]\n\n"
 
         "REGLAS:\n"
         "- Idioma: Español Profesional.\n"
         "- Basa tu análisis SOLO en el texto proporcionado.\n"
-        "- Máximo 1500 caracteres."
+        "- Máximo 1800 caracteres."
     )
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -79,7 +106,7 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
         "model": "llama-3.3-70b-versatile",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.6,
-        "max_tokens": 1000
+        "max_tokens": 2000
     }
 
     try:

@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 import time 
 import uuid # Para generar IDs únicos si es necesario
 import openpyxl
-from utils.logger import save_log_to_disk
+from utils.logger import logger
 from core.config import (
     USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, 
     PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH, 
@@ -25,7 +25,7 @@ def inicializar_archivos():
                 json.dump({}, f, indent=4)
             add_log_line(f"✅ Archivo de historial de alertas creado en: {CUSTOM_ALERT_HISTORY_PATH}")
     except Exception as e:
-        add_log_line(f"❌ ERROR al inicializar el archivo de historial de alertas: {e}")
+        logger.error(f"❌ ERROR al inicializar el archivo de historial de alertas: {e}")
 
     try:
         if not os.path.exists(HBD_THRESHOLDS_PATH):
@@ -34,7 +34,7 @@ def inicializar_archivos():
                 json.dump(default_thresholds, f, indent=4)
             add_log_line(f"✅ Archivo de umbrales HBD creado en: {HBD_THRESHOLDS_PATH}")
     except Exception as e:
-        add_log_line(f"❌ ERROR al inicializar umbrales HBD: {e}")
+        logger.error(f"❌ ERROR al inicializar umbrales HBD: {e}")
 
 
 MAX_HISTORY_ENTRIES = 2 # Limita el archivo para que no crezca indefinidamente
@@ -53,7 +53,7 @@ def save_hbd_history(history):
         with open(HBD_HISTORY_PATH, "w", encoding='utf-8') as f:
             json.dump(history, f, indent=4)
     except Exception as e:
-        print(f"Error al guardar el historial de HBD: {e}") # O usar add_log_line
+        logger.error(f"Error al guardar el historial de HBD: {e}")
 
 def leer_precio_anterior_alerta():
     history = load_hbd_history()
@@ -74,7 +74,7 @@ def guardar_precios_alerta(precios):
     if len(history) > MAX_HISTORY_ENTRIES:
         history = history[-MAX_HISTORY_ENTRIES:]
     save_hbd_history(history)
-    add_log_line("✅ Precios de alerta guardados en hbd_price_history.json")
+    logger.info("✅ Precios de alerta guardados en hbd_price_history.json")
 
 def add_log_line(linea):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -82,7 +82,7 @@ def add_log_line(linea):
     if len(LOG_LINES) > LOG_MAX:
         del LOG_LINES[0]
     print(LOG_LINES[-1])
-    save_log_to_disk(linea)
+    logger.info(linea)
 
 # === FUNCIONES DE UMBRALES HBD ===
 def load_hbd_thresholds():
@@ -99,7 +99,7 @@ def save_hbd_thresholds(thresholds):
         with open(HBD_THRESHOLDS_PATH, "w", encoding='utf-8') as f:
             json.dump(thresholds, f, indent=4, sort_keys=True)
     except Exception as e:
-        add_log_line(f"Error al guardar umbrales HBD: {e}")
+        logger.error(f"Error al guardar umbrales HBD: {e}")
 
 def modify_hbd_threshold(price: float, action: str):
     thresholds = load_hbd_thresholds()
@@ -144,7 +144,7 @@ def modify_hbd_threshold(price: float, action: str):
         return False, "Acción desconocida"
 
     save_hbd_thresholds(thresholds)
-    add_log_line(msg)
+    logger.info(msg)
     return True, msg
 
 def load_last_prices_status():
@@ -161,7 +161,7 @@ def save_last_prices_status(data: dict):
         with open(LAST_PRICES_PATH, "w", encoding='utf-8') as f:
             json.dump(data, f, indent=4)
     except Exception as e:
-        add_log_line(f"❌ Error guardando last_prices.json: {e}")
+        logger.error(f"❌ Error guardando last_prices.json: {e}")
 
 def cargar_custom_alert_history():
     try:
@@ -178,7 +178,7 @@ def guardar_custom_alert_history(history_data: dict):
         with open(CUSTOM_ALERT_HISTORY_PATH, 'w', encoding='utf-8') as f:
             json.dump(history_data, f, indent=4)
     except Exception as e:
-        add_log_line(f"❌ ERROR al guardar el historial de alertas: {e}")
+        logger.error(f"❌ ERROR al guardar el historial de alertas: {e}")
 
 def delete_all_alerts(user_id: int) -> bool:
     user_alerts = get_user_alerts(user_id)
@@ -232,7 +232,7 @@ def guardar_usuarios(usuarios_data=None):
             json.dump(_USUARIOS_CACHE, f, indent=4)
         os.replace(temp_path, USUARIOS_PATH)
     except Exception as e:
-        add_log_line(f"❌ Error al guardar usuarios: {e}")
+        logger.error(f"❌ Error al guardar usuarios: {e}")
 
 # --- FASE 1: NUEVAS FUNCIONES DE SUSCRIPCIÓN Y LÍMITES ---
 def obtener_datos_usuario_seguro(chat_id):
@@ -470,7 +470,7 @@ def add_subscription_days(chat_id, sub_type, days=30, quantity=0):
             
         subs[sub_type]['active'] = True
         subs[sub_type]['expires'] = new_exp.strftime('%Y-%m-%d %H:%M:%S')
-        add_log_line(f"💰 Usuario {chat_id} compró {sub_type}. Expira: {subs[sub_type]['expires']}")
+        logger.info(f"💰 Usuario {chat_id} compró {sub_type}. Expira: {subs[sub_type]['expires']}")
 
     elif sub_type in ['coins_extra', 'alerts_extra']:
         subs[sub_type]['qty'] += quantity
@@ -482,7 +482,7 @@ def add_subscription_days(chat_id, sub_type, days=30, quantity=0):
             new_exp = now + timedelta(days=days)
             
         subs[sub_type]['expires'] = new_exp.strftime('%Y-%m-%d %H:%M:%S')
-        add_log_line(f"💰 Usuario {chat_id} añadió +{quantity} a {sub_type}.")
+        logger.info(f"💰 Usuario {chat_id} añadió +{quantity} a {sub_type}.")
 
     guardar_usuarios(usuarios)
 # ------------------------------------------------------------------
@@ -514,7 +514,7 @@ def save_price_alerts(alerts):
         with open(PRICE_ALERTS_PATH, "w") as f:
             json.dump(alerts, f, indent=4)
     except Exception as e:
-        add_log_line(f"Error al guardar alertas de precio: {e}")
+        logger.error(f"Error al guardar alertas de precio: {e}")
 
 def add_price_alert(user_id, coin, target_price):
     alerts = load_price_alerts()

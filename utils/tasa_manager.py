@@ -3,7 +3,7 @@
 import os
 import requests
 import json
-from utils.logger import save_log_to_disk
+from utils.logger import logger
 from utils.file_manager import add_log_line
 from core.config import ELTOQUE_HISTORY_PATH, ELTOQUE_API_KEY, DATA_DIR
 
@@ -25,7 +25,7 @@ def save_eltoque_history(tasas_dict: dict):
         with open(ELTOQUE_HISTORY_PATH, "w", encoding='utf-8') as f:
             json.dump(tasas_dict, f, indent=4)
     except Exception as e:
-        add_log_line(f"❌ Error al guardar el historial de ElToque: {e}")
+        logger.error(f"❌ Error al guardar el historial de ElToque: {e}")
 
 # --- FUNCIONES BCC (NUEVAS) ---
 def load_bcc_history():
@@ -44,7 +44,7 @@ def save_bcc_history(tasas_dict: dict):
         with open(BCC_HISTORY_PATH, "w", encoding='utf-8') as f:
             json.dump(tasas_dict, f, indent=4)
     except Exception as e:
-        add_log_line(f"❌ Error al guardar historial BCC: {e}")
+        logger.error(f"❌ Error al guardar historial BCC: {e}")
 
 # --- FUNCIONES CADECA (NUEVAS) ---
 def load_cadeca_history():
@@ -63,7 +63,7 @@ def save_cadeca_history(tasas_dict: dict):
         with open(CADECA_HISTORY_PATH, "w", encoding='utf-8') as f:
             json.dump(tasas_dict, f, indent=4)
     except Exception as e:
-        add_log_line(f"❌ Error al guardar historial CADECA: {e}")
+        logger.error(f"❌ Error al guardar historial CADECA: {e}")
 
 # Funciones para obtener datos de CoinMarketCap y ElToque
 def obtener_tasas_eltoque():

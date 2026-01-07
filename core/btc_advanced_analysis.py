@@ -279,10 +279,10 @@ class BTCAdvancedAnalyzer:
             'P': p,
             'R1': p + (rango * 0.382),
             'R2': p + (rango * 0.618),
-            'R3': p + (rango * 1.000),
+            'R3': p + (rango * 1.272),
             'S1': p - (rango * 0.382),
             'S2': p - (rango * 0.618),
-            'S3': p - (rango * 1.000),
+            'S3': p - (rango * 1.272),
             'FIB_618': fib_618,
             'KIJUN': kijun,
             'atr': self.df.iloc[-1].get('ATR', 0)
