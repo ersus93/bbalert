@@ -62,6 +62,7 @@ class Logger:
         
         # Configuración inicial
         self._setup_logger()
+        sys.excepthook = self._handle_unhandled_exception
 
     def _setup_logger(self):
         """Configura los handlers (Consola y Archivo)."""
@@ -99,6 +100,45 @@ class Logger:
             retention="30 days",
             encoding="utf-8"
         )
+
+    def _handle_unhandled_exception(self, exc_type, exc_value, exc_traceback):
+        """
+        Intercepta errores no controlados (los que salen en consola) 
+        y los registra limpiamente en el log antes de que el bot muera.
+        """
+        # Ignorar interrupciones de teclado (Ctrl+C) para permitir salir limpiamente
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        # 1. Extraer la información precisa de dónde ocurrió el error
+        # traceback.extract_tb devuelve una lista de 'Frames'. El último es el del error.
+        tb_summary = traceback.extract_tb(exc_traceback)
+        
+        if tb_summary:
+            last_frame = tb_summary[-1]
+            file_name = os.path.basename(last_frame.filename)
+            line_no = last_frame.lineno
+            func_name = last_frame.name
+            code_line = last_frame.line
+        else:
+            file_name = "Desconocido"
+            line_no = "?"
+            func_name = "?"
+            code_line = "No info"
+
+        # 2. Crear un mensaje visualmente limpio para el Log
+        header_msg = (
+            f"🛑 CRASH NO CONTROLADO DETECTADO\n"
+            f"   📂 Archivo: {file_name} | Línea: {line_no}\n"
+            f"   ⚙️ Función: {func_name}\n"
+            f"   👉 Código:  {code_line}\n"
+            f"   ❌ Error:   {exc_type.__name__}: {str(exc_value)}"
+        )
+
+        # 3. Registrar usando tu método existente (que ya adjunta el traceback completo al final)
+        # Pasamos 'exc_value' (la excepción real) para que se guarde el stack trace completo en el archivo
+        self.error(header_msg, error=exc_value)
 
     def _format_clean_traceback(self, error: Exception) -> str:
         """Limpia el traceback para mostrar solo lo relevante de TU código."""

@@ -608,9 +608,8 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if _get_logs_data_ref:
             log_data_full = _get_logs_data_ref()
             if log_data_full:
-                try:
-                    timestamp_ms_part = log_data_full[-1].split(" | ")[0]
-                    timestamp_part = timestamp_ms_part.split("[")[1].split("]")[0].strip()
+                try:                    
+                    timestamp_part = log_data_full[-1].split(" | ")[0].strip()
                     ultima_actualizacion = f"{timestamp_part} UTC"
                 except Exception:
                     pass
@@ -664,21 +663,38 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 2. Extraer las últimas N líneas
     log_data_n_lines = log_data_full[-n_lineas:] if log_data_full else []
     
-    # (Esta es tu limpieza de logs, que ya estaba bien)
-    log_lines_cleaned = [
-        line.replace("_", " ").replace("*", "#").replace("`", "'")
-            .replace("[", "(").replace("]", ")")
-        for line in log_data_n_lines
-    ]
+    # --- NUEVA LÓGICA VISUAL CON EMOJIS ---
+    log_lines_cleaned = []
+    for line in log_data_n_lines:
+        # Detectar nivel de log y asignar emoji
+        line_upper = line.upper()
+        if 'ERROR' in line_upper:
+            emoji = "🔴"
+        elif 'WARNING' in line_upper:
+            emoji = "🟡"
+        elif 'INFO' in line_upper:
+            emoji = "🟢"
+        elif 'DEBUG' in line_upper:
+            emoji = "🔵"
+        elif 'CRITICAL' in line_upper: # Añadido por si acaso
+            emoji = "🔥"
+        else:
+            emoji = "⚪"
+
+        # Limpieza de caracteres para Markdown (Tu lógica original)
+        # Reemplazamos caracteres que rompen el formato MD dentro del bloque de código
+        clean_line = line.replace("_", " ").replace("*", "#").replace("`", "'").replace("[", "(").replace("]", ")")
+        
+        # Combinamos emoji + línea limpia
+        log_lines_cleaned.append(f"{emoji} {clean_line}")
 
     log_str = "\n".join(log_lines_cleaned)
 
     # Extraer la marca de tiempo de la última línea del log
     ultima_actualizacion = "N/A"
     if log_data_full: 
-        try:
-            timestamp_ms_part = log_data_full[-1].split(" | ")[0] 
-            timestamp_part = timestamp_ms_part.split("[")[1].split("]")[0].strip()
+        try:            
+            timestamp_part = log_data_full[-1].split(" | ")[0].strip()
             ultima_actualizacion = f"{timestamp_part} UTC"
         except Exception:
             pass
