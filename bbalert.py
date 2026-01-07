@@ -27,6 +27,9 @@ from handlers.admin import users, logs_command, set_admin_util, set_logs_util, m
 from handlers.year_handlers import year_command, year_sub_callback
 from core.year_loop import year_progress_loop
 
+from handlers.reminders import rec_command, reminders_conv_handler, reminders_callback_handler
+from core.reminders_loop import reminders_monitor_loop
+from utils.logger import logger
 
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command,
@@ -69,6 +72,10 @@ async def post_init(app: Application):
     # Progreso Anual 
     asyncio.create_task(year_progress_loop(app.bot))
     add_log_line("✅ Bucle de Progreso Anual iniciado.")
+
+    # Iniciando recordatorios
+    asyncio.create_task(reminders_monitor_loop(app.bot))
+    logger.info("✅ Bucle de recordatorios iniciado.")
 
 
     # Iniciar bucle de clima
@@ -224,6 +231,8 @@ def main():
     # 2️⃣ ConversationHandler de Mensajes Admin
     app.add_handler(ms_conversation_handler)
 
+    app.add_handler(reminders_conv_handler)
+
     # ============================================
     # Comandos generales
     # ============================================
@@ -278,6 +287,8 @@ def main():
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
     
+    app.add_handler(CommandHandler("rec", rec_command))
+
     # ============================================
     # Handlers de BTC y VALERTS (listas)
     # ============================================
@@ -302,6 +313,7 @@ def main():
     app.add_handler(CommandHandler("y", year_command))
     
     # Callbacks de Trading
+    app.add_handler(CallbackQueryHandler(reminders_callback_handler, pattern="^rem_"))
     app.add_handler(CallbackQueryHandler(year_sub_callback, pattern="^year_sub_"))
     app.add_handler(CallbackQueryHandler(ta_switch_callback, pattern="^ta_switch\\|"))
     app.add_handler(CallbackQueryHandler(ai_analysis_callback, pattern="^ai_analyze\\|"))

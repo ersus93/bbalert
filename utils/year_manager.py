@@ -35,11 +35,20 @@ def add_quote(text):
         return True
     return False
 
-def get_random_quote():
+def get_daily_quote():
     quotes = load_quotes()
     if not quotes:
         return "⏳ El tiempo vuela, pero tú eres el piloto."
-    return random.choice(quotes)
+    
+    # Obtenemos el número de día del año (ej: 1 de Enero es 1, 5 de Febrero es 36, etc.)
+    day_of_year = datetime.now().timetuple().tm_yday
+    
+    # Calculamos el índice matemático.
+    # (day_of_year - 1) ajusta para que el día 1 sea el índice 0 (primera frase).
+    # % len(quotes) asegura que si se acaban las frases, vuelva a empezar desde la primera.
+    quote_index = (day_of_year - 1) % len(quotes)
+    
+    return quotes[quote_index]
 
 # --- GESTIÓN DE SUSCRIPCIONES ---
 
@@ -117,7 +126,7 @@ def get_simple_year_string():
 def get_detailed_year_message():
     """Mensaje completo y divertido para el comando /y o el loop."""
     data = get_year_progress_data()
-    quote = get_random_quote()
+    quote = get_daily_quote()
     bar = generate_progress_bar(data['percent'], length=18)
     
     # Textos dinámicos según el porcentaje
@@ -137,7 +146,7 @@ def get_detailed_year_message():
         f"🔚 Faltan *{data['days_left']} días* para {data['year']+1}.\n"
         f"💭 _{status_mood}_\n"
         f"———————————————————\n"
-        f"💡 *Frase aleatoria:*\n"
+        f"💡 *Frase Del Día:*\n"
         f"“{quote}”"
     )
     return msg
