@@ -92,7 +92,7 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
         "REGLAS:\n"
         "- Idioma: Español Profesional.\n"
         "- Basa tu análisis SOLO en el texto proporcionado.\n"
-        "- Máximo 1800 caracteres."
+        "- Máximo 1500 caracteres."
     )
 
     url = "https://api.groq.com/openai/v1/chat/completions"
