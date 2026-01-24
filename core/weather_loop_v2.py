@@ -97,6 +97,19 @@ async def weather_alerts_loop(bot: Bot):
                 if not current or not forecast:
                     continue
 
+                # --- 1.1 CÁLCULOS DE TIEMPO (CRUCIAL PARA LA LÓGICA) ---
+                # Calculamos esto ANTES de verificar alertas para saber si es de día o noche
+                tz_offset = current.get("timezone", 0)
+                utc_now = datetime.now(timezone.utc)
+                local_now = utc_now + timedelta(seconds=tz_offset)
+                
+                # Convertir amanecer/atardecer a objetos datetime conscientes de zona horaria
+                sunrise = datetime.fromtimestamp(current['sys']['sunrise'], timezone.utc) + timedelta(seconds=tz_offset)
+                sunset = datetime.fromtimestamp(current['sys']['sunset'], timezone.utc) + timedelta(seconds=tz_offset)
+
+                # Flag para saber si hay sol (para UV y temperaturas)
+                is_daytime = sunrise < local_now < sunset
+
                 # ==========================================================
                 # 2. ALERTAS DE EMERGENCIA (Lluvia, Tormenta, UV)
                 # ==========================================================
@@ -135,16 +148,17 @@ async def weather_alerts_loop(bot: Bot):
                         await _enviar_seguro(bot, user_id, msg)
                         update_last_alert_time(user_id, 'storm')
 
-                # --- ALERTA 3: UV ALTO ---
-                # Usamos uv_val directamente (ya es un float)
-                if alert_types.get('uv_high', True) and uv_val >= 6 and should_send_alert(user_id, 'uv_high', cooldown_hours=6):
-                    msg = _(f"☀️ *Alerta UV Alto en {city}*\n—————————————————\nÍndice actual: *{uv_val:.1f}*\n🧴 Usa protector solar si vas a salir.", user_id)
-                    msg += "" + get_random_ad_text()
-                    await _enviar_seguro(bot, user_id, msg)
-                    update_last_alert_time(user_id, 'uv_high')
+                # --- ALERTA 3: UV ALTO (Solo si es de día) ---
+                # Usamos uv_val y verificamos que haya sol (is_daytime)
+                if alert_types.get('uv_high', True) and is_daytime and uv_val >= 6:
+                    if should_send_alert(user_id, 'uv_high', cooldown_hours=6):
+                        msg = _(f"☀️ *Alerta UV Alto en {city}*\n—————————————————\nÍndice actual: *{uv_val:.1f}*\n🧴 Usa protector solar si vas a salir.", user_id)
+                        msg += "" + get_random_ad_text()
+                        await _enviar_seguro(bot, user_id, msg)
+                        update_last_alert_time(user_id, 'uv_high')
 
                 # ==========================================================
-                # 3. RESUMEN DIARIO (Corregido y Optimizado)
+                # 3. RESUMEN DIARIO
                 # ==========================================================
                 
                 alert_time_conf = sub.get('alert_time', '07:00')
@@ -153,13 +167,8 @@ async def weather_alerts_loop(bot: Bot):
                 except:
                     target_hour = 7
                 
-                # Calcular hora local
-                utc_now = datetime.utcnow()
-                tz_offset = current.get("timezone", 0)
-                local_now = utc_now + timedelta(seconds=tz_offset)
-                
-                # CONDICIÓN: Hora coincide + Minutos dentro de rango + NO se ha enviado hoy
-                # Importante: should_send_alert con 20h de cooldown evita duplicados si el loop corre rápido
+                # Usamos local_now que calculamos al principio del bucle
+                # CONDICIÓN: Hora coincide + Minutos dentro de rango
                 is_time_window = (local_now.hour == target_hour and 0 <= local_now.minute < 30)
                 
                 if is_time_window and alert_types.get('daily_summary', True):

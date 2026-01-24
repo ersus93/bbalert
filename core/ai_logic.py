@@ -22,21 +22,6 @@ def clean_data(data):
     return cleaned
 
 
-# # --- INICIO FORMATEO MARKDOWN A HTML TELEGRAM ---
-# # 1. Negrita: **texto** -> <b>texto</b>
-# content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)                        
-# # 2. Encabezados: ### Texto -> <b>Texto</b> (Telegram no soporta h1-h3, usamos negrita)
-# content = re.sub(r'#{1,6}\s+(.*?)$', r'<b>\1</b>', content, flags=re.MULTILINE)                        
-# # 3. Listas: * item o - item -> • item (Mejora visual)
-# content = re.sub(r'(?m)^[\*\-]\s+', '• ', content)                        
-#  4. Código inline: `texto` -> <code>texto</code>
-# content = re.sub(r'`([^`\n]+)`', r'<code>\1</code>', content)                        
-# # 5. Bloques de código: ```python ... ``` -> <pre><code> ... </code></pre>
-# # Nota: Esto es básico. Si el modelo envía ```python, Telegram a veces requiere <pre><code class="language-python">
-# # Para simplificar y evitar errores de parseo, usamos pre+code genérico:
-# content = re.sub(r'```(\w+)?\n(.*?)```', r'<pre><code>\2</code></pre>', content, flags=re.DOTALL)
-# # --- FIN FORMATEO ---
-
 def escape_markdown(text):
     """
     Escapa o elimina caracteres que rompen el ParseMode.MARKDOWN de Telegram.
@@ -92,7 +77,7 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
         "REGLAS:\n"
         "- Idioma: Español Profesional.\n"
         "- Basa tu análisis SOLO en el texto proporcionado.\n"
-        "- Máximo 1500 caracteres."
+        "- Limita tu respuesta a máximo 1500 caracteres."
     )
 
     url = "https://api.groq.com/openai/v1/chat/completions"
@@ -103,10 +88,10 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
     }
     
     payload = {
-        "model": "llama-3.3-70b-versatile",
+        "model": "openai/gpt-oss-20b",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.6,
-        "max_tokens": 2000
+        "max_tokens": 1600
     }
 
     try:
@@ -157,7 +142,7 @@ def get_groq_weather_advice(weather_report_text):
     }
     
     payload = {
-        "model": "llama-3.3-70b-versatile", # O el modelo que prefieras usar
+        "model": "openai/gpt-oss-20b", # O el modelo que prefieras usar
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.5, # Un poco más creativo que en trading, pero no mucho
         "max_tokens": 1000

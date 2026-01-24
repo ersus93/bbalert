@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
 from telegram.constants import ParseMode
-from utils.file_manager import add_log_line, cargar_usuarios, guardar_usuarios
+from utils.file_manager import cargar_usuarios, guardar_usuarios
 from core.btc_loop import btc_monitor_loop, set_btc_sender
 from handlers.btc_handlers import btc_handlers_list
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, VERSION, PID, PYTHON_VERSION, STATE
@@ -23,13 +23,12 @@ from core.global_disasters_loop import global_disasters_loop
 from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
-
 from handlers.year_handlers import year_command, year_sub_callback
 from core.year_loop import year_progress_loop
 
 from handlers.reminders import rec_command, reminders_conv_handler, reminders_callback_handler
 from core.reminders_loop import reminders_monitor_loop
-from utils.logger import logger
+
 
 from handlers.user_settings import (
     mismonedas, parar, cmd_temp, set_monedas_command,
@@ -67,27 +66,26 @@ async def post_init(app: Application):
     Inicia los bucles de fondo y programa las alertas para todos los usuarios existentes.
     """
     
-    add_log_line("🤖 Bot inicializado. Iniciando tareas de fondo...")
+    logger.info("🤖 Bot inicializado: Iniciando tareas de fondo...")
 
     # Progreso Anual 
     asyncio.create_task(year_progress_loop(app.bot))
-    add_log_line("✅ Bucle de Progreso Anual iniciado.")
+    logger.info("✅ Bucle de Progreso Anual iniciado.")
 
     # Iniciando recordatorios
     asyncio.create_task(reminders_monitor_loop(app.bot))
     logger.info("✅ Bucle de recordatorios iniciado.")
 
-
     # Iniciar bucle de clima
     asyncio.create_task(weather_alerts_loop(app.bot))
-    add_log_line("✅ Bucle de alertas de clima iniciado.")
+    logger.info("✅ Bucle de alertas de clima iniciado.")
     asyncio.create_task(global_disasters_loop(app.bot))
-    add_log_line("✅ Bucle de alertas de desastres globales iniciado.")
+    logger.info("✅ Bucle de alertas de desastres globales iniciado.")
    
     # 1. Iniciar los bucles de fondo globales
     asyncio.create_task(alerta_loop(app.bot))
     asyncio.create_task(check_custom_price_alerts(app.bot))
-    add_log_line("✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.")
+    logger.info("✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.")
 
     # 2. Programar las alertas periódicas para cada usuario registrado
     usuarios = cargar_usuarios()
@@ -97,32 +95,32 @@ async def post_init(app: Application):
             intervalo_h = data.get('intervalo_alerta_h', 2.5)
             programar_alerta_usuario(int(user_id), intervalo_h)
     else:
-        add_log_line("👥 No hay usuarios registrados. Esperando a que se unan.")
+        logger.info("👥 No hay usuarios registrados. Esperando a que se unan.")
     
-    add_log_line("✅ Todas las tareas de fondo han sido iniciadas.")
+    logger.info("✅ Todas las tareas de fondo han sido iniciadas.")
 
-    # try:
-    #     startup_message_template = _(
-    #         "🍞 *¡Llego el pan a la bodega!* 🍞\n————————————————————\n\n"
-    #         "🤖 `BitBread Alert v{version}`\n"
-    #         "🪪 `PID: {pid}`\n"
-    #         "🐍 `Python: v{python_version}`\n\n————————————————————\n"
-    #         "✅ Ácido y aplastado, pero comible. 👍.\n"
-    #         "🫣 ¡Vamos por mas!",
-    #         None
-    #     )
-    #     startup_message = startup_message_template.format(
-    #         version=VERSION,
-    #         pid=PID,
-    #         python_version=PYTHON_VERSION
-    #     )
+    try:
+        startup_message_template = _(
+            "🍞 *¡Llego el pan a la bodega!* 🍞\n————————————————————\n\n"
+            "🤖 `BitBread Alert v{version}`\n"
+            "🪪 `PID: {pid}`\n"
+            "🐍 `Python: v{python_version}`\n\n————————————————————\n"
+            "✅ Ácido y aplastado, pero comible. 👍.\n"
+            "🫣 ¡Vamos por mas!",
+            None
+        )
+        startup_message = startup_message_template.format(
+            version=VERSION,
+            pid=PID,
+            python_version=PYTHON_VERSION
+        )
 
-    #     for admin_id in ADMIN_CHAT_IDS:
-    #         await app.bot.send_message(chat_id=admin_id, text=startup_message, parse_mode=ParseMode.MARKDOWN)
+        for admin_id in ADMIN_CHAT_IDS:
+            await app.bot.send_message(chat_id=admin_id, text=startup_message, parse_mode=ParseMode.MARKDOWN)
 
-    #     add_log_line("📬 Notificación de inicio enviada a los administradores.")
-    # except Exception as e:
-    #     add_log_line(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
+        logger.info("📬 Notificación de inicio enviada a los administradores.")
+    except Exception as e:
+        logger.error(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
         
     # Inicio de Loops de Monitoreo (BTC y VALERTS)
     asyncio.create_task(btc_monitor_loop(app.bot))
@@ -169,7 +167,7 @@ def main():
                 error_str = str(e)
                 if "parse entities" in error_str or "can't find end" in error_str:
                     try:
-                        add_log_line(f"⚠️ Formato Markdown fallido para {chat_id}. Reenviando como texto plano.")
+                        logger.warning(f"⚠️ Formato Markdown fallido para {chat_id}. Reenviando como texto plano.")
                         if photo:
                             await app.bot.send_photo(
                                 chat_id=int(chat_id),
@@ -187,24 +185,24 @@ def main():
                     except Exception as e2:
                         # Si falla incluso en texto plano, entonces sí es un error real
                         fallidos[chat_id] = str(e2)
-                        add_log_line(f"❌ Fallo definitivo al enviar a {chat_id}: {e2}")
+                        logger.error(f"❌ Fallo definitivo al enviar a {chat_id}: {e2}")
                 else:
                     # Otros errores BadRequest (ej: chat not found)
                     fallidos[chat_id] = error_str
-                    add_log_line(f"❌ Error BadRequest en {chat_id}: {error_str}")
+                    logger.error(f"❌ Error BadRequest en {chat_id}: {error_str}")
 
             except Exception as e:
                 # Errores generales (Bloqueos, red, etc)
                 error_str = str(e)
                 fallidos[chat_id] = error_str
-                add_log_line(f"❌ Fallo al enviar a {chat_id}: {error_str}")
+                logger.error(f"❌ Fallo al enviar a {chat_id}: {error_str}")
 
                 if "Chat not found" in error_str or "bot was blocked" in error_str:
                     if usuarios_actualizados is None:
                         usuarios_actualizados = cargar_usuarios()
                     if chat_id in usuarios_actualizados:
                         del usuarios_actualizados[chat_id]
-                        add_log_line(f"🗑️ Usuario {chat_id} ha bloqueado el bot. Eliminado de la lista.")
+                        logger.info(f"🗑️ Usuario {chat_id} ha bloqueado el bot. Eliminado de la lista.")
 
         if usuarios_actualizados is not None:
             guardar_usuarios(usuarios_actualizados)
@@ -252,7 +250,6 @@ def main():
     # Comandos de Trading/Cripto
     # ============================================
     app.add_handler(CommandHandler("mk", mk_command))
-    app.add_handler(CommandHandler("ta", ta_command))
     app.add_handler(CommandHandler("graf", graf_command))
     app.add_handler(CommandHandler("p", p_command))
     app.add_handler(CommandHandler("tasa", eltoque_command))
@@ -286,9 +283,10 @@ def main():
     app.add_handler(CommandHandler("shop", shop_command))
     app.add_handler(PreCheckoutQueryHandler(precheckout_callback))
     app.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback))
+
     
     app.add_handler(CommandHandler("rec", rec_command))
-
+    
     # ============================================
     # Handlers de BTC y VALERTS (listas)
     # ============================================
@@ -308,7 +306,6 @@ def main():
                 app.add_handler(handler)
         else:
             app.add_handler(weather_callback_handlers)
-    
 
     app.add_handler(CommandHandler("y", year_command))
     

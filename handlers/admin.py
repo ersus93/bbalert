@@ -622,7 +622,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• Estado: {estado} 👌\n"
             "• Última Actualización: {ultima_actualizacion} 🕒 \n"
             "—————————————————\n\n"
-            "_Ya, eso es todo lo que puedes ver 🙂👍_",
+            "_Ya, eso es todo lo que puedes ver mi tanke 🙂👍_",
             current_chat_id
         )
         

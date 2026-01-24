@@ -214,7 +214,7 @@ async def btc_monitor_loop(bot: Bot):
                     # --- REPORTE DE SESIÓN (Visualización Inicial) ---
                     if _enviar_msg_func:
                         msg_session = (
-                            f"🔄 *Actualización de Estructura ({interval.upper()})*\n"
+                            f"🔄 *Actualización de Estructura BTC ({interval.upper()})*\n"
                             f"—————————————————\n"
                             f"{status_icon} *Estado:* _{status_msg}_\n\n"
                             f"📊 *Nuevos Niveles Calculados:*\n"
@@ -287,7 +287,7 @@ async def btc_monitor_loop(bot: Bot):
                 elif current_price > levels['FIB_618'] * (1 + threshold) and "FIB_618_UP" not in alerted:
                     trigger_level = "FIB_618_UP"
                     alert_data = {
-                        'emoji': '🟡', 'titulo': f'Golden Pocket Recuperado ({interval.upper()})',
+                        'emoji': '🟡', 'titulo': f'BTC Golden Pocket Recuperado ({interval.upper()})',
                         'descripcion': 'El precio supera el nivel crítico 61.8% Fibonacci. Señal de reversión alcista.',
                         'icon_nivel': '🔱', 'icon_precio': '💰', 'icon_target': '🎯', 'icon_rec': '💎',
                         'target_siguiente': levels['R1'],
@@ -338,7 +338,7 @@ async def btc_monitor_loop(bot: Bot):
                 elif current_price < levels['FIB_618'] * (1 - threshold) and "FIB_618_DOWN" not in alerted:
                     trigger_level = "FIB_618_DOWN"
                     alert_data = {
-                        'emoji': '💀', 'titulo': f'Pérdida Golden Pocket ({interval.upper()})',
+                        'emoji': '💀', 'titulo': f'BTC Pérdida Golden Pocket ({interval.upper()})',
                         'descripcion': 'El precio pierde el 61.8% Fibonacci. Compradores perdiendo control.',
                         'icon_nivel': '🔱', 'icon_precio': '💸', 'icon_target': '🔽', 'icon_rec': '🆘',
                         'target_siguiente': levels['S2'],

@@ -139,13 +139,13 @@ def get_detailed_year_message():
 
     msg = (
         f"🗓 *ESTADO DEL AÑO {data['year']}*\n"
-        f"———————————————————\n"
+        f"•••\n"
         f"📆 *Fecha:* {data['date_str']}\n"
         f"⏳ *Progreso:* `{data['percent']:.2f}%`\n"
         f"📊 `{bar}`\n\n"
         f"🔚 Faltan *{data['days_left']} días* para {data['year']+1}.\n"
         f"💭 _{status_mood}_\n"
-        f"———————————————————\n"
+        f"•••\n"
         f"💡 *Frase Del Día:*\n"
         f"“{quote}”"
     )
