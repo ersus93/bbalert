@@ -1,0 +1,35 @@
+[Unit]
+Description=BBAlert Telegram Bot - Production Environment
+Documentation=https://github.com/ersus93/bbalert
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=USUARIO
+Group=USUARIO
+WorkingDirectory=/home/USUARIO/bbalert-prod/bbalert
+
+# Comando de ejecución
+ExecStart=/home/USUARIO/bbalert-prod/venv/bin/python bbalert.py
+
+# Variables de entorno
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/home/USUARIO/bbalert-prod/venv/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# Reinicio automático
+Restart=always
+RestartSec=10
+
+# Configuración de logs
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bbalert-prod
+
+# Límites de recursos
+LimitNOFILE=65536
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
