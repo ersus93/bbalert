@@ -19,3 +19,4 @@ lxml
 brotli
 beautifulsoup4
 psutil
+loguru
