@@ -158,24 +158,28 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     
     if not context.args:
-        await update.message.reply_text(
-            _("⚠️ *Formato incorrecto*.\nUso: `/p <MONEDA>` (ej: `/p BTC`)", user_id),
-            parse_mode=ParseMode.MARKDOWN
-        )
+        error_msg = _("⚠️ *Formato incorrecto*.\nUso: `/p <MONEDA>` (ej: `/p BTC`)", user_id)
+        if update.callback_query:
+            await update.callback_query.edit_message_text(error_msg, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(error_msg, parse_mode=ParseMode.MARKDOWN)
         return
 
     moneda = context.args[0].upper()
     
     # Notificar que estamos 'escribiendo' para dar feedback visual si tarda la API
-    await update.message.reply_chat_action("typing")
+    # Solo si es un mensaje nuevo (no un callback de refresh)
+    if update.message:
+        await update.message.reply_chat_action("typing")
     
     datos = obtener_datos_moneda(moneda)
 
     if not datos:
-        await update.message.reply_text(
-            _("😕 No se pudieron obtener los datos para *{moneda}*.", user_id).format(moneda=moneda),
-            parse_mode=ParseMode.MARKDOWN
-        )
+        error_msg = _("😕 No se pudieron obtener los datos para *{moneda}*.", user_id).format(moneda=moneda)
+        if update.callback_query:
+            await update.callback_query.edit_message_text(error_msg, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(error_msg, parse_mode=ParseMode.MARKDOWN)
         return
 
     # Helper para formatear cambios porcentuales
@@ -228,12 +232,29 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(btn_text, callback_data=f"refresh_{datos['symbol']}")]
     ])
 
-    message = update.message or update.callback_query.message
-    
-    # Enviar o Editar (si viene de un botón refresh)
-    # Nota: Si es nuevo mensaje usa reply_text, si es refresh a veces es mejor editar, 
-    # pero reply_text es más seguro para evitar errores de "mensaje no modificado".
-    await message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    # Detectar si es un callback (refresh) o un comando nuevo
+    # Si es callback, editamos el mensaje existente; si es nuevo, enviamos uno nuevo
+    if update.callback_query:
+        query = update.callback_query
+        try:
+            await query.edit_message_text(
+                mensaje,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=keyboard
+            )
+        except Exception as e:
+            # Si el mensaje no cambió (mismo contenido), Telegram lanza error
+            # En ese caso, simplemente notificamos al usuario
+            if "Message is not modified" in str(e):
+                await query.answer("Los datos ya están actualizados")
+            else:
+                raise
+    else:
+        await update.message.reply_text(
+            mensaje,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboard
+        )
 
 async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
