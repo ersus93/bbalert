@@ -43,8 +43,8 @@ flowchart TB
 | Rama | Propósito | Protección |
 |------|-----------|------------|
 | `main` | Código en producción | Requiere PR aprobado + 1 review |
-| `testing` | Código en staging para pruebas | Requiere PR desde desarrollo |
-| `desarrollo` | Integración de features | Requiere PR desde feature branch |
+| `testing` | Código en staging para pruebas | Requiere PR desde dev |
+| `dev` | Integración de features | Requiere PR desde feature branch |
 | `feature/*` | Desarrollo de nuevas funcionalidades | Sin protección |
 
 ## Estructura del VPS

@@ -960,7 +960,7 @@ git_switch_branch() {
     print_info "Ramas disponibles:"
     echo ""
     
-    BRANCHES=("main" "testing" "desarrollo")
+    BRANCHES=("main" "testing" "dev")
     local i=1
     for branch in "${BRANCHES[@]}"; do
         if [ "$branch" = "$CURRENT_BRANCH" ]; then

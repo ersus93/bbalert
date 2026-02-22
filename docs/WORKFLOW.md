@@ -8,9 +8,9 @@ flowchart TB
         FB[Feature Branch] --> PR1[Pull Request]
     end
     
-    subgraph Rama Desarrollo
-        PR1 --> DES[desarrollo]
-        DES --> |Merge| PR2[Pull Request]
+    subgraph Rama Dev
+        PR1 --> DEV[dev]
+        DEV --> |Merge| PR2[Pull Request]
     end
     
     subgraph Rama Testing
@@ -27,7 +27,7 @@ flowchart TB
     end
     
     style FB fill:#f9f,stroke:#333
-    style DES fill:#bbf,stroke:#333
+    style DEV fill:#bbf,stroke:#333
     style TEST fill:#ff9,stroke:#333
     style MAIN fill:#9f9,stroke:#333
     style VPS1 fill:#fa0,stroke:#333
@@ -39,8 +39,8 @@ flowchart TB
 | Rama | Propósito | Protección |
 |------|-----------|------------|
 | `main` | Código en producción | Requiere PR aprobado + 1 review |
-| `testing` | Código en staging para pruebas | Requiere PR desde desarrollo |
-| `desarrollo` | Integración de features | Requiere PR desde feature branch |
+| `testing` | Código en staging para pruebas | Requiere PR desde dev |
+| `dev` | Integración de features | Requiere PR desde feature branch |
 | `feature/*` | Desarrollo de nuevas funcionalidades | Sin protección |
 
 ## Flujo de Trabajo Paso a Paso
@@ -48,9 +48,9 @@ flowchart TB
 ### 1. Crear una nueva funcionalidad
 
 ```bash
-# Crear rama feature desde desarrollo
-git checkout desarrollo
-git pull origin desarrollo
+# Crear rama feature desde dev
+git checkout dev
+git pull origin dev
 git checkout -b feature/nueva-funcionalidad
 
 # Desarrollar y hacer commits
@@ -61,16 +61,16 @@ git commit -m "feat: agregar nueva funcionalidad"
 git push origin feature/nueva-funcionalidad
 ```
 
-### 2. Merge a desarrollo
+### 2. Merge a dev
 
-1. Crear Pull Request en GitHub: `feature/nueva-funcionalidad` → `desarrollo`
+1. Crear Pull Request en GitHub: `feature/nueva-funcionalidad` → `dev`
 2. Esperar aprobación (si aplica)
 3. Hacer merge del PR
 
 ### 3. Despliegue a testing
 
 ```bash
-# Crear PR: desarrollo → testing
+# Crear PR: dev → testing
 # Hacer merge del PR
 
 # En el VPS
@@ -87,14 +87,14 @@ sudo systemctl restart bbalert-staging
 ### 5. Si hay bugs
 
 ```bash
-# Crear rama fix desde desarrollo
-git checkout desarrollo
+# Crear rama fix desde dev
+git checkout dev
 git checkout -b fix/corregir-bug
 
 # Corregir y hacer commit
 git commit -m "fix: corregir bug encontrado en staging"
 
-# Crear PR a desarrollo y repetir el proceso
+# Crear PR a dev y repetir el proceso
 ```
 
 ### 6. Merge a main (producción)
@@ -112,7 +112,7 @@ sudo systemctl restart bbalert-prod
 
 | Acción | Comando |
 |--------|---------|
-| Crear feature | `git checkout -b feature/nombre desarrollo` |
+| Crear feature | `git checkout -b feature/nombre dev` |
 | Actualizar rama | `git pull origin nombre-rama` |
 | Subir cambios | `git push origin nombre-rama` |
 | Ver estado | `git status` |
