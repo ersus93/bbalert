@@ -11,7 +11,8 @@ load_dotenv('apit.env')
 # --- Credenciales y IDs ---
 TOKEN_TELEGRAM = os.environ.get("TOKEN_TELEGRAM")
 ADMIN_CHAT_IDS_STR = os.environ.get("ADMIN_CHAT_IDS")
-ADMIN_CHAT_IDS = [id.strip() for id in ADMIN_CHAT_IDS_STR.split(',')] if ADMIN_CHAT_IDS_STR else []
+# Convertir a lista de integers para comparaciones correctas
+ADMIN_CHAT_IDS = [int(id.strip()) for id in ADMIN_CHAT_IDS_STR.split(',')] if ADMIN_CHAT_IDS_STR else []
 # --- Claves de API ---
 CMC_API_KEY_ALERTA = os.environ.get("CMC_API_KEY_ALERTA")
 CMC_API_KEY_CONTROL = os.environ.get("CMC_API_KEY_CONTROL")

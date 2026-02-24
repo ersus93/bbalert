@@ -1,12 +1,10 @@
 # handlers/weather.py
 import asyncio
-import requests
 from datetime import datetime, timedelta, timezone
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, MessageHandler, filters, CallbackQueryHandler
 from telegram.constants import ParseMode
 from telegram.error import BadRequest
-from core.config import OPENWEATHER_API_KEY
 from core.ai_logic import get_groq_weather_advice
 from utils.weather_manager import (
     subscribe_user, unsubscribe_user, get_user_subscription, 
@@ -15,7 +13,7 @@ from utils.weather_manager import (
 from core.i18n import _
 from utils.ads_manager import get_random_ad_text
 from utils.file_manager import add_log_line
-from utils.weather_api import get_current_weather, get_forecast, get_uv_index, get_air_quality, reverse_geocode
+from utils.weather_api import get_current_weather, get_forecast, get_uv_index, get_air_quality, reverse_geocode, geocode_location
 
 # Estados para la conversación
 LOCATION_INPUT = range(1)
@@ -70,58 +68,6 @@ def get_weather_emoji(condition):
             return emoji
     return "🌤️"
 
-# --- FUNCIONES API (Helpers) ---
-def get_current_weather(lat, lon):
-    """Obtiene el clima actual."""
-    url = "https://api.openweathermap.org/data/2.5/weather"
-    params = {
-        "lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY,
-        "units": "metric", "lang": "es"
-    }
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        print(f"Error clima actual: {e}")
-        return None
-
-def get_forecast(lat, lon):
-    """Obtiene el pronóstico (para las próximas horas)."""
-    url = "https://api.openweathermap.org/data/2.5/forecast"
-    params = {
-        "lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY,
-        "units": "metric", "lang": "es", "cnt": 5 # Pedimos los siguientes 5 periodos (15 horas aprox)
-    }
-    try:
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except:
-        return None
-
-def get_uv_index(lat, lon):
-    """Obtiene el índice UV."""
-    url = "https://api.openweathermap.org/data/2.5/uvi"
-    params = {"lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY}
-    try:
-        r = requests.get(url, params=params, timeout=5)
-        return r.json().get("value", 0)
-    except:
-        return 0
-    
-def get_air_quality(lat, lon): # <--- NUEVA FUNCIÓN
-    """Obtiene el índice de Calidad del Aire (AQI)."""
-    url = "http://api.openweathermap.org/data/2.5/air_pollution"
-    params = {"lat": lat, "lon": lon, "appid": OPENWEATHER_API_KEY}
-    try:
-        r = requests.get(url, params=params, timeout=5)
-        data = r.json()
-        if data and data['list']:
-            return data['list'][0]['main']['aqi']
-    except:
-        return 0
-
 def get_aqi_text(aqi_value):
     """Traduce el valor numérico de AQI a texto (OpenWeather 1-5)."""
     if aqi_value == 1: return "Excelente"
@@ -131,28 +77,10 @@ def get_aqi_text(aqi_value):
     elif aqi_value == 5: return "Muy Pobre"
     return "No disponible"
 
-def get_location_from_query(query_text):
-    """Geocodificación por texto."""
-    url = "http://api.openweathermap.org/geo/1.0/direct"
-    params = {"q": query_text, "limit": 1, "appid": OPENWEATHER_API_KEY}
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        data = r.json()
-        if data:
-            return {"lat": data[0]["lat"], "lon": data[0]["lon"], "name": data[0]["name"], "country": data[0].get("country", "")}
-    except:
-        pass
-    return None
-
-def geocode_location(query_text):
-    """Alias de get_location_from_query para claridad en otros archivos."""
-    return get_location_from_query(query_text)
+# Alias para compatibilidad con código existente
+get_location_from_query = geocode_location
 
 # --- COMANDOS PRINCIPALES ---
-
-def geocode_location(query_text): # <--- NUEVA FUNCIÓN para uso en loops
-    """Alias de get_location_from_query para claridad en otros archivos."""
-    return get_location_from_query(query_text)
 
 # --- COMANDOS PRINCIPALES ---
 

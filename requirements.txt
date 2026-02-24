@@ -1,6 +1,7 @@
 python-telegram-bot
 python-telegram-bot[job-queue]
 requests
+requests[socks]
 python-dotenv
 openpyxl
 Babel
@@ -10,13 +11,10 @@ pandas
 pandas_ta
 tradingview-ta
 feedparser
-requests
-requests[socks]
 chardet
 aiohttp 
 beautifulsoup4 
 lxml
 brotli
-beautifulsoup4
 psutil
 loguru

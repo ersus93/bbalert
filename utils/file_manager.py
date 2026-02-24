@@ -293,7 +293,7 @@ def check_feature_access(chat_id, feature_type, current_count=None):
     Retorna: (Bool, Mensaje) -> (True, "OK") o (False, "Razón")
     """
     # 1. Los Admins siempre tienen pase VIP (Ilimitado)
-    if str(chat_id) in ADMIN_CHAT_IDS:
+    if chat_id in ADMIN_CHAT_IDS:
         if feature_type == 'temp_min_val': return 0.25, "Admin Mode" # Mínimo flexible
         return True, "Admin Mode"
 
@@ -428,7 +428,7 @@ def check_feature_access(chat_id, feature_type, current_count=None):
 def registrar_uso_comando(chat_id, comando):
     """Incrementa el contador de uso para un comando específico."""
     # Los admins no registran uso (son ilimitados)
-    if str(chat_id) in ADMIN_CHAT_IDS:
+    if chat_id in ADMIN_CHAT_IDS:
         return 
 
     # Aseguramos que la estructura exista antes de escribir
