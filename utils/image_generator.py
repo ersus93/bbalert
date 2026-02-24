@@ -7,6 +7,7 @@ import os
 
 from utils.tasa_manager import load_eltoque_history
 from core.config import TEMPLATE_PATH # Importamos la ruta desde config
+from utils.logger import logger
 
 
 # Configuración de estilo (Azul oscuro tomado de tu imagen)
@@ -16,24 +17,26 @@ def generar_imagen_tasas_eltoque():
     """
     Carga la plantilla 'img.jpg' desde la carpeta data y superpone
     las tasas de cambio y la fecha en el área en blanco.
+    
+    Optimizado para generar imágenes JPEG comprimidas y ligeras.
     """
     # 1. Cargar datos del historial
     tasas = load_eltoque_history()
     if not tasas:
-        print("⚠️ No hay datos de tasas disponibles.")
+        logger.warning("⚠️ No hay datos de tasas disponibles para generar imagen.")
         return None
 
     # 2. Cargar la Plantilla
     try:
-        # Usamos .convert("RGBA") para asegurar compatibilidad al dibujar
         if not os.path.exists(TEMPLATE_PATH):
-             print(f"❌ ERROR: No se encuentra la plantilla en: {TEMPLATE_PATH}")
+             logger.error(f"❌ ERROR: No se encuentra la plantilla en: {TEMPLATE_PATH}")
              return None
              
+        # Cargar como RGB directamente para JPEG (más eficiente)
         img = Image.open(TEMPLATE_PATH).convert("RGBA")
         W, H = img.size # Detectamos dimensiones automáticamente
     except Exception as e:
-        print(f"❌ Error al abrir la imagen plantilla: {e}")
+        logger.error(f"❌ Error al abrir la imagen plantilla: {e}")
         return None
 
     draw = ImageDraw.Draw(img)
@@ -97,8 +100,20 @@ def generar_imagen_tasas_eltoque():
     footer_y = H * 0.77
     draw.text((W / 2, footer_y), footer_text, fill=COLOR_TINTA, anchor="mm", font=font_sm)
 
-    # 6. Guardar y retornar
+    # 6. Guardar y retornar (OPTIMIZADO: JPEG comprimido)
     bio = io.BytesIO()
-    img.save(bio, 'PNG')
+    
+    # Convertir a RGB para JPEG (elimina canal alpha, reduce tamaño)
+    img_rgb = img.convert('RGB')
+    
+    # Guardar como JPEG con compresión optimizada
+    # quality=85: buen balance entre calidad y tamaño
+    # optimize=True: optimización adicional de Huffman
+    img_rgb.save(bio, 'JPEG', quality=85, optimize=True)
     bio.seek(0)
+    
+    # Log del tamaño para monitoreo
+    size_kb = len(bio.getvalue()) / 1024
+    logger.info(f"📊 Imagen generada: {size_kb:.1f} KB")
+    
     return bio

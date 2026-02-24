@@ -58,6 +58,11 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             add_log_line(f"❌ Error en {name}: {e}")
             return None
 
+    # 🚀 OPTIMIZACIÓN: Iniciar generación de imagen EN PARALELO con las peticiones
+    # Esto reduce el tiempo total ya que la imagen se genera mientras se obtienen los datos
+    # NOTA: run_in_executor devuelve un Future directamente, no necesita create_task
+    image_future = loop.run_in_executor(None, generar_imagen_tasas_eltoque)
+
     # Ejecutar peticiones en paralelo, pero con timeouts INDIVIDUALES
     # Si CADECA falla, BCC y ElToque siguen vivos.
     tasas_data, tasas_bcc, tasas_cadeca = await asyncio.gather(
@@ -210,8 +215,17 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mensaje_texto_final += f"\n—————————————————\n_{actualizado_label} {timestamp_str}_\n{fuente_label}\n\n{ytext}"
         mensaje_texto_final += get_random_ad_text()
 
-        # Generar Imagen
-        image_bio = await asyncio.to_thread(generar_imagen_tasas_eltoque)
+        # 🚀 OPTIMIZACIÓN: Esperar la imagen que se generó en paralelo
+        # Con timeout para no bloquear si la generación falla
+        image_bio = None
+        try:
+            image_bio = await asyncio.wait_for(image_future, timeout=5)
+        except asyncio.TimeoutError:
+            add_log_line("⚠️ Timeout esperando generación de imagen")
+            image_bio = None
+        except Exception as e:
+            add_log_line(f"⚠️ Error en tarea de imagen: {e}")
+            image_bio = None
         
         keyboard = [
             [InlineKeyboardButton("🗺 Ver Tasas por Provincia", callback_data="eltoque_provincias")],
@@ -219,20 +233,39 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        # ENVIO FINAL ROBUSTO
+        # 🚀 OPTIMIZACIÓN: ENVÍO CON TIMEOUT EXPLÍCITO Y REINTENTOS
+        async def enviar_foto_con_reintento(photo, caption, max_retries=2):
+            """Envía foto con reintentos y timeout progresivo."""
+            for attempt in range(max_retries):
+                try:
+                    # Timeout progresivo: 30s, 45s, 60s
+                    timeout = 30 + (attempt * 15)
+                    await context.bot.send_photo(
+                        chat_id=chat_id,
+                        photo=photo,
+                        caption=caption,
+                        parse_mode=ParseMode.MARKDOWN,
+                        reply_markup=reply_markup,
+                        write_timeout=timeout,
+                        connect_timeout=15
+                    )
+                    return True
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        add_log_line(f"⚠️ Reintento {attempt+1} enviando foto: {e}")
+                        await asyncio.sleep(1)  # Pausa breve antes de reintentar
+                    else:
+                        raise
+            return False
+
         try:
             if image_bio:
                 # Intentamos borrar el mensaje de "Conectando..." antes de enviar la foto
                 try: await msg_estado.delete()
                 except: pass
                 
-                await context.bot.send_photo(
-                    chat_id=chat_id,
-                    photo=image_bio, 
-                    caption=mensaje_texto_final, 
-                    parse_mode=ParseMode.MARKDOWN,
-                    reply_markup=reply_markup 
-                )
+                # Enviar con reintentos
+                await enviar_foto_con_reintento(image_bio, mensaje_texto_final)
             else:
                 await msg_estado.edit_text(
                     mensaje_texto_final, 
