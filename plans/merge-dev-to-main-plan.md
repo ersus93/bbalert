@@ -1,8 +1,43 @@
-# Plan: Merge Selectivo de dev a main (sin docs/)
+# Plan: Merge Selectivo de dev a main (sin docs/ ni plans/)
 
 ## Resumen
 
-Este plan describe el proceso para pasar el código de la rama `dev` a `main`, excluyendo el directorio `docs/`, publicar los cambios y verificar que no existan inconsistencias.
+Este plan describe el proceso para pasar el código de la rama `dev` a `main`, excluyendo los directorios `docs/` y `plans/`, publicar los cambios y verificar que no existan inconsistencias.
+
+**Objetivo**: Dejar en `main` solo los directorios, documentos y código necesarios para que el bot funcione. Los usuarios que clonen el repositorio público solo necesitan el código funcional, no el proceso de desarrollo.
+
+## Directorios Excluidos de main
+
+| Directorio | Propósito | ¿Por qué excluirlo de main? |
+|------------|-----------|----------------------------|
+| `docs/` | Documentación de desarrollo | Documentación interna del proceso de desarrollo |
+| `plans/` | Planes y especificaciones | Planes de desarrollo, no necesarios para ejecutar el bot |
+
+## Estructura Final de main (Lo que debe quedar)
+
+```
+main/
+├── .gitignore
+├── ads.json
+├── apit.env.example
+├── babel.cfg
+├── bbalert.py
+├── LICENSE
+├── mbot.sh
+├── README.md
+├── requirements.txt
+├── tree.md
+├── update_version.py
+├── version.txt
+├── .github/
+├── core/
+├── data-example/
+├── handlers/
+├── locales/
+├── scripts/
+├── systemd/
+└── utils/
+```
 
 ## Diagrama del Flujo de Trabajo
 
@@ -15,7 +50,7 @@ flowchart TB
     
     subgraph Merge Selectivo
         C --> D[Crear rama temporal desde main]
-        D --> E[Merge de dev sin docs/]
+        D --> E[Merge de dev sin docs/ ni plans/]
         E --> F[Resolver conflictos si existen]
     end
     
@@ -65,15 +100,15 @@ git diff --name-status main..dev
 ### Verificación esperada
 - La rama `dev` debe existir en el remoto
 - Debe haber commits en `dev` que no están en `main`
-- El directorio `docs/` debe aparecer en las diferencias
+- Los directorios `docs/` y `plans/` deben aparecer en las diferencias
 
 ---
 
-## Paso 2: Estrategia para Excluir docs/
+## Paso 2: Estrategia para Excluir docs/ y plans/
 
 ### Opción A: Merge con .gitignore temporal (Recomendada)
 
-Esta es la estrategia más limpia para excluir `docs/`:
+Esta es la estrategia más limpia para excluir `docs/` y `plans/`:
 
 ```bash
 # 1. Crear rama temporal desde main
@@ -84,17 +119,19 @@ git checkout -b merge-dev-to-main
 # 2. Hacer merge de dev pero NO hacer commit automático
 git merge dev --no-commit --no-ff
 
-# 3. Remover el directorio docs/ del staging
+# 3. Remover los directorios docs/ y plans/ del staging
 git reset HEAD docs/
+git reset HEAD plans/
 
-# 4. Asegurar que docs/ no se incluya
+# 4. Asegurar que docs/ y plans/ no se incluyan
 git checkout -- docs/
+git checkout -- plans/
 
 # 5. Verificar qué se va a commitear
 git status
 
 # 6. Hacer el commit del merge
-git commit -m "merge: dev a main (sin docs/)"
+git commit -m "merge: dev a main (sin docs/ ni plans/)"
 ```
 
 ### Opción B: Cherry-pick de commits específicos
@@ -109,7 +146,7 @@ git log main..dev --oneline
 git checkout main
 git checkout -b merge-dev-to-main
 
-# 3. Cherry-pick cada commit (excluyendo los de docs/)
+# 3. Cherry-pick cada commit (excluyendo los de docs/ y plans/)
 git cherry-pick <commit-hash-1>
 git cherry-pick <commit-hash-2>
 # ... repetir para cada commit necesario
@@ -118,16 +155,16 @@ git cherry-pick <commit-hash-2>
 ### Opción C: Merge con estrategia personalizada
 
 ```bash
-# 1. Configurar merge driver para excluir docs/
+# 1. Configurar merge driver para excluir docs/ y plans/
 git checkout main
 git checkout -b merge-dev-to-main
 
-# 2. Merge con estrategia ours para docs/
+# 2. Merge con estrategia ours para docs/ y plans/
 git merge dev -X ours --no-commit
-git checkout dev -- . ':!docs/'
+git checkout dev -- . ':!docs/' ':!plans/'
 
 # 3. Commit del merge
-git commit -m "merge: dev a main (sin docs/)"
+git commit -m "merge: dev a main (sin docs/ ni plans/)"
 ```
 
 ---
@@ -224,8 +261,11 @@ git log origin/main -5 --oneline
 # Verificar que docs/ NO existe en main
 git ls-tree -d origin/main --name-only | grep docs || echo "docs/ no existe en main ✓"
 
+# Verificar que plans/ NO existe en main
+git ls-tree -d origin/main --name-only | grep plans || echo "plans/ no existe en main ✓"
+
 # Verificar que el código coincide con lo esperado
-git diff origin/main origin/dev --stat ':!docs'
+git diff origin/main origin/dev --stat ':!docs' ':!plans'
 ```
 
 ---
@@ -242,9 +282,11 @@ git pull origin main
 git checkout -b merge-dev-to-main
 git merge dev --no-commit --no-ff
 git reset HEAD docs/
+git reset HEAD plans/
 git checkout -- docs/ 2>/dev/null || true
+git checkout -- plans/ 2>/dev/null || true
 git status
-git commit -m "merge: dev a main (sin docs/)"
+git commit -m "merge: dev a main (sin docs/ ni plans/)"
 
 # === VERIFICACIÓN ===
 python -m py_compile bbalert.py
@@ -267,6 +309,7 @@ git branch -d merge-dev-to-main
 2. **Conflictos**: Si hay conflictos durante el merge, resolverlos manualmente antes de continuar
 3. **Tests**: Si el proyecto tiene tests, ejecutarlos antes del push final
 4. **Comunicación**: Notificar al equipo antes de hacer cambios en main
+5. **Directorios de desarrollo**: `docs/` y `plans/` son directorios de desarrollo que solo deben existir en `dev`
 
 ---
 
@@ -278,3 +321,29 @@ git checkout main
 git revert -m 1 HEAD
 git push origin main
 ```
+
+---
+
+## Mantenimiento Continuo
+
+### Regla de Oro para main
+
+El repositorio `main` debe contener **solo** lo necesario para que el bot funcione:
+
+| Incluir en main | Excluir de main |
+|-----------------|-----------------|
+| Código fuente (`*.py`) | Documentación de desarrollo (`docs/`) |
+| Archivos de configuración | Planes y especificaciones (`plans/`) |
+| Archivos de datos de ejemplo | Archivos de desarrollo temporales |
+| README.md (guía de usuario) | Notas de desarrollo internas |
+| LICENSE | Borradores y WIP |
+| requirements.txt | |
+| Scripts de deploy | |
+| Configuración systemd | |
+
+### Flujo de Trabajo Recomendado
+
+1. **Desarrollo**: Trabajar siempre en `dev` o ramas feature
+2. **Documentación**: Crear planes y docs en `docs/` y `plans/` (solo en dev)
+3. **Merge a main**: Usar merge selectivo excluyendo `docs/` y `plans/`
+4. **Release**: Crear tags y releases desde main
