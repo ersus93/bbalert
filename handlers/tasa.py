@@ -60,9 +60,8 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # 🚀 OPTIMIZACIÓN: Iniciar generación de imagen EN PARALELO con las peticiones
     # Esto reduce el tiempo total ya que la imagen se genera mientras se obtienen los datos
-    image_task = asyncio.create_task(
-        loop.run_in_executor(None, generar_imagen_tasas_eltoque)
-    )
+    # NOTA: run_in_executor devuelve un Future directamente, no necesita create_task
+    image_future = loop.run_in_executor(None, generar_imagen_tasas_eltoque)
 
     # Ejecutar peticiones en paralelo, pero con timeouts INDIVIDUALES
     # Si CADECA falla, BCC y ElToque siguen vivos.
@@ -220,7 +219,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Con timeout para no bloquear si la generación falla
         image_bio = None
         try:
-            image_bio = await asyncio.wait_for(image_task, timeout=5)
+            image_bio = await asyncio.wait_for(image_future, timeout=5)
         except asyncio.TimeoutError:
             add_log_line("⚠️ Timeout esperando generación de imagen")
             image_bio = None
