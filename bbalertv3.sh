@@ -614,6 +614,9 @@ manage_service() {
 start_bot() {
     print_header "▶️ INICIANDO BOT: $FOLDER_NAME"
     
+    # Actualizar versión antes de iniciar
+    update_version
+    
     if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
         print_warning "El servicio ya está corriendo."
         read -p "¿Deseas reiniciarlo? (s/N): " restart_opt
@@ -642,6 +645,10 @@ stop_bot() {
 
 restart_bot() {
     print_header "🔄 REINICIANDO BOT: $FOLDER_NAME"
+    
+    # Actualizar versión antes de reiniciar
+    update_version
+    
     manage_service "restart"
     echo ""
     read -p "¿Ver logs en tiempo real? (s/N): " view_logs_opt
@@ -666,6 +673,27 @@ view_logs() {
     echo ""
     sleep 1
     $SUDO journalctl -u "$SERVICE_NAME" -f
+}
+
+# Actualizar versión automáticamente al iniciar/reiniciar
+update_version() {
+    local VERSION_SCRIPT="$PROJECT_DIR/update_version.py"
+    
+    if [ -f "$VERSION_SCRIPT" ]; then
+        print_step "Actualizando versión del bot..."
+        cd "$PROJECT_DIR"
+        
+        # Verificar que el venv existe
+        if [ -f "$PYTHON_BIN" ]; then
+            "$PYTHON_BIN" "$VERSION_SCRIPT" --auto 2>/dev/null
+            print_success "Versión actualizada."
+        else
+            print_warning "Entorno virtual no encontrado, usando Python del sistema."
+            python3 "$VERSION_SCRIPT" --auto 2>/dev/null || print_warning "No se pudo actualizar la versión."
+        fi
+    else
+        print_warning "No se encontró update_version.py en $PROJECT_DIR"
+    fi
 }
 
 # Actualizar dependencias
