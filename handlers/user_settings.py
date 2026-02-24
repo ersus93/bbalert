@@ -290,11 +290,10 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
-    user_id_str = str(user_id)
     args = context.args
 
     # --- LÓGICA DE ADMINISTRADOR (Edición) ---
-    if user_id_str in ADMIN_CHAT_IDS and args:
+    if user_id in ADMIN_CHAT_IDS and args:
         if len(args) < 2:
             await update.message.reply_text(
                 "👮‍♂️ *Admin*: Uso: `/hbdalerts <add|del|edit> <precio> [run|stop]`",

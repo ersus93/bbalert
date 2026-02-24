@@ -43,9 +43,8 @@ AWAITING_CONTENT, AWAITING_CONFIRMATION, AWAITING_ADDITIONAL_TEXT, AWAITING_ADDI
 async def ms_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Inicia la conversación para el mensaje masivo."""
     chat_id = update.effective_chat.id
-    chat_id_str = str(chat_id)
     
-    if chat_id_str not in ADMIN_CHAT_IDS:
+    if chat_id not in ADMIN_CHAT_IDS:
         # Mensaje 1: No autorizado
         await update.message.reply_text(
             _("🚫 Comando no autorizado.", chat_id),
@@ -357,7 +356,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     valerts_symbols = get_active_symbols()
     
     # 2. VISTA DE USUARIO NORMAL (Perfil Propio)
-    if chat_id_str not in ADMIN_CHAT_IDS:
+    if chat_id not in ADMIN_CHAT_IDS:
         user_data = usuarios.get(chat_id_str)
         if not user_data:
             await update.message.reply_text("❌ No estás registrado.")
@@ -601,7 +600,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global _get_logs_data_ref # <--- ¡ARREGLO 1: Mover esta línea aquí!
     
     # Comprobar si el ID está en la lista de administradores
-    if str(current_chat_id) not in ADMIN_CHAT_IDS:
+    if current_chat_id not in ADMIN_CHAT_IDS:
         # Obtener la última actualización desde el log si es posible
         # global _get_logs_data_ref <--- Quitarla de aquí
         ultima_actualizacion = "N/A"
@@ -745,9 +744,8 @@ async def ad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Si el Markdown del usuario falla, se envía en texto plano.
     """
     chat_id = update.effective_chat.id
-    user_id_str = str(update.effective_user.id)
 
-    if user_id_str not in ADMIN_CHAT_IDS:
+    if chat_id not in ADMIN_CHAT_IDS:
         return 
 
     args = context.args

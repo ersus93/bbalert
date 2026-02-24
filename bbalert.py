@@ -7,7 +7,8 @@ from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
 from telegram.constants import ParseMode
-from utils.file_manager import cargar_usuarios, guardar_usuarios
+from utils.logger import logger
+from utils.file_manager import cargar_usuarios, guardar_usuarios, add_log_line
 from core.btc_loop import btc_monitor_loop, set_btc_sender
 from handlers.btc_handlers import btc_handlers_list
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, VERSION, PID, PYTHON_VERSION, STATE

@@ -614,6 +614,9 @@ manage_service() {
 start_bot() {
     print_header "▶️ INICIANDO BOT: $FOLDER_NAME"
     
+    # Actualizar versión antes de iniciar
+    update_version
+    
     if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
         print_warning "El servicio ya está corriendo."
         read -p "¿Deseas reiniciarlo? (s/N): " restart_opt
@@ -642,6 +645,10 @@ stop_bot() {
 
 restart_bot() {
     print_header "🔄 REINICIANDO BOT: $FOLDER_NAME"
+    
+    # Actualizar versión antes de reiniciar
+    update_version
+    
     manage_service "restart"
     echo ""
     read -p "¿Ver logs en tiempo real? (s/N): " view_logs_opt
@@ -666,6 +673,27 @@ view_logs() {
     echo ""
     sleep 1
     $SUDO journalctl -u "$SERVICE_NAME" -f
+}
+
+# Actualizar versión automáticamente al iniciar/reiniciar
+update_version() {
+    local VERSION_SCRIPT="$PROJECT_DIR/update_version.py"
+    
+    if [ -f "$VERSION_SCRIPT" ]; then
+        print_step "Actualizando versión del bot..."
+        cd "$PROJECT_DIR"
+        
+        # Verificar que el venv existe
+        if [ -f "$PYTHON_BIN" ]; then
+            "$PYTHON_BIN" "$VERSION_SCRIPT" --auto 2>/dev/null
+            print_success "Versión actualizada."
+        else
+            print_warning "Entorno virtual no encontrado, usando Python del sistema."
+            python3 "$VERSION_SCRIPT" --auto 2>/dev/null || print_warning "No se pudo actualizar la versión."
+        fi
+    else
+        print_warning "No se encontró update_version.py en $PROJECT_DIR"
+    fi
 }
 
 # Actualizar dependencias
@@ -799,6 +827,385 @@ change_directory() {
     select_target_directory
 }
 
+# --- FUNCIONES DE GIT ---
+
+# Obtener rama actual de Git
+get_git_branch() {
+    if [ -d "$PROJECT_DIR/.git" ]; then
+        cd "$PROJECT_DIR"
+        git branch --show-current 2>/dev/null || echo "N/A"
+    else
+        echo "N/A"
+    fi
+}
+
+# Clonar repositorio
+git_clone_repository() {
+    print_header "📥 CLONAR REPOSITORIO"
+    
+    # URL por defecto
+    DEFAULT_REPO="https://github.com/ersus93/bbalert.git"
+    read -p "URL del repositorio [$DEFAULT_REPO]: " REPO_URL
+    REPO_URL=${REPO_URL:-$DEFAULT_REPO}
+    
+    # Directorio destino
+    read -p "Directorio destino [~/bbalert]: " DEST_DIR
+    DEST_DIR=${DEST_DIR:-"$HOME/bbalert"}
+    DEST_DIR="${DEST_DIR/#\~/$HOME}"
+    
+    # Verificar si ya existe
+    if [ -d "$DEST_DIR" ]; then
+        print_warning "El directorio $DEST_DIR ya existe."
+        read -p "¿Eliminar y continuar? (s/N): " overwrite
+        if [[ "$overwrite" =~ ^[sS]$ ]]; then
+            rm -rf "$DEST_DIR"
+        else
+            print_info "Operación cancelada."
+            return 1
+        fi
+    fi
+    
+    # Clonar
+    print_step "Clonando $REPO_URL..."
+    git clone "$REPO_URL" "$DEST_DIR"
+    
+    if [ $? -eq 0 ]; then
+        print_success "Repositorio clonado en $DEST_DIR"
+        
+        # Ofrecer configurar
+        read -p "¿Configurar este bot ahora? (S/n): " setup_now
+        if [[ ! "$setup_now" =~ ^[nN]$ ]]; then
+            PROJECT_DIR="$DEST_DIR"
+            FOLDER_NAME=$(basename "$PROJECT_DIR")
+            SERVICE_NAME="${FOLDER_NAME}"
+            SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
+            VENV_DIR="$PROJECT_DIR/venv"
+            PYTHON_BIN="$VENV_DIR/bin/python"
+            PIP_BIN="$VENV_DIR/bin/pip"
+            ACTIVATE_SCRIPT="$VENV_DIR/bin/activate"
+            REQUIREMENTS_PATH="$PROJECT_DIR/$REQUIREMENTS_FILE"
+            BOT_SCRIPT_PATH="$PROJECT_DIR/$BOT_MAIN_FILE"
+        fi
+    else
+        print_error "Error al clonar el repositorio."
+        return 1
+    fi
+}
+
+# Actualizar código del repositorio
+git_pull_repository() {
+    print_header "📥 ACTUALIZAR CÓDIGO DEL REPOSITORIO"
+    
+    cd "$PROJECT_DIR" || return 1
+    
+    # Verificar que es un repo git
+    if [ ! -d ".git" ]; then
+        print_error "Este directorio no es un repositorio Git."
+        return 1
+    fi
+    
+    # Mostrar rama actual
+    CURRENT_BRANCH=$(git branch --show-current)
+    print_info "Rama actual: $CURRENT_BRANCH"
+    
+    # Fetch
+    print_step "Buscando actualizaciones..."
+    git fetch origin
+    
+    # Verificar si hay cambios
+    LOCAL=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse @{u} 2>/dev/null)
+    
+    if [ "$LOCAL" = "$REMOTE" ]; then
+        print_success "El código está actualizado."
+        return 0
+    fi
+    
+    # Mostrar cambios disponibles
+    print_info "Nuevos commits disponibles:"
+    git log HEAD..@{u} --oneline
+    
+    echo ""
+    read -p "¿Actualizar ahora? (S/n): " confirm
+    if [[ "$confirm" =~ ^[nN]$ ]]; then
+        return 0
+    fi
+    
+    # Pull
+    print_step "Actualizando código..."
+    git pull origin "$CURRENT_BRANCH"
+    
+    if [ $? -eq 0 ]; then
+        print_success "Código actualizado correctamente."
+        
+        # Preguntar sobre dependencias
+        read -p "¿Actualizar dependencias? (S/n): " update_deps
+        if [[ ! "$update_deps" =~ ^[nN]$ ]]; then
+            install_dependencies
+        fi
+        
+        # Preguntar sobre reinicio
+        if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+            read -p "¿Reiniciar el bot? (S/n): " restart_bot
+            if [[ ! "$restart_bot" =~ ^[nN]$ ]]; then
+                manage_service "restart"
+            fi
+        fi
+    fi
+}
+
+# Cambiar de rama
+git_switch_branch() {
+    print_header "🔄 CAMBIAR DE RAMA"
+    
+    cd "$PROJECT_DIR" || return 1
+    
+    # Verificar que es un repo git
+    if [ ! -d ".git" ]; then
+        print_error "Este directorio no es un repositorio Git."
+        return 1
+    fi
+    
+    # Mostrar rama actual
+    CURRENT_BRANCH=$(git branch --show-current)
+    print_info "Rama actual: ${CYAN}$CURRENT_BRANCH${NC}"
+    
+    # Verificar cambios pendientes
+    if ! git diff-index --quiet HEAD --; then
+        print_warning "Tienes cambios sin committear:"
+        git status --short
+        echo ""
+        read -p "¿Descartar cambios y continuar? (s/N): " discard
+        if [[ ! "$discard" =~ ^[sS]$ ]]; then
+            print_info "Operación cancelada."
+            return 0
+        fi
+        git checkout -- .
+    fi
+    
+    # Listar ramas
+    echo ""
+    print_info "Ramas disponibles:"
+    echo ""
+    
+    BRANCHES=("main" "testing" "dev")
+    local i=1
+    for branch in "${BRANCHES[@]}"; do
+        if [ "$branch" = "$CURRENT_BRANCH" ]; then
+            echo -e "  ${GREEN}*) $branch ${YELLOW}(actual)${NC}"
+        else
+            echo -e "  ${GREEN}$i)${NC} $branch"
+        fi
+        ((i++))
+    done
+    echo -e "  ${YELLOW}0)${NC} Cancelar"
+    echo ""
+    
+    read -p "Selecciona rama: " selection
+    
+    if [ "$selection" = "0" ]; then
+        return 0
+    fi
+    
+    # Determinar rama destino
+    if [[ "$selection" =~ ^[0-9]+$ ]]; then
+        TARGET_BRANCH="${BRANCHES[$((selection-1))]}"
+    else
+        TARGET_BRANCH="$selection"
+    fi
+    
+    if [ -z "$TARGET_BRANCH" ]; then
+        print_error "Selección inválida."
+        return 1
+    fi
+    
+    # Cambiar de rama
+    print_step "Cambiando a rama $TARGET_BRANCH..."
+    git checkout "$TARGET_BRANCH"
+    git pull origin "$TARGET_BRANCH"
+    
+    if [ $? -eq 0 ]; then
+        print_success "Ahora en rama: $TARGET_BRANCH"
+        
+        # Actualizar dependencias
+        read -p "¿Actualizar dependencias? (S/n): " update_deps
+        if [[ ! "$update_deps" =~ ^[nN]$ ]]; then
+            install_dependencies
+        fi
+    fi
+}
+
+# Ver estado del repositorio
+git_show_status() {
+    print_header "📊 ESTADO DEL REPOSITORIO"
+    
+    cd "$PROJECT_DIR" || return 1
+    
+    if [ ! -d ".git" ]; then
+        print_error "No es un repositorio Git."
+        return 1
+    fi
+    
+    echo ""
+    # Rama actual
+    CURRENT_BRANCH=$(git branch --show-current)
+    echo -e "${CYAN}Rama actual:${NC}     $CURRENT_BRANCH"
+    
+    # Remote
+    REMOTE_URL=$(git remote get-url origin 2>/dev/null)
+    echo -e "${CYAN}Remote:${NC}          $REMOTE_URL"
+    
+    # Último commit
+    LAST_COMMIT=$(git log -1 --format="%h - %s (%cr)")
+    echo -e "${CYAN}Último commit:${NC}   $LAST_COMMIT"
+    
+    echo ""
+    echo -e "${YELLOW}Estado de archivos:${NC}"
+    git status --short
+    
+    echo ""
+    echo -e "${YELLOW}Commits locales no enviados:${NC}"
+    git log @{u}..HEAD --oneline 2>/dev/null || echo "  (ninguno)"
+    
+    echo ""
+    echo -e "${YELLOW}Commits remotos no descargados:${NC}"
+    git log HEAD..@{u} --oneline 2>/dev/null || echo "  (ninguno)"
+    
+    echo ""
+    read -p "Presiona Enter para continuar..."
+}
+
+# Ver historial de commits
+git_show_history() {
+    print_header "📜 HISTORIAL DE COMMITS"
+    
+    cd "$PROJECT_DIR" || return 1
+    
+    if [ ! -d ".git" ]; then
+        print_error "No es un repositorio Git."
+        return 1
+    fi
+    
+    echo ""
+    print_info "Últimos 15 commits:"
+    echo ""
+    git log --oneline -15 --decorate --graph
+    
+    echo ""
+    read -p "¿Ver detalles de un commit? (ingresa hash o Enter para continuar): " commit_hash
+    
+    if [ -n "$commit_hash" ]; then
+        echo ""
+        git show "$commit_hash"
+        read -p "Presiona Enter para continuar..."
+    fi
+}
+
+# Gestión de entornos staging/producción
+manage_environments() {
+    print_header "🌐 GESTIÓN DE ENTORNOS"
+    
+    echo ""
+    print_info "Entornos disponibles:"
+    echo ""
+    echo -e "  ${GREEN}1)${NC} Staging    ${YELLOW}(rama: testing)${NC}"
+    echo -e "  ${GREEN}2)${NC} Producción ${YELLOW}(rama: main)${NC}"
+    echo -e "  ${YELLOW}0)${NC} Volver"
+    echo ""
+    
+    read -p "Selecciona entorno: " env_choice
+    
+    case $env_choice in
+        1)
+            ENV_NAME="staging"
+            ENV_DIR="$HOME/bbalert-staging"
+            ENV_BRANCH="testing"
+            ;;
+        2)
+            ENV_NAME="producción"
+            ENV_DIR="$HOME/bbalert-prod"
+            ENV_BRANCH="main"
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+    
+    print_header "🔧 ENTORNO: $ENV_NAME"
+    
+    # Verificar si existe
+    if [ ! -d "$ENV_DIR" ]; then
+        print_warning "El entorno no existe."
+        read -p "¿Crear entorno $ENV_NAME? (S/n): " create_env
+        
+        if [[ ! "$create_env" =~ ^[nN]$ ]]; then
+            create_environment "$ENV_DIR" "$ENV_BRANCH"
+        fi
+        return 0
+    fi
+    
+    # Mostrar estado
+    ENV_SERVICE=$(basename "$ENV_DIR")
+    echo ""
+    print_info "Directorio: $ENV_DIR"
+    print_info "Rama: $ENV_BRANCH"
+    
+    if systemctl is-active --quiet "$ENV_SERVICE" 2>/dev/null; then
+        echo -e "${GREEN}Estado: En ejecución${NC}"
+    else
+        echo -e "${RED}Estado: Detenido${NC}"
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}Acciones:${NC}"
+    echo "  1) Actualizar código (git pull)"
+    echo "  2) Iniciar servicio"
+    echo "  3) Detener servicio"
+    echo "  4) Reiniciar servicio"
+    echo "  5) Ver logs"
+    echo "  0) Volver"
+    echo ""
+    
+    read -p "Acción: " action
+    
+    case $action in
+        1) 
+            cd "$ENV_DIR"
+            git checkout "$ENV_BRANCH"
+            git pull origin "$ENV_BRANCH"
+            print_success "Código actualizado."
+            ;;
+        2) sudo systemctl start "$ENV_SERVICE" ;;
+        3) sudo systemctl stop "$ENV_SERVICE" ;;
+        4) sudo systemctl restart "$ENV_SERVICE" ;;
+        5) sudo journalctl -u "$ENV_SERVICE" -f ;;
+    esac
+}
+
+# Crear entorno
+create_environment() {
+    local ENV_DIR=$1
+    local ENV_BRANCH=$2
+    
+    print_step "Creando entorno en $ENV_DIR..."
+    
+    # Clonar
+    git clone https://github.com/ersus93/bbalert.git "$ENV_DIR"
+    cd "$ENV_DIR"
+    git checkout "$ENV_BRANCH"
+    
+    # Crear venv
+    detect_python
+    $TARGET_PYTHON -m venv venv
+    
+    # Instalar dependencias
+    source venv/bin/activate
+    pip install -r requirements.txt --quiet
+    
+    print_success "Entorno creado exitosamente."
+    print_info "Recuerda configurar el archivo .env en $ENV_DIR"
+}
+
 # Menú principal
 show_menu() {
     clear
@@ -809,6 +1216,7 @@ show_menu() {
     echo -e "${CYAN}Bot Actual:${NC}    $FOLDER_NAME"
     echo -e "${CYAN}Servicio:${NC}     $SERVICE_NAME"
     echo -e "${CYAN}Directorio:${NC}   $PROJECT_DIR"
+    echo -e "${CYAN}Rama Git:${NC}     $(get_git_branch)"
     echo ""
     
     # Mostrar estado
@@ -834,12 +1242,22 @@ show_menu() {
     echo "  9)  📊 Ver Estado del Servicio"
     echo "  10) 📜 Ver Logs en Tiempo Real"
     echo ""
-    echo -e "${YELLOW}🔧 MANTENIMIENTO${NC}"
-    echo "  11) 🗑️  Eliminar Dependencia"
-    echo "  12) 🗑️  Desinstalar Servicio"
+    echo -e "${YELLOW}🔀 CONTROL DE GIT${NC}"
+    echo "  11) 📥 Clonar Repositorio"
+    echo "  12) 🔄 Actualizar Código (git pull)"
+    echo "  13) 🌿 Cambiar de Rama"
+    echo "  14) 📊 Ver Estado del Repositorio"
+    echo "  15) 📜 Ver Historial de Commits"
+    echo ""
+    echo -e "${YELLOW}🌐 ENTORNOS${NC}"
+    echo "  16) 🗺️  Gestión de Entornos (Staging/Producción)"
+    echo ""
+    echo -e "${YELLOW}� MANTENIMIENTO${NC}"
+    echo "  17) 🗑️  Eliminar Dependencia"
+    echo "  18) 🗑️  Desinstalar Servicio"
     echo ""
     echo -e "${YELLOW}📂 OTROS${NC}"
-    echo "  13) 📂 Cambiar Bot/Directorio Objetivo"
+    echo "  19) 📂 Cambiar Bot/Directorio Objetivo"
     echo "  0)  ❌ Salir"
     echo ""
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -875,9 +1293,15 @@ while true; do
         8)  restart_bot ;;
         9)  status_bot ;;
         10) view_logs;;
-        11) remove_dependency ;;
-        12) uninstall_service ;;
-        13) change_directory ;;
+        11) git_clone_repository; read -p "Presiona Enter para continuar..." ;;
+        12) git_pull_repository ;;
+        13) git_switch_branch ;;
+        14) git_show_status ;;
+        15) git_show_history ;;
+        16) manage_environments ;;
+        17) remove_dependency ;;
+        18) uninstall_service ;;
+        19) change_directory ;;
         0)  
             print_info "¡Hasta luego!"
             exit 0
