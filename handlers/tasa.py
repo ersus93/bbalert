@@ -20,18 +20,19 @@ from utils.year_manager import get_simple_year_string
 
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id 
+    chat_id = update.effective_chat.id
 
     # === GUARDIA DE PAGO ===
-#    acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
-#    if not acceso:
-#        if update.callback_query:
-#           await update.callback_query.answer(mensaje, show_alert=True)
-#        else:
-#            await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
-#        return
+    acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
+    if not acceso:
+        if update.callback_query:
+            await update.callback_query.answer(mensaje, show_alert=True)
+        else:
+            await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        return
     
-#    registrar_uso_comando(chat_id, 'tasa')
+    # BUG-3 FIX: Registrar uso del comando /tasa para estadísticas del dashboard
+    registrar_uso_comando(chat_id, 'tasa')
     
     # Manejo del mensaje de estado (botón vs comando)
     msg_estado = None
