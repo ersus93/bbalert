@@ -235,6 +235,11 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
     is_callback = update.callback_query is not None
     message = update.effective_message
 
+    # BUG-4 FIX: Registrar uso del comando /ta para estadísticas del dashboard
+    # Solo registramos en invocaciones directas (no en callbacks de switch de fuente)
+    if not is_callback:
+        registrar_uso_comando(user_id, 'ta')
+
     # === ARGUMENT PARSING ===
     if is_callback and override_args:
         # Formato args: [SYMBOL, PAIR, TIME]

@@ -423,53 +423,91 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- A. CÁLCULOS DE USUARIOS ---
     total_users = len(usuarios)
     active_24h = 0
+    active_7d = 0
+    active_30d = 0
     lang_es = 0
     lang_en = 0
     
+    # Contadores de nuevos usuarios
+    new_today = 0
+    new_7d = 0
+    new_30d = 0
+    
     # Contadores VIP
     vip_stats = {
-        'watchlist_bundle': 0, 
-        'tasa_vip': 0, 
+        'watchlist_bundle': 0,
+        'tasa_vip': 0,
         'ta_vip': 0,
         'coins_extra_users': 0,
         'alerts_extra_users': 0
     }
+    
+    # Suscripciones próximas a vencer (próximos 7 días)
+    subs_expiring_soon = 0
     
     # Contadores de Carga (Uso hoy)
     total_usage_today = 0
     usage_breakdown = Counter()
     
     now = datetime.now()
+    cutoff_24h = now - timedelta(hours=24)
+    cutoff_7d  = now - timedelta(days=7)
+    cutoff_30d = now - timedelta(days=30)
+    expiry_window = now + timedelta(days=7)
     
     for uid, u in usuarios.items():
-        # 1. Actividad (Basado en si el loop de alertas corrió recientemente)
-        last_alert = u.get('last_alert_timestamp')
-        if last_alert:
+        # 1. Actividad — BUG-1 FIX: usar last_seen (actividad real) con total_seconds
+        #    Fallback a last_alert_timestamp para usuarios sin last_seen aún
+        last_seen_str = u.get('last_seen') or u.get('last_alert_timestamp')
+        if last_seen_str:
             try:
-                last_dt = datetime.strptime(last_alert, '%Y-%m-%d %H:%M:%S')
-                if (now - last_dt).days < 1:
+                last_dt = datetime.strptime(last_seen_str, '%Y-%m-%d %H:%M:%S')
+                delta = now - last_dt
+                # BUG-1 FIX: .days < 1 solo cuenta días completos; total_seconds es exacto
+                if delta.total_seconds() < 86400:
                     active_24h += 1
+                if delta.total_seconds() < 86400 * 7:
+                    active_7d += 1
+                if delta.total_seconds() < 86400 * 30:
+                    active_30d += 1
             except: pass
             
-        # 2. Idioma
+        # 2. Nuevos usuarios (basado en registered_at)
+        reg_str = u.get('registered_at')
+        if reg_str:
+            try:
+                reg_dt = datetime.strptime(reg_str, '%Y-%m-%d %H:%M:%S')
+                if reg_dt >= cutoff_24h:
+                    new_today += 1
+                if reg_dt >= cutoff_7d:
+                    new_7d += 1
+                if reg_dt >= cutoff_30d:
+                    new_30d += 1
+            except: pass
+            
+        # 3. Idioma
         if u.get('language') == 'en': lang_en += 1
         else: lang_es += 1
         
-        # 3. VIP Check
+        # 4. VIP Check
         subs = u.get('subscriptions', {})
         # Check tiempo
         for k in ['watchlist_bundle', 'tasa_vip', 'ta_vip']:
             s = subs.get(k, {})
             if s.get('active') and s.get('expires'):
                 try:
-                    if datetime.strptime(s['expires'], '%Y-%m-%d %H:%M:%S') > now:
+                    exp_dt = datetime.strptime(s['expires'], '%Y-%m-%d %H:%M:%S')
+                    if exp_dt > now:
                         vip_stats[k] += 1
+                        # Verificar si vence en los próximos 7 días
+                        if exp_dt <= expiry_window:
+                            subs_expiring_soon += 1
                 except: pass
         # Check cantidad
         if subs.get('coins_extra', {}).get('qty', 0) > 0: vip_stats['coins_extra_users'] += 1
         if subs.get('alerts_extra', {}).get('qty', 0) > 0: vip_stats['alerts_extra_users'] += 1
         
-        # 4. Uso Diario (Carga del Bot)
+        # 5. Uso Diario (Carga del Bot)
         daily = u.get('daily_usage', {})
         if daily.get('date') == now.strftime('%Y-%m-%d'):
             for cmd, count in daily.items():
@@ -518,17 +556,14 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     valerts_total_users = len(valerts_unique_users)
 
     # --- D. CÁLCULOS DE RECURSOS (RAM, CPU, Uptime) ---
-    # 0. Proceso actual
-    process = psutil.Process(os.getpid())
-
+    # BUG-5 FIX: Eliminar doble instanciación de psutil.Process — reusar proc_global
     # 1. Uso de Memoria y CPU
-    mem_usage = process.memory_info().rss / 1024 / 1024 # MB
-    mem_asignada = process.memory_info().vms / 1024 / 1024 # MB
+    mem_usage = proc_global.memory_info().rss / 1024 / 1024 # MB
+    mem_asignada = proc_global.memory_info().vms / 1024 / 1024 # MB
     cpu_percent = proc_global.cpu_percent(interval=None)
 
-    # 2. Uptime
-    process = psutil.Process(os.getpid())
-    uptime_seconds = time.time() - process.create_time()
+    # 2. Uptime (usando proc_global ya existente)
+    uptime_seconds = time.time() - proc_global.create_time()
     uptime_str = str(timedelta(seconds=int(uptime_seconds)))
 
     # 3. Size file
@@ -550,7 +585,20 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
     size["file_size"] = total_kb / 1024 / 1024  # MB
 
-    # --- CONSTRUCCIÓN DEL DASHBOARD ---
+    # --- E. TOP COMANDOS DEL DÍA ---
+    top_cmds = usage_breakdown.most_common(5)
+    top_cmds_lines = []
+    cmd_emojis = {'ver': '👁', 'tasa': '💱', 'ta': '📈', 'temp_changes': '⏱', 'reminders': '⏰', 'weather': '🌦', 'btc': '🦁'}
+    for i, (cmd, cnt) in enumerate(top_cmds, 1):
+        emoji = cmd_emojis.get(cmd, '⚙️')
+        top_cmds_lines.append(f"  {i}. {emoji} /{cmd}: `{cnt}`")
+    top_cmds_str = "\n".join(top_cmds_lines) if top_cmds_lines else "  _Sin datos aún_"
+
+    # --- CONSTRUCCIÓN DEL DASHBOARD v2 ---
+    pct_24h = int(active_24h / total_users * 100) if total_users else 0
+    pct_7d  = int(active_7d  / total_users * 100) if total_users else 0
+    pct_30d = int(active_30d / total_users * 100) if total_users else 0
+
     dashboard = (
         f"👮‍♂️ *PANEL DE CONTROL* v{VERSION}\n"
         f"📅 {now.strftime('%d/%m/%Y %H:%M')}\n"
@@ -565,25 +613,29 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         f"⚙️ *CARGA DEL SISTEMA (Hoy)*\n"
         f"├ Comandos Procesados: `{total_usage_today}`\n"
-        f"├ Desglose: Ver({usage_breakdown['ver']}) | Tasa({usage_breakdown['tasa']}) | TA({usage_breakdown['ta']})\n"
-        f"└ Alertas Cruce Vigilando: `{total_alerts_active}`\n\n"
+        f"├ /ver: `{usage_breakdown['ver']}` | /tasa: `{usage_breakdown['tasa']}` | /ta: `{usage_breakdown['ta']}`\n"
+        f"├ Alertas Cruce Vigilando: `{total_alerts_active}`\n"
+        f"└ Top Comandos:\n{top_cmds_str}\n\n"
 
         f"👥 *USUARIOS*\n"
-        f"├ Totales: `{total_users}`\n"
-        f"├ Activos (24h): `{active_24h}` ({int(active_24h/total_users*100) if total_users else 0}%)\n"
-        f"└ Idiomas: 🇪🇸 {lang_es} | 🇺🇸 {lang_en}\n\n"
+        f"├ Totales: `{total_users}` | 🇪🇸 {lang_es} | 🇺🇸 {lang_en}\n"
+        f"├ Activos 24h: `{active_24h}` ({pct_24h}%)\n"
+        f"├ Activos 7d:  `{active_7d}` ({pct_7d}%)\n"
+        f"├ Activos 30d: `{active_30d}` ({pct_30d}%)\n"
+        f"└ Nuevos: hoy `{new_today}` | 7d `{new_7d}` | 30d `{new_30d}`\n\n"
         
         f"💎 *NEGOCIO (Suscripciones Activas)*\n"
-        f"📦 Pack Control Total: `{vip_stats['watchlist_bundle']}`\n"
-        f"💱 Tasa VIP: `{vip_stats['tasa_vip']}`\n"
-        f"📈 TA Pro: `{vip_stats['ta_vip']}`\n"
-        f"➕ Extras: `{vip_stats['coins_extra_users']}` Coins | `{vip_stats['alerts_extra_users']}` Alertas\n\n"
+        f"├ 📦 Pack Control Total: `{vip_stats['watchlist_bundle']}`\n"
+        f"├ 💱 Tasa VIP: `{vip_stats['tasa_vip']}`\n"
+        f"├ 📈 TA Pro: `{vip_stats['ta_vip']}`\n"
+        f"├ ➕ Extras: `{vip_stats['coins_extra_users']}` Coins | `{vip_stats['alerts_extra_users']}` Alertas\n"
+        f"└ ⚠️ Próximas a vencer (7d): `{subs_expiring_soon}`\n\n"
         
         f"📢 *SERVICIOS DE NOTIFICACIÓN*\n"
-        f"🦁 Monitor BTC: `{btc_subscribers}` usuarios\n"
-        f"🐝 Monitor HBD: `{hbd_subscribers}` usuarios\n"
-        f"🌦️ Monitor Clima: `{weather_subscribers}` usuarios\n"
-        f"🚀 Valerts (Volatilidad): `{valerts_total_users}` usuarios en `{valerts_active_symbols_count}` monedas\n\n"
+        f"├ 🦁 Monitor BTC: `{btc_subscribers}` usuarios\n"
+        f"├ 🐝 Monitor HBD: `{hbd_subscribers}` usuarios\n"
+        f"├ 🌦️ Monitor Clima: `{weather_subscribers}` usuarios\n"
+        f"└ 🚀 Valerts: `{valerts_total_users}` usuarios en `{valerts_active_symbols_count}` monedas\n\n"
         
         f"🏆 *TENDENCIAS DE MERCADO*\n"
         f"🔥 Top Monedas Vigiladas:\n"
