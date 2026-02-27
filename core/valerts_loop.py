@@ -20,6 +20,9 @@ from handlers.valerts_handlers import get_kline_data
 # Variable global para la función de envío
 _sender_func = None
 
+# Variables globales para tracking de throttling de TradingView
+_tv_last_check = {}  # symbol_tf -> timestamp
+
 def set_valerts_sender(func):
     global _sender_func
     _sender_func = func
@@ -65,12 +68,18 @@ async def valerts_monitor_loop(bot):
                     df = get_kline_data(symbol, interval, limit=300)
 
                     if df is None or len(df) < 100:
-                        # Fallback a TradingView
-                        add_log_line(f"⚠️ Binance falló para {symbol} {interval}, intentando TradingView...")
+                        # Verificar throttling para TradingView (5 minutos = 300 segundos)
+                        tv_key = f"{symbol}_{interval}"
+                        current_time = int(time.time())
+                        last_check = _tv_last_check.get(tv_key, 0)
+
+                        if (current_time - last_check) < 300:
+                            continue  # Saltar esta iteración, usar datos existentes
+
                         tv_data = get_tv_data(symbol, interval)
                         if tv_data:
+                            _tv_last_check[tv_key] = current_time
                             source = "TV"
-                            add_log_line(f"✅ TradingView activo para {symbol} {interval}")
                             levels_fib = {
                                 'R3': tv_data.get('R3', 0),
                                 'R2': tv_data.get('R2', 0),
@@ -120,89 +129,98 @@ async def valerts_monitor_loop(bot):
                     # FASE 1: GESTIÓN DE NUEVA VELA (Reporte de Sesión)
                     # ==============================================================================
                     if is_new_candle or not loaded_levels:
-                        
-                        # Actualizamos estado en memoria
+
+                        # Actualizamos estado en memoria (SIEMPRE para ambas fuentes)
                         current_state['levels'] = levels_fib
                         current_state['last_candle_time'] = candle_time
-                        
-                        # --- LÓGICA INTELIGENTE DE POSICIONAMIENTO ---
-                        pre_filled_alerts = []
-                        status_msg = ""
-                        status_icon = "⚖️"
-                        
-                        # A) ANÁLISIS ALCISTA
-                        if current_price >= levels_fib['R3']:
-                            pre_filled_alerts.extend(['P_UP', 'R1', 'R2', 'R3'])
-                            status_msg = f"Euforia en {display_sym}. Sesión sobre R3."
-                            status_icon = "🚀"
-                        elif current_price >= levels_fib['R2']:
-                            pre_filled_alerts.extend(['P_UP', 'R1', 'R2'])
-                            status_msg = f"Momentum fuerte. {display_sym} sobre R2."
-                            status_icon = "🌊"
-                        elif current_price >= levels_fib['R1']:
-                            pre_filled_alerts.extend(['P_UP', 'R1'])
-                            status_msg = f"Tendencia alcista. Soporte en R1."
-                            status_icon = "📈"
-                        elif current_price >= levels_fib['P']:
-                            pre_filled_alerts.append('P_UP')
-                            status_msg = f"Sesgo Positivo. Sobre Pivot."
-                            status_icon = "✅"
-                            
-                        # B) ANÁLISIS BAJISTA
-                        elif current_price <= levels_fib['S3']:
-                            pre_filled_alerts.extend(['P_DOWN', 'S1', 'S2', 'S3'])
-                            status_msg = f"Pánico extremo. {display_sym} bajo S3."
-                            status_icon = "🕳️"
-                        elif current_price <= levels_fib['S2']:
-                            pre_filled_alerts.extend(['P_DOWN', 'S1', 'S2'])
-                            status_msg = f"Debilidad fuerte. Atrapado bajo S2."
-                            status_icon = "🩸"
-                        elif current_price <= levels_fib['S1']:
-                            pre_filled_alerts.extend(['P_DOWN', 'S1'])
-                            status_msg = f"Tendencia bajista. Bajo soporte S1."
-                            status_icon = "📉"
-                        elif current_price < levels_fib['P']: 
-                            pre_filled_alerts.append('P_DOWN')
-                            status_msg = f"Sesgo Negativo. Bajo Pivot."
-                            status_icon = "⚠️"
 
-                        # C) GOLDEN POCKET
-                        if current_price >= levels_fib['FIB_618']:
-                            if 'FIB_618_UP' not in pre_filled_alerts: pre_filled_alerts.append('FIB_618_UP')
-                        else:
-                            if 'FIB_618_DOWN' not in pre_filled_alerts: pre_filled_alerts.append('FIB_618_DOWN')
+                        # SOLO BINANCE envía reporte de sesión. TV solo actualiza estado.
+                        if source == "BINANCE":
+                            # --- LÓGICA INTELIGENTE DE POSICIONAMIENTO ---
+                            pre_filled_alerts = []
+                            status_msg = ""
+                            status_icon = "⚖️"
 
-                        current_state['alerted_levels'] = pre_filled_alerts
-                        state_changed = True
-                        
-                        # --- ENVÍO DEL REPORTE DE SESIÓN (NUEVO EN VALERTS) ---
-                        if _sender_func:
-                            msg_session = (
-                                f"🔄 *Actualización {display_sym} ({interval.upper()})*\n"
-                                f"—————————————————\n"
-                                f"{status_icon} *Estado:* _{status_msg}_\n\n"
-                                f"📊 *Nuevos Niveles Calculados:*\n"
-                                f"🛡️ R3: `${fmt_price(levels_fib['R3'])}`\n"
-                                f"🛡️ R2: `${fmt_price(levels_fib['R2'])}`\n"
-                                f"🛡️ R1: `${fmt_price(levels_fib['R1'])}`\n"
-                                f"🟡 G. Pocket: `${fmt_price(levels_fib['FIB_618'])}`\n" 
-                                f"⚖️ Pivot: `${fmt_price(levels_fib['P'])}`\n"
-                                f"🛡️ S1: `${fmt_price(levels_fib['S1'])}`\n"
-                                f"🛡️ S2: `${fmt_price(levels_fib['S2'])}`\n"
-                                f"🛡️ S3: `${fmt_price(levels_fib['S3'])}`\n\n"
-                                f"💰 *Precio Actual:* `${fmt_price(current_price)}`\n"
-                                f"🌊 *Tendencia:* {mom_emoji} {momentum_signal}\n"
-                            )
-                            msg_session += get_random_ad_text()
-                            
-                            # Botón para ver análisis completo (usar fuente dinámica)
-                            kb = [[InlineKeyboardButton(f"📊 Ver Análisis {display_sym}", callback_data=f"valerts_view|{symbol}|{source}|{interval}")]]
+                            # A) ANÁLISIS ALCISTA
+                            if current_price >= levels_fib['R3']:
+                                pre_filled_alerts.extend(['P_UP', 'R1', 'R2', 'R3'])
+                                status_msg = f"Euforia en {display_sym}. Sesión sobre R3."
+                                status_icon = "🚀"
+                            elif current_price >= levels_fib['R2']:
+                                pre_filled_alerts.extend(['P_UP', 'R1', 'R2'])
+                                status_msg = f"Momentum fuerte. {display_sym} sobre R2."
+                                status_icon = "🌊"
+                            elif current_price >= levels_fib['R1']:
+                                pre_filled_alerts.extend(['P_UP', 'R1'])
+                                status_msg = f"Tendencia alcista. Soporte en R1."
+                                status_icon = "📈"
+                            elif current_price >= levels_fib['P']:
+                                pre_filled_alerts.append('P_UP')
+                                status_msg = f"Sesgo Positivo. Sobre Pivot."
+                                status_icon = "✅"
 
-                            # Agregar info de fuente para TradingView
-                            if source == "TV":
-                                msg_session += f"\n🌐 _Fuente: TradingView (datos con delay ~1-2m)_\n"
+                            # B) ANÁLISIS BAJISTA
+                            elif current_price <= levels_fib['S3']:
+                                pre_filled_alerts.extend(['P_DOWN', 'S1', 'S2', 'S3'])
+                                status_msg = f"Pánico extremo. {display_sym} bajo S3."
+                                status_icon = "🕳️"
+                            elif current_price <= levels_fib['S2']:
+                                pre_filled_alerts.extend(['P_DOWN', 'S1', 'S2'])
+                                status_msg = f"Debilidad fuerte. Atrapado bajo S2."
+                                status_icon = "🩸"
+                            elif current_price <= levels_fib['S1']:
+                                pre_filled_alerts.extend(['P_DOWN', 'S1'])
+                                status_msg = f"Tendencia bajista. Bajo soporte S1."
+                                status_icon = "📉"
+                            elif current_price < levels_fib['P']:
+                                pre_filled_alerts.append('P_DOWN')
+                                status_msg = f"Sesgo Negativo. Bajo Pivot."
+                                status_icon = "⚠️"
 
-                            await _sender_func(msg_session, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+                            # C) GOLDEN POCKET
+                            if current_price >= levels_fib['FIB_618']:
+                                if 'FIB_618_UP' not in pre_filled_alerts: pre_filled_alerts.append('FIB_618_UP')
+                            else:
+                                if 'FIB_618_DOWN' not in pre_filled_alerts: pre_filled_alerts.append('FIB_618_DOWN')
+
+                            current_state['alerted_levels'] = pre_filled_alerts
+                            state_changed = True
+
+                            # --- ENVÍO DEL REPORTE DE SESIÓN (SOLO BINANCE) ---
+                            if _sender_func:
+                                msg_session = (
+                                    f"🔄 *Actualización {display_sym} ({interval.upper()})*\n"
+                                    f"—————————————————\n"
+                                    f"{status_icon} *Estado:* _{status_msg}_\n\n"
+                                    f"📊 *Nuevos Niveles Calculados:*\n"
+                                    f"🛡️ R3: `${fmt_price(levels_fib['R3'])}`\n"
+                                    f"🛡️ R2: `${fmt_price(levels_fib['R2'])}`\n"
+                                    f"🛡️ R1: `${fmt_price(levels_fib['R1'])}`\n"
+                                    f"🟡 G. Pocket: `${fmt_price(levels_fib['FIB_618'])}`\n"
+                                    f"⚖️ Pivot: `${fmt_price(levels_fib['P'])}`\n"
+                                    f"🛡️ S1: `${fmt_price(levels_fib['S1'])}`\n"
+                                    f"🛡️ S2: `${fmt_price(levels_fib['S2'])}`\n"
+                                    f"🛡️ S3: `${fmt_price(levels_fib['S3'])}`\n\n"
+                                    f"💰 *Precio Actual:* `${fmt_price(current_price)}`\n"
+                                    f"🌊 *Tendencia:* {mom_emoji} {momentum_signal}\n"
+                                )
+                                msg_session += get_random_ad_text()
+
+                                # Botón para ver análisis completo
+                                kb = [[InlineKeyboardButton(f"📊 Ver Análisis {display_sym}", callback_data=f"valerts_view|{symbol}|{source}|{interval}")]]
+
+                                await _sender_func(msg_session, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
+
+                        elif source == "TV":
+                            # TV: solo inicializar estado, NO enviar mensaje
+                            # Inicializar alerted_levels básicos para TV (solo P_UP/P_DOWN según posición)
+                            pre_filled_alerts = []
+                            if current_price >= levels_fib['P']:
+                                pre_filled_alerts.append('P_UP')
+                            else:
+                                pre_filled_alerts.append('P_DOWN')
+                            current_state['alerted_levels'] = pre_filled_alerts
+                            state_changed = True
 
                     else:
                         # Si no es nueva vela, actualizamos precio para referencias futuras
