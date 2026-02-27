@@ -359,7 +359,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if chat_id not in ADMIN_CHAT_IDS:
         user_data = usuarios.get(chat_id_str)
         if not user_data:
-            await update.message.reply_text("❌ No estás registrado.")
+            await update.message.reply_text(_("❌ No estás registrado.", chat_id))
             return
 
         # Calcular datos del usuario
@@ -418,7 +418,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     # 3. VISTA DE ADMINISTRADOR (DASHBOARD PRO)
-    msg_loading = await update.message.reply_text("⏳ *Analizando Big Data...*", parse_mode=ParseMode.MARKDOWN)
+    msg_loading = await update.message.reply_text(_("⏳ *Analizando Big Data...*", chat_id), parse_mode=ParseMode.MARKDOWN)
     
     # --- A. CÁLCULOS DE USUARIOS ---
     total_users = len(usuarios)
@@ -806,26 +806,29 @@ async def ad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not args:
         ads = load_ads()
         if not ads:
-            await update.message.reply_text("📭 No hay anuncios activos.\nUsa `/ad add Mi Anuncio` para crear uno.", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(_("📭 No hay anuncios activos.\nUsa `/ad add Mi Anuncio` para crear uno.", chat_id), parse_mode=ParseMode.MARKDOWN)
             return
-        
-        mensaje = "📢 *Lista de Anuncios Activos:*\n\n"
+
+        mensaje = _("📢 *Lista de Anuncios Activos:*\n\n", chat_id)
         for i, ad in enumerate(ads):
             # Intentamos preservar el formato que haya puesto el usuario
             mensaje += f"*{i+1}.* {ad}\n"
-        
-        mensaje += "\nPara borrar: `/ad del N` (ej: `/ad del 1`)"
+
+        mensaje += _("\nPara borrar: `/ad del N` (ej: `/ad del 1`)", chat_id)
 
         try:
             await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         except BadRequest:
             # FALLBACK: Si falla el Markdown (ej: un '_' sin cerrar), enviamos texto plano
-            fallback_msg = "⚠️ *Error de visualización Markdown*\n" \
-                           "Alguno de tus anuncios tiene caracteres especiales sin cerrar, pero aquí está la lista en texto plano:\n\n"
+            fallback_msg = _(
+                "⚠️ *Error de visualización Markdown*\n"
+                "Alguno de tus anuncios tiene caracteres especiales sin cerrar, pero aquí está la lista en texto plano:\n\n",
+                chat_id
+            )
             for i, ad in enumerate(ads):
                 fallback_msg += f"{i+1}. {ad}\n"
-            
-            fallback_msg += "\nUsa /ad del N para eliminar."
+
+            fallback_msg += _("\nUsa /ad del N para eliminar.", chat_id)
             await update.message.reply_text(fallback_msg) # Sin parse_mode
         return
 
@@ -834,35 +837,35 @@ async def ad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # --- AÑADIR ANUNCIO ---
     if accion == "add":
         if len(args) < 2:
-            await update.message.reply_text("⚠️ Escribe el texto del anuncio.\nEj: `/ad add Visita mi canal @canal`", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(_("⚠️ Escribe el texto del anuncio.\nEj: `/ad add Visita mi canal @canal`", chat_id), parse_mode=ParseMode.MARKDOWN)
             return
-        
-        texto_nuevo = ' '.join(args[1:]) 
+
+        texto_nuevo = ' '.join(args[1:])
         add_ad(texto_nuevo) # Guardamos EXACTAMENTE lo que escribió el usuario
-        
+
         # Intentamos confirmar con Markdown bonito
         try:
-            await update.message.reply_text(f"✅ Anuncio añadido:\n\n_{texto_nuevo}_", parse_mode=ParseMode.MARKDOWN)
+            await update.message.reply_text(_("✅ Anuncio añadido:\n\n_{ad_text}_", chat_id).format(ad_text=texto_nuevo), parse_mode=ParseMode.MARKDOWN)
         except BadRequest:
             # Si falla (ej: usuario puso 'pepe_bot' sin escapar), confirmamos en texto plano
-            await update.message.reply_text(f"✅ Anuncio añadido (Sintaxis MD inválida, mostrado plano):\n\n{texto_nuevo}")
+            await update.message.reply_text(_("✅ Anuncio añadido (Sintaxis MD inválida, mostrado plano):\n\n{ad_text}", chat_id).format(ad_text=texto_nuevo))
 
     # --- BORRAR ANUNCIO ---
     elif accion == "del":
         try:
-            indice = int(args[1]) - 1 
+            indice = int(args[1]) - 1
             eliminado = delete_ad(indice)
             if eliminado:
                 # Intentamos mostrar confirmación bonita
                 try:
-                    await update.message.reply_text(f"🗑️ Anuncio eliminado:\n\n_{eliminado}_", parse_mode=ParseMode.MARKDOWN)
+                    await update.message.reply_text(_("🗑️ Anuncio eliminado:\n\n_{ad_text}_", chat_id).format(ad_text=eliminado), parse_mode=ParseMode.MARKDOWN)
                 except BadRequest:
                      # Si falla, confirmamos en texto plano
-                    await update.message.reply_text(f"🗑️ Anuncio eliminado:\n\n{eliminado}")
+                    await update.message.reply_text(_("🗑️ Anuncio eliminado:\n\n{ad_text}", chat_id).format(ad_text=eliminado))
             else:
-                await update.message.reply_text("⚠️ Número de anuncio no válido.", parse_mode=ParseMode.MARKDOWN)
+                await update.message.reply_text(_("⚠️ Número de anuncio no válido.", chat_id), parse_mode=ParseMode.MARKDOWN)
         except (IndexError, ValueError):
-            await update.message.reply_text("⚠️ Uso: `/ad del N` (N es el número del anuncio).", parse_mode=ParseMode.MARKDOWN)
-    
+            await update.message.reply_text(_("⚠️ Uso: `/ad del N` (N es el número del anuncio).", chat_id), parse_mode=ParseMode.MARKDOWN)
+
     else:
-        await update.message.reply_text("⚠️ Comandos: `/ad`, `/ad add <txt>`, `/ad del <num>`", parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(_("⚠️ Comandos: `/ad`, `/ad add <txt>`, `/ad del <num>`", chat_id), parse_mode=ParseMode.MARKDOWN)

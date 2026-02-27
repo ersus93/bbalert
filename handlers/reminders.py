@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import re
 from utils.reminders_manager import get_user_reminders, add_reminder, delete_reminder, postpone_reminder_by_id, add_reminder
 from utils.logger import logger
+from core.i18n import _
 
 # Estados de la conversación
 WAITING_TEXT, WAITING_TIME = range(2)
@@ -15,17 +16,17 @@ async def rec_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reminders = get_user_reminders(user_id)
     
     if not reminders:
-        msg = "📭 *No tienes recordatorios pendientes.*"
+        msg = _("📭 *No tienes recordatorios pendientes.*", user_id)
     else:
-        msg = "📋 *Tus Recordatorios:*\n\n"
+        msg = _("📋 *Tus Recordatorios:*\n\n", user_id)
         for r in reminders:
             dt = datetime.fromisoformat(r['time'])
             msg += f"▫️ `{dt.strftime('%d/%m %H:%M')}` - {r['text']}\n"
     
     keyboard = [
-        [InlineKeyboardButton("➕ Nuevo Recordatorio", callback_data="rem_new")],
-        [InlineKeyboardButton("🗑 Eliminar", callback_data="rem_delete_menu")] if reminders else [],
-        [InlineKeyboardButton("🔄 Actualizar", callback_data="rem_refresh")]
+        [InlineKeyboardButton(_("➕ Nuevo Recordatorio", user_id), callback_data="rem_new")],
+        [InlineKeyboardButton(_("🗑 Eliminar", user_id), callback_data="rem_delete_menu")] if reminders else [],
+        [InlineKeyboardButton(_("🔄 Actualizar", user_id), callback_data="rem_refresh")]
     ]
     # Limpiamos listas vacías
     keyboard = [row for row in keyboard if row]
@@ -55,38 +56,39 @@ async def rec_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def start_add_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Inicia la creación: Pide el texto."""
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer()
     await query.edit_message_text(
-        "📝 *¿Qué quieres recordar?*\n\nEscribe el mensaje del recordatorio (o /cancel para salir).",
+        _("📝 *¿Qué quieres recordar?*\n\nEscribe el mensaje del recordatorio (o /cancel para salir).", user_id),
         parse_mode="Markdown"
     )
     return WAITING_TEXT
 
 async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Guarda el texto y pide la hora mostrando botones de opciones rápidas."""
+    user_id = update.effective_user.id
     context.user_data['rem_text'] = update.message.text
     
     # Botones de opciones rápidas para tiempo
     keyboard = [
         [
-            InlineKeyboardButton("⏱️ 10m", callback_data="time_10"),
-            InlineKeyboardButton("⏱️ 30m", callback_data="time_30"),
-            InlineKeyboardButton("⏱️ 1h", callback_data="time_60"),
+            InlineKeyboardButton(_("⏱️ 10m", user_id), callback_data="time_10"),
+            InlineKeyboardButton(_("⏱️ 30m", user_id), callback_data="time_30"),
+            InlineKeyboardButton(_("⏱️ 1h", user_id), callback_data="time_60"),
         ],
         [
-            InlineKeyboardButton("🌅 Mañana 09:00", callback_data="time_morning"),
-            InlineKeyboardButton("🌇 Tarde 15:00", callback_data="time_afternoon"),
+            InlineKeyboardButton(_("🌅 Mañana 09:00", user_id), callback_data="time_morning"),
+            InlineKeyboardButton(_("🌇 Tarde 15:00", user_id), callback_data="time_afternoon"),
         ],
         [
-            InlineKeyboardButton("🌙 Noche 20:00", callback_data="time_evening"),
-            InlineKeyboardButton("📝 Otro horario...", callback_data="time_custom"),
+            InlineKeyboardButton(_("🌙 Noche 20:00", user_id), callback_data="time_evening"),
+            InlineKeyboardButton(_("📝 Otro horario...", user_id), callback_data="time_custom"),
         ],
     ]
     
     await update.message.reply_text(
-        "⏰ *¿Cuándo quieres el recordatorio?*\n\n"
-        "Selecciona una opción rápida o escribe manualmente:",
+        _("⏰ *¿Cuándo quieres el recordatorio?*\n\nSelecciona una opción rápida o escribe manualmente:", user_id),
         parse_mode="Markdown",
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
@@ -94,8 +96,8 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def receive_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Procesa la hora (soporta fechas completas) y guarda todo."""
-    time_str = update.message.text.lower().strip()
     user_id = update.effective_user.id
+    time_str = update.message.text.lower().strip()
     text = context.user_data.get('rem_text')
     
     now = datetime.now()
@@ -167,7 +169,7 @@ async def receive_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if trigger_dt:
             # Una validación extra: no permitir fechas en el pasado
             if trigger_dt < now:
-                 await update.message.reply_text("⚠️ La fecha indicada ya pasó. Por favor, indica una fecha futura.")
+                 await update.message.reply_text(_("⚠️ La fecha indicada ya pasó. Por favor, indica una fecha futura.", user_id))
                  return WAITING_TIME
 
             add_reminder(user_id, text, trigger_dt)
@@ -176,21 +178,22 @@ async def receive_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
             msg_dt = trigger_dt.strftime('%d/%m/%Y a las %H:%M')
             
             await update.message.reply_text(
-                f"✅ *Recordatorio guardado.*\n\n📅 {msg_dt}\n📝 {text}",
+                _("✅ *Recordatorio guardado.*\n\n📅 {msg_dt}\n📝 {text}", user_id).format(msg_dt=msg_dt, text=text),
                 parse_mode="Markdown"
             )
             return ConversationHandler.END
         else:
-            await update.message.reply_text("⚠️ No entendí la hora/fecha. Prueba formato: `DD/MM HH:MM` o `10m`.")
+            await update.message.reply_text(_("⚠️ No entendí la hora/fecha. Prueba formato: `DD/MM HH:MM` o `10m`.", user_id))
             return WAITING_TIME
 
     except Exception as e:
         logger.error(f"Error parseando hora: {e}")
-        await update.message.reply_text("⚠️ Error procesando la fecha. Intenta de nuevo.")
+        await update.message.reply_text(_("⚠️ Error procesando la fecha. Intenta de nuevo.", user_id))
         return WAITING_TIME
 
 async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("❌ Operación cancelada.")
+    user_id = update.effective_user.id
+    await update.message.reply_text(_("❌ Operación cancelada.", user_id))
     return ConversationHandler.END
 
 # --- MANEJO DE BOTONES (CALLBACKS) ---
@@ -211,8 +214,8 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
             btn_text = f"❌ {r['text'][:15]}... ({datetime.fromisoformat(r['time']).strftime('%H:%M')})"
             keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"rem_del_{r['id']}")])
         
-        keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="rem_refresh")])
-        await query.edit_message_text("🗑 *Selecciona para eliminar:*", parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
+        keyboard.append([InlineKeyboardButton(_("🔙 Volver", user_id), callback_data="rem_refresh")])
+        await query.edit_message_text(_("🗑 *Selecciona para eliminar:*", user_id), parse_mode="Markdown", reply_markup=InlineKeyboardMarkup(keyboard))
         
     elif data.startswith("rem_del_"):
         rem_id = data.split("_")[2]
@@ -226,16 +229,16 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
             
             if not reminders:
                 # Si ya no quedan, mostramos mensaje y botón de volver
-                msg_text = "🗑 *No quedan recordatorios para eliminar.*"
+                msg_text = _("🗑 *No quedan recordatorios para eliminar.*", user_id)
             else:
-                msg_text = "🗑 *Selecciona para eliminar:*"
+                msg_text = _("🗑 *Selecciona para eliminar:*", user_id)
                 for r in reminders:
                     # Reconstruimos los botones de borrar
                     dt_obj = datetime.fromisoformat(r['time'])
                     btn_text = f"❌ {r['text'][:15]}... ({dt_obj.strftime('%H:%M')})"
                     keyboard.append([InlineKeyboardButton(btn_text, callback_data=f"rem_del_{r['id']}")])
             
-            keyboard.append([InlineKeyboardButton("🔙 Volver", callback_data="rem_refresh")])
+            keyboard.append([InlineKeyboardButton(_("🔙 Volver", user_id), callback_data="rem_refresh")])
             
             # Editamos el mensaje con la lista actualizada
             # Usamos try/except por si el usuario hace click muy rápido (prevención de errores)
@@ -277,11 +280,11 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
         new_time = datetime.now() + timedelta(minutes=int(mins))
         add_reminder(user_id, clean_text, new_time)
         
-        await query.edit_message_text(f"✅ Pospuesto {mins}m.\nNueva hora: {new_time.strftime('%H:%M')}")
+        await query.edit_message_text(_("✅ Pospuesto {mins}m.\nNueva hora: {new_time}", user_id).format(mins=mins, new_time=new_time.strftime('%H:%M')))
 
     elif data.startswith("rem_ack_"):
         # Solo borrar el mensaje o editarlo para decir "Completado"
-        await query.edit_message_text("✅ *Recordatorio completado.*", parse_mode="Markdown")
+        await query.edit_message_text(_("✅ *Recordatorio completado.*", user_id), parse_mode="Markdown")
 
 # Handler para callbacks de tiempo en el estado WAITING_TIME
 async def time_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -314,14 +317,7 @@ async def time_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
     elif data == "time_custom":
         # Usuario quiere escribir manualmente
         await query.edit_message_text(
-            "⏰ *¿Cuándo?*\n\n"
-            "Escribe la fecha/hora manualmente:\n"
-            "• `10m`, `30m` (minutos)\n"
-            "• `1h`, `2h` (horas)\n"
-            "• `20:00` (hora hoy/mañana)\n"
-            "• `mañana 09:00`\n"
-            "• `04/02 10:00` (fecha y hora)\n"
-            "• `25-12-2026 10:00` (fecha completa)",
+            _("⏰ *¿Cuándo?*\n\nEscribe la fecha/hora manualmente:\n• `10m`, `30m` (minutos)\n• `1h`, `2h` (horas)\n• `20:00` (hora hoy/mañana)\n• `mañana 09:00`\n• `04/02 10:00` (fecha y hora)\n• `25-12-2026 10:00` (fecha completa)", user_id),
             parse_mode="Markdown"
         )
         return WAITING_TIME
@@ -330,7 +326,7 @@ async def time_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         add_reminder(user_id, text, trigger_dt)
         msg_dt = trigger_dt.strftime('%d/%m/%Y a las %H:%M')
         await query.edit_message_text(
-            f"✅ *Recordatorio guardado.*\n\n📅 {msg_dt}\n📝 {text}",
+            _("✅ *Recordatorio guardado.*\n\n📅 {msg_dt}\n📝 {text}", user_id).format(msg_dt=msg_dt, text=text),
             parse_mode="Markdown"
         )
     

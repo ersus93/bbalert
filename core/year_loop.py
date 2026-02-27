@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 from utils.year_manager import load_subs, save_subs, get_detailed_year_message
 from utils.file_manager import add_log_line
+from core.i18n import _
 
 async def year_progress_loop(bot):
     """
@@ -27,7 +28,7 @@ async def year_progress_loop(bot):
                 # Si la hora coincide Y no se ha enviado hoy
                 if user_hour == current_hour and last_sent != today_str:
                     try:
-                        msg = get_detailed_year_message()
+                        msg = get_detailed_year_message(user_id=int(user_id))
                         await bot.send_message(chat_id=int(user_id), text=msg, parse_mode="Markdown")
                         
                         # Actualizar registro de enviado

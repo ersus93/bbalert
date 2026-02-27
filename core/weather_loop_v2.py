@@ -30,31 +30,31 @@ def get_emoji(desc: str) -> str:
             return emoji
     return "🌤️"
 
-def get_smart_advice(min_temp, max_temp, weather_ids, uv):
+def get_smart_advice(min_temp, max_temp, weather_ids, uv, user_id):
     """Consejos inteligentes (Logica V2)."""
     advice = []
     is_rainy = any(200 <= w < 600 for w in weather_ids)
     
     if max_temp >= 30:
-        advice.append("👕 *Ropa:* Ropa muy ligera. ¡Hidrátate!")
+        advice.append(_("👕 *Ropa:* Ropa muy ligera. ¡Hidrátate!", user_id))
     elif max_temp >= 25:
-        advice.append("👕 *Ropa:* Camiseta o camisa ligera.")
+        advice.append(_("👕 *Ropa:* Camiseta o camisa ligera.", user_id))
     elif max_temp >= 20:
-        advice.append("🧥 *Ropa:* Chaqueta ligera recomendada.")
+        advice.append(_("🧥 *Ropa:* Chaqueta ligera recomendada.", user_id))
     elif max_temp >= 15:
-        advice.append("🧥 *Ropa:* Abrigo necesario.")
+        advice.append(_("🧥 *Ropa:* Abrigo necesario.", user_id))
     else:
-        advice.append("🧣 *Ropa:* ¡Mucho abrigo! Gorro y guantes.")
+        advice.append(_("🧣 *Ropa:* ¡Mucho abrigo! Gorro y guantes.", user_id))
     
     if uv >= 5.5:
-        advice.append("🧴 *Sol:* UV alto. Usa protector solar.")
+        advice.append(_("🧴 *Sol:* UV alto. Usa protector solar.", user_id))
     if is_rainy:
-        advice.append("☔ *Lluvia:* No olvides el paraguas.")
-        advice.append("🚗 *Coche:* No lo laves hoy.")
+        advice.append(_("☔ *Lluvia:* No olvides el paraguas.", user_id))
+        advice.append(_("🚗 *Coche:* No lo laves hoy.", user_id))
     elif uv > 3 and not is_rainy:
-        advice.append("🧺 *Hogar:* Buen día para secar ropa.")
+        advice.append(_("🧺 *Hogar:* Buen día para secar ropa.", user_id))
         
-    return "\n".join(advice) if advice else "✅ Todo tranquilo por hoy."
+    return "\n".join(advice) if advice else _("✅ Todo tranquilo por hoy.", user_id)
 
 async def weather_alerts_loop(bot: Bot):
     """Bucle de fondo ROBUSTO (Estilo V1) con Mensajes INTELIGENTES (Estilo V2)."""
@@ -198,10 +198,17 @@ async def weather_alerts_loop(bot: Bot):
                         
                         # Textos para UV y AQI (Validando que sean números)
                         uv_num = uv_val if isinstance(uv_val, (int, float)) else 0
-                        uv_text = "Alto" if uv_num > 5 else "Bajo" if uv_num < 3 else "Moderado"
+                        uv_text = _("Alto", user_id) if uv_num > 5 else _("Bajo", user_id) if uv_num < 3 else _("Moderado", user_id)
                         
                         aqi_num = aqi_val if isinstance(aqi_val, (int, float)) else 1
-                        aqi_text = {1: "Bueno", 2: "Justo", 3: "Moderado", 4: "Malo", 5: "Pésimo"}.get(aqi_num, "Desconocido")
+                        aqi_labels = {
+                            1: _("Bueno", user_id),
+                            2: _("Justo", user_id),
+                            3: _("Moderado", user_id),
+                            4: _("Malo", user_id),
+                            5: _("Pésimo", user_id)
+                        }
+                        aqi_text = aqi_labels.get(aqi_num, _("Desconocido", user_id))
 
                         # Iconos y Fechas
                         emoji_weather = get_emoji(description)
@@ -210,26 +217,26 @@ async def weather_alerts_loop(bot: Bot):
                         sunset = datetime.fromtimestamp(current['sys']['sunset'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
 
                         # Construir Mensaje
-                        city_name = current.get('name', 'Tu Ubicación')
+                        city_name = current.get('name', _('Tu Ubicación', user_id))
                         country = current.get('sys', {}).get('country', '')
 
                         msg = (
-                            f"{emoji_weather} *Resumen Diario - {city_name}, {country}*\n"
+                            f"{emoji_weather} *{ _('Resumen Diario', user_id) } - {city_name}, {country}*\n"
                             f"—————————————————\n"
                             f"📅 *{local_time.strftime('%d/%m/%Y')}* | 🕐 *{local_time.strftime('%H:%M')}*\n\n"
                             f"• {description}\n"
-                            f"• 🌡 *Temp:* {temp:.1f}°C (Sens: {feels_like:.1f}°C)\n"
-                            f"• 📈 *Máx:* {max_temp:.1f}°C | 📉 *Mín:* {min_temp:.1f}°C\n"
-                            f"• 💧 *Humedad:* {humidity}%\n"
-                            f"• 💨 *Viento:* {wind_speed} m/s\n"
+                            f"• 🌡 *{ _('Temp', user_id) }:* {temp:.1f}°C ({ _('Sens', user_id) }: {feels_like:.1f}°C)\n"
+                            f"• 📈 *{ _('Máx', user_id) }:* {max_temp:.1f}°C | 📉 *{ _('Mín', user_id) }:* {min_temp:.1f}°C\n"
+                            f"• 💧 *{ _('Humedad', user_id) }:* {humidity}%\n"
+                            f"• 💨 *{ _('Viento', user_id) }:* {wind_speed} m/s\n"
                             f"• ☀️ *UV:* {uv_num:.1f} ({uv_text})\n"
-                            f"• 🌫️ *Aire:* {aqi_text} (AQI: {aqi_num})\n"
-                            f"• 🌅 *Sol:* {sunrise.strftime('%H:%M')} ⇾ 🌇 {sunset.strftime('%H:%M')}\n\n"
+                            f"• 🌫️ *{ _('Aire', user_id) }:* {aqi_text} (AQI: {aqi_num})\n"
+                            f"• 🌅 *{ _('Sol', user_id) }:* {sunrise.strftime('%H:%M')} ⇾ 🌇 {sunset.strftime('%H:%M')}\n\n"
                         )
 
                         # Pronóstico Breve
                         if forecast_list: # Usar la variable forecast_list que creamos arriba
-                            msg += "📅 *Próximas horas:*\n"
+                            msg += f"📅 *{ _('Próximas horas', user_id) }:*\n"
                             for item in forecast_list[:4]: # Cambiado de forecast[:4] a forecast_list[:4]
                                 f_time = datetime.fromtimestamp(item['dt'], timezone.utc) + timedelta(seconds=current.get('timezone', 0))
                                 f_temp = item['main']['temp']
@@ -243,10 +250,10 @@ async def weather_alerts_loop(bot: Bot):
                             ai_recommendation = await loop.run_in_executor(
                                 None, get_groq_weather_advice, msg
                             )
-                            msg += f"\n💡 *Consejo Inteligente:*\n{ai_recommendation}\n"
+                            msg += f"\n💡 *{ _('Consejo Inteligente', user_id) }:*\n{ai_recommendation}\n"
                         except Exception as e_ai:
                             add_log_line(f"⚠️ Error IA Clima: {e_ai}")
-                            msg += "\n💡 *Consejo:* Revisa el pronóstico antes de salir."
+                            msg += f"\n💡 *{ _('Consejo', user_id) }:* { _('Revisa el pronóstico antes de salir.', user_id) }"
 
                         msg += "" + get_random_ad_text()
                         
