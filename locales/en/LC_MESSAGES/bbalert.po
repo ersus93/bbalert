@@ -1,24 +1,24 @@
-# English translations for PROJECT.
-# Copyright (C) 2025 ORGANIZATION
-# This file is distributed under the same license as the PROJECT project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+# English translations for BitBread Alert.
+# Copyright (C) 2025
+# This file is distributed under the same license as the BitBread Alert project.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: PROJECT VERSION\n"
 "Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
-"POT-Creation-Date: 2025-12-25 13:36-0500\n"
-"PO-Revision-Date: 2025-12-25 13:31-0500\n"
-"Last-Translator: \n"
-"Language: en\n"
+"POT-Creation-Date: 2026-02-27 17:56-0500\n"
+"PO-Revision-Date: 2026-02-27 18:03-0500\n"
+"Last-Translator: Gemini\n"
 "Language-Team: en <LL@li.org>\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Language: en_US\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=utf-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.17.0\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Generated-By: Babel 2.18.0\n"
+"X-Generator: Poedit 3.8\n"
 
-#: bbalert.py:90
+#: bbalert.py:105
 #, fuzzy, python-brace-format
 msgid ""
 "🍞 *¡Llego el pan a la bodega!* 🍞\n"
@@ -32,7 +32,7 @@ msgid ""
 "✅ Ácido y aplastado, pero comible. 👍.\n"
 "🫣 ¡Vamos por mas!"
 msgstr ""
-"🍞 *Bread's in the house!* 🍞\n"
+"🍞 *Freshly baked! Bread's in the house!* 🍞\n"
 "————————————————————\n"
 "\n"
 "🤖 `BitBread Alert v{version}`\n"
@@ -40,8 +40,8 @@ msgstr ""
 "🐍 `Python: v{python_version}`\n"
 "\n"
 "————————————————————\n"
-"✅ Sour and squashed, but it works. 👍.\n"
-"🫣 Let's get more!"
+"✅ A bit sour and squashed, but it'll do. 👍.\n"
+"🫣 Let's get some more!"
 
 #: core/api_client.py:66
 msgid ""
@@ -56,12 +56,12 @@ msgstr ""
 #: core/api_client.py:71
 #, python-brace-format
 msgid "🚀 HBD acaba de *tocar o superar* los *${precio}*."
-msgstr "🚀 HBD just *hit or passed* *${precio}*."
+msgstr "🚀 HBD just *reached or exceeded* *${precio}*."
 
 #: core/api_client.py:77
 #, python-brace-format
 msgid "🔻 HBD acaba de *tocar o bajar* de *${precio}*."
-msgstr "🔻 HBD just *hit or dropped below* *${precio}*."
+msgstr "🔻 HBD just *reached or dropped below* *${precio}*."
 
 #: core/api_client.py:84
 msgid ""
@@ -90,7 +90,7 @@ msgstr ""
 "📈 Price Alert! 📈\n"
 "—————————————————\n"
 "\n"
-"*{coin}* just *WENT ABOVE* your target of *${target_price:,.4f}*.\n"
+"*{coin}* has *EXCEEDED* your target of *${target_price:,.4f}*.\n"
 "\n"
 "Current Price: *${current_price:,.4f}*"
 
@@ -107,7 +107,7 @@ msgstr ""
 "📉 Price Alert! 📉\n"
 "—————————————————\n"
 "\n"
-"*{coin}* just *FELL BELOW* your target of *${target_price:,.4f}*.\n"
+"*{coin}* has *FALLEN BELOW* your target of *${target_price:,.4f}*.\n"
 "\n"
 "Current Price: *${current_price:,.4f}*"
 
@@ -115,9 +115,9 @@ msgstr ""
 msgid "🗑️ Borrar esta alerta"
 msgstr "🗑️ Delete this alert"
 
-#: core/loops.py:261 handlers/user_settings.py:401
+#: core/loops.py:261 handlers/user_settings.py:400
 msgid "🔕 Desactivar estas alertas"
-msgstr "🔕 Turn these alerts off"
+msgstr "🔕 Disable these alerts"
 
 #: core/loops.py:317
 #, python-brace-format
@@ -126,7 +126,7 @@ msgid ""
 "—————————————————\n"
 "\n"
 msgstr ""
-"📊 *Your Watchlist Alert ({intervalo_h}h):*\n"
+"📊 *Watchlist Alert ({intervalo_h}h):*\n"
 "—————————————————\n"
 "\n"
 
@@ -141,47 +141,11 @@ msgstr ""
 "\n"
 "—————————————————\n"
 "📅 Date: {fecha}\n"
-"_🔰 Alerts set for every {intervalo_h} hours._"
-
-#: core/weather_loop_v2.py:116
-#, fuzzy
-msgid ""
-"—————————————————\n"
-"☔ ¡No olvides el paraguas!"
-msgstr ""
-"\n"
-"—————————————————\n"
-"☔ Don't forget your umbrella!"
-
-#: core/weather_loop_v2.py:142
-#, fuzzy
-msgid ""
-"—————————————————\n"
-"⚡ Toma precauciones y resguárdate."
-msgstr ""
-"\n"
-"—————————————————\n"
-"⚡ Take cover and be careful."
-
-#: core/weather_loop_v2.py:157
-#, fuzzy
-msgid ""
-"—————————————————\n"
-"🧴 Usa protector solar si vas a salir."
-msgstr ""
-"\n"
-"—————————————————\n"
-"🧴 Use sunscreen if you're going out."
-
-#: core/weather_loop_v2.py:192
-msgid ""
-"—————————————————\n"
-"weatherdescriptionmaintempmainhumiditywindspeed"
-msgstr ""
+"_🔰 Alerts scheduled every {intervalo_h} hours._"
 
 #: handlers/admin.py:50
 msgid "🚫 Comando no autorizado."
-msgstr "🚫 Not allowed."
+msgstr "🚫 Unauthorized command."
 
 #: handlers/admin.py:61
 msgid ""
@@ -192,16 +156,16 @@ msgid ""
 msgstr ""
 "✍️ *Create Broadcast Message*\n"
 "\n"
-"Send the main message content.\n"
+"Please send the main content of the message.\n"
 "You can send an image, text, or an image with text."
 
 #: handlers/admin.py:78
 msgid "🖼️ Añadir Imagen"
-msgstr "🖼️ Add Picture"
+msgstr "🖼️ Add Image"
 
 #: handlers/admin.py:79
 msgid "➡️ Enviar Solo Texto"
-msgstr "➡️ Text Only"
+msgstr "➡️ Send Text Only"
 
 #: handlers/admin.py:80 handlers/admin.py:166 handlers/admin.py:192
 msgid "❌ Cancelar"
@@ -213,55 +177,55 @@ msgstr "✍️ Add/Edit Text"
 
 #: handlers/admin.py:82
 msgid "➡️ Enviar Solo Imagen"
-msgstr "➡️ Picture Only"
+msgstr "➡️ Send Image Only"
 
 #: handlers/admin.py:93
 msgid "✅ Texto recibido. ¿Deseas añadir una imagen o enviar el mensaje?"
-msgstr "✅ Got the text. Want to add a picture or send it now?"
+msgstr "✅ Text received. Would you like to add an image or send the message?"
 
 #: handlers/admin.py:113
 msgid "✅ Imagen recibida. ¿Deseas añadir o editar el texto del pie de foto?"
-msgstr "✅ Got the picture. Want to add or edit the caption?"
+msgstr "✅ Image received. Would you like to add or edit the caption?"
 
 #: handlers/admin.py:122
 msgid "⚠️ Por favor, envía un texto o una imagen."
-msgstr "⚠️ Send either text or a picture."
+msgstr "⚠️ Please send either text or an image."
 
 #: handlers/admin.py:137
 msgid "✍️ De acuerdo, por favor envía el texto que quieres usar como pie de foto."
-msgstr "✍️ Alright, send the text you want for the caption."
+msgstr "✍️ Alright, please send the text you'd like to use as a caption."
 
 #: handlers/admin.py:144
 msgid "🖼️ Entendido, por favor envía la imagen que quieres adjuntar."
-msgstr "🖼️ Got it, send the picture you want to attach."
+msgstr "🖼️ Got it, please send the image you want to attach."
 
 #: handlers/admin.py:153 handlers/admin.py:280
 msgid "🚫 Operación cancelada."
-msgstr "🚫 Canceled."
+msgstr "🚫 Operation canceled."
 
 #: handlers/admin.py:165 handlers/admin.py:191
 msgid "🚀 Enviar a todos los usuarios"
-msgstr "🚀 Send to Everyone"
+msgstr "🚀 Broadcast to all users"
 
 #: handlers/admin.py:175
 msgid "✅ Texto añadido. El mensaje está listo para ser enviado."
-msgstr "✅ Text added. Ready to send."
+msgstr "✅ Text added. The message is ready to be sent."
 
 #: handlers/admin.py:201
 msgid "✅ Imagen añadida. El mensaje está listo para ser enviado."
-msgstr "✅ Picture added. Ready to send."
+msgstr "✅ Image added. The message is ready to be sent."
 
 #: handlers/admin.py:217
 msgid ""
 "⏳ *Enviando mensaje a todos los usuarios...*\n"
 "Esto puede tardar un momento."
 msgstr ""
-"⏳ *Sending to everyone...*\n"
-"This might take a sec."
+"⏳ *Broadcasting message to all users...*\n"
+"This might take a moment."
 
 #: handlers/admin.py:225
 msgid "❌ Error interno: La función de envío masivo no ha sido inicializada."
-msgstr "❌ Oops: The send-to-all function isn't ready."
+msgstr "❌ Internal error: The broadcast function has not been initialized."
 
 #: handlers/admin.py:248
 #, python-brace-format
@@ -273,9 +237,9 @@ msgid ""
 "❌ Fallos ({num_fallos}):\n"
 "{fallidos_str}"
 msgstr ""
-"✅ Done.\n"
+"✅ Broadcast complete.\n"
 "\n"
-"Sent to *{total_enviados}* of {total_usuarios} users.\n"
+"Sent to *{total_enviados}* out of {total_usuarios} users.\n"
 "\n"
 "❌ Failed ({num_fallos}):\n"
 "{fallidos_str}"
@@ -283,10 +247,10 @@ msgstr ""
 #: handlers/admin.py:262
 #, python-brace-format
 msgid "✅ ¡Éxito! Mensaje enviado a todos los *{total_usuarios}* usuarios."
-msgstr "✅ Done! Sent to all *{total_usuarios}* users."
+msgstr "✅ Success! Message sent to all *{total_usuarios}* users."
 
-#: handlers/admin.py:616
-#, python-brace-format
+#: handlers/admin.py:670
+#, fuzzy, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
 "\n"
@@ -296,7 +260,7 @@ msgid ""
 "• Última Actualización: {ultima_actualizacion} 🕒 \n"
 "—————————————————\n"
 "\n"
-"_Ya, eso es todo lo que puedes ver 🙂👍_"
+"_Ya, eso es todo lo que puedes ver mi tanke 🙂👍_"
 msgstr ""
 "🤖 *BitBread Alert Status*\n"
 "\n"
@@ -306,17 +270,17 @@ msgstr ""
 "• Last Update: {ultima_actualizacion} 🕒 \n"
 "—————————————————\n"
 "\n"
-"_Yeah, that's all you get to see 🙂👍_"
+"_That's all the info available for now, boss! 🙂👍_"
 
-#: handlers/admin.py:644
+#: handlers/admin.py:698
 msgid "❌ Error interno: La función de logs no ha sido inicializada."
-msgstr "❌ Oops: Log function isn't ready."
+msgstr "❌ Internal error: The log function has not been initialized."
 
-#: handlers/admin.py:657
+#: handlers/admin.py:711
 msgid "⚠️ El argumento debe ser un número entero."
-msgstr "⚠️ Needs to be a whole number."
+msgstr "⚠️ The argument must be an integer."
 
-#: handlers/admin.py:685
+#: handlers/admin.py:756
 #, python-brace-format
 msgid ""
 "🤖 *Estado de BitBread Alert*\n"
@@ -352,25 +316,21 @@ msgid ""
 "\n"
 "Ejemplo: `/alerta HIVE 0.35`"
 msgstr ""
-"⚠️ *Wrong format*.\n"
+"⚠️ *Incorrect format*.\n"
 "\n"
-"Use it like this:\n"
+"The correct usage is:\n"
 "/alerta *COIN PRICE*\n"
 "\n"
 "Example: `/alerta HIVE 0.35`"
 
 #: handlers/alerts.py:73
 msgid "⚠️ El precio que ingresaste no es válido. Debe ser un número positivo."
-msgstr "⚠️ That price isn't right. Needs to be a positive number."
+msgstr "⚠️ The price entered is invalid. It must be a positive number."
 
 #: handlers/alerts.py:110
 #, python-brace-format
-msgid ""
-"✅ ¡Alertas creadas! Te avisaré cuando *{coin}* cruce por encima o por "
-"debajo de *${target_price:,.4f}*."
-msgstr ""
-"✅ Alerts set! I'll tell you when *{coin}* goes above or below "
-"*${target_price:,.4f}*."
+msgid "✅ ¡Alertas creadas! Te avisaré cuando *{coin}* cruce por encima o por debajo de *${target_price:,.4f}*."
+msgstr "✅ Alerts set! I'll notify you when *{coin}* crosses above or below *${target_price:,.4f}*."
 
 #: handlers/alerts.py:122
 #, python-brace-format
@@ -382,10 +342,8 @@ msgstr ""
 "📊 Current Price: `{initial_price:,.4f}`"
 
 #: handlers/alerts.py:143
-msgid ""
-"No tienes ninguna alerta de precio activa. Crea una con el comando "
-"/alerta."
-msgstr "No active price alerts. Set one up with /alerta."
+msgid "No tienes ninguna alerta de precio activa. Crea una con el comando /alerta."
+msgstr "You don't have any active price alerts. Create one using the /alerta command."
 
 #: handlers/alerts.py:151 handlers/alerts.py:202
 msgid ""
@@ -401,11 +359,11 @@ msgstr "🧹 Clear All"
 
 #: handlers/alerts.py:195
 msgid "✅ Alerta borrada. Ya no tienes alertas activas."
-msgstr "✅ Alert deleted. No more active alerts."
+msgstr "✅ Alert deleted. You have no more active alerts."
 
 #: handlers/alerts.py:236
 msgid "✅ Todas tus alertas han sido eliminadas."
-msgstr "✅ All your alerts are gone."
+msgstr "✅ All of your alerts have been removed."
 
 #: handlers/general.py:35
 #, python-brace-format
@@ -413,37 +371,34 @@ msgid ""
 "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n"
 "————————————————————\n"
 "\n"
-"Para recibir alertas periódicas con los precios de tu lista de monedas, "
-"usa el comando `/monedas` seguido de los símbolos separados por comas. "
-"Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap."
-" Ejemplo:\n"
+"Para recibir alertas periódicas con los precios de tu lista de monedas, usa el comando `/monedas` seguido de los símbolos "
+"separados por comas. Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n"
 "\n"
 "`/monedas BTC, ETH, TRX, HIVE, ADA`\n"
 "\n"
-"Puedes modificar la temporalidad de esta alerta en cualquier momento con "
-"el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
+"Puedes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y "
+"24.0).\n"
 "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n"
 "\n"
 "Usa /help para ver todos los comandos disponibles."
 msgstr ""
-"*Hey👋 {nombre_usuario}!* Welcome to BitBreadAlert.\n"
+"*Hey there👋 {nombre_usuario}!* Welcome to BitBreadAlert.\n"
 "————————————————————\n"
 "\n"
-"To get regular alerts with prices for your watchlist, use `/monedas` "
-"followed by symbols separated by commas. You can use *any* crypto symbol "
-"listed on CoinMarketCap. Example:\n"
+"To receive periodic alerts with your watchlist prices, use the `/monedas` command followed by symbols separated by commas. "
+"You can use *any* cryptocurrency symbol listed on CoinMarketCap. Example:\n"
 "\n"
 "`/monedas BTC, ETH, TRX, HIVE, ADA`\n"
 "\n"
-"You can change how often these alerts come using /temp followed by hours "
-"(between 0.5 and 24.0).\n"
+"You can adjust the alert frequency at any time with the /temp command followed by the number of hours (between 0.5 and "
+"24.0).\n"
 "Example: /temp 2.5 (for 2 hours and 30 minutes)\n"
 "\n"
 "Use /help to see all available commands."
 
 #: handlers/general.py:70
 msgid "⚠️ No tienes monedas configuradas. Usa /monedas para añadir algunas."
-msgstr "⚠️ No coins set up. Use /monedas to add some."
+msgstr "⚠️ No coins configured. Use /monedas to add some."
 
 #: handlers/general.py:76
 msgid "⏳ Consultando precios actuales..."
@@ -451,7 +406,7 @@ msgstr "⏳ Checking current prices..."
 
 #: handlers/general.py:83
 msgid "❌ No se pudieron obtener los precios en este momento. Intenta luego."
-msgstr "❌ Can't get prices right now. Try again later."
+msgstr "❌ Unable to retrieve prices right now. Please try again later."
 
 #: handlers/general.py:93
 msgid ""
@@ -473,31 +428,40 @@ msgid ""
 "Usuario: {usuario}\n"
 "ID: `{id_chat}`"
 msgstr ""
-"Here's your Telegram info:\n"
+"Here is your Telegram info:\n"
 "—————————————————\n"
 "\n"
 "Name: {nombre}\n"
 "Username: {usuario}\n"
 "ID: `{id_chat}`"
 
-#: handlers/tasa.py:42 handlers/tasa.py:44
+#: handlers/ta.py:252
+msgid "⚠️ Uso: `/ta <SYMBOL> [PAR] [TIME] [TV]`"
+msgstr "⚠️ Usage: `/ta <SYMBOL> [PAIR] [TIME] [TV]`"
+
+#: handlers/ta.py:388
+#, fuzzy, python-brace-format
+msgid "❌ No se encontraron datos para *{s}* ni en Binance ni en TV."
+msgstr "❌ No data found for *{s}* on Binance or TradingView."
+
+#: handlers/tasa.py:44 handlers/tasa.py:46
 #, fuzzy
 msgid "⏳ Conectando con fuentes (ElToque, CADECA & BCC)..."
 msgstr "⏳ Connecting to sources (ElToque, CADECA & BCC)..."
 
-#: handlers/tasa.py:76
+#: handlers/tasa.py:78
 msgid ""
 "⚠️ *Error de Conexión*.\n"
 "No se pudieron obtener datos de El Toque."
 msgstr ""
 "⚠️ *Connection Error*.\n"
-"Couldn't get data from El Toque."
+"Could not retrieve data from El Toque."
 
-#: handlers/tasa.py:79
+#: handlers/tasa.py:81
 msgid "⚠️ *Error de Conexión*."
 msgstr "⚠️ *Connection Error*."
 
-#: handlers/tasa.py:95
+#: handlers/tasa.py:97
 #, fuzzy
 msgid ""
 "📊 *MERCADO INFORMAL (El Toque)*\n"
@@ -506,26 +470,26 @@ msgstr ""
 "📊 *INFORMAL MARKET (El Toque)*\n"
 "—————————————————\n"
 
-#: handlers/tasa.py:206
+#: handlers/tasa.py:209
 msgid "📆"
 msgstr "📆"
 
-#: handlers/tasa.py:207
+#: handlers/tasa.py:210
 msgid ""
 "*Fuentes de consulta:*\n"
 "🔗 _elToque.com\n"
 "🔗 www.cadeca.cu\n"
 "🔗 www.bc.gob.cu_"
 msgstr ""
-"*Data sources:*\n"
+"*Information Sources:*\n"
 "🔗 _elToque.com\n"
 "🔗 www.cadeca.cu\n"
 "🔗 www.bc.gob.cu_"
 
-#: handlers/tasa.py:253
+#: handlers/tasa.py:286
 #, fuzzy
 msgid "❌ Ocurrió un error inesperado."
-msgstr "❌ Something unexpected went wrong."
+msgstr "❌ An unexpected error occurred."
 
 #: handlers/trading.py:78
 msgid ""
@@ -536,9 +500,9 @@ msgid ""
 "`/graf BTC 15m`\n"
 "`/graf BTC USDT 1h`"
 msgstr ""
-"⚠️ *Wrong format*.\n"
+"⚠️ *Incorrect format*.\n"
 "\n"
-"Use: `/graf <COIN> [PAIR] <TIMEFRAME>`\n"
+"Usage: `/graf <MONEDA> [PAIR] <TIMEFRAME>`\n"
 "Examples:\n"
 "`/graf BTC 15m`\n"
 "`/graf BTC USDT 1h`"
@@ -549,14 +513,14 @@ msgid ""
 "\n"
 "Usa: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 msgstr ""
-"⚠️ *Wrong timeframe*.\n"
+"⚠️ *Invalid timeframe*.\n"
 "\n"
 "Use: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M."
 
 #: handlers/trading.py:120
 #, python-brace-format
 msgid "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})..."
-msgstr "⏳ Making chart for *{base}/{quote}* ({temporalidad})..."
+msgstr "⏳ Generating chart for *{base}/{quote}* ({temporalidad})..."
 
 #: handlers/trading.py:132
 #, python-brace-format
@@ -570,50 +534,44 @@ msgstr ""
 "[View on TradingView]({url})"
 
 #: handlers/trading.py:144
-msgid ""
-"❌ Lo siento, no pude generar la captura del gráfico en este momento. "
-"Inténtalo de nuevo más tarde."
-msgstr "❌ Sorry, couldn't grab the chart right now. Try again later."
+msgid "❌ Lo siento, no pude generar la captura del gráfico en este momento. Inténtalo de nuevo más tarde."
+msgstr "❌ Sorry, I couldn't generate the chart capture right now. Please try again later."
 
-#: handlers/trading.py:162
+#: handlers/trading.py:161
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
-"\n"
-"Uso: `/p <MONEDA>`\n"
-"Ejemplo: `/p BTC`"
+"Uso: `/p <MONEDA>` (ej: `/p BTC`)"
 msgstr ""
-"⚠️ *Wrong format*.\n"
-"\n"
-"Use: `/p <COIN>`\n"
-"Example: `/p BTC`"
+"⚠️ *Incorrect format*.\n"
+"Usage: `/p <MONEDA>` (e.g., `/p BTC`)"
 
-#: handlers/trading.py:177
+#: handlers/trading.py:178
 #, python-brace-format
 msgid "😕 No se pudieron obtener los datos para *{moneda}*."
-msgstr "😕 Can't get data for *{moneda}*."
+msgstr "😕 Could not retrieve data for *{moneda}*."
 
-#: handlers/trading.py:194
+#: handlers/trading.py:193
 msgid "Ξ:"
 msgstr "Ξ:"
 
-#: handlers/trading.py:195
+#: handlers/trading.py:194
 msgid "₿:"
 msgstr "₿:"
 
-#: handlers/trading.py:196
+#: handlers/trading.py:195
 msgid "Cap:"
 msgstr "Cap:"
 
-#: handlers/trading.py:197
+#: handlers/trading.py:196
 msgid "Vol:"
 msgstr "Vol:"
 
-#: handlers/trading.py:223
+#: handlers/trading.py:230
 #, python-brace-format
 msgid "🔄 Actualizar /p {symbol}"
 msgstr "🔄 Refresh /p {symbol}"
 
-#: handlers/trading.py:336
+#: handlers/trading.py:362
 msgid ""
 "🌍 *Estado de Mercados Globales*\n"
 "—————————————————\n"
@@ -623,37 +581,22 @@ msgstr ""
 "—————————————————\n"
 "\n"
 
-#: handlers/trading.py:566
-msgid "⚠️ Uso: `/ta <SYMBOL> [PAR] [TIME] [TV]`"
-msgstr "⚠️ Use: `/ta <SYMBOL> [PAIR] [TIME] [TV]`"
-
-#: handlers/trading.py:679
-#, fuzzy, python-brace-format
-msgid "❌ No se encontraron datos para *{s}* ni en Binance ni en TV."
-msgstr "❌ No data found for *{s}* on Binance or TV."
-
 #: handlers/user_settings.py:69
 #, python-brace-format
 msgid ""
 "✅ ¡Lista de monedas actualizada!\n"
 "Ahora recibirás alertas de para: `{monedas_limpias_str}`\n"
 "\n"
-"Puedes cambiar esta lista en cualquier momento enviando una nueva lista "
-"de símbolos separados por comas."
+"Puedes cambiar esta lista en cualquier momento enviando una nueva lista de símbolos separados por comas."
 msgstr ""
 "✅ Watchlist updated!\n"
-"You'll now get alerts for: `{monedas_limpias_str}`\n"
+"You will now receive alerts for: `{monedas_limpias_str}`\n"
 "\n"
-"You can change this list anytime by sending new symbols separated by "
-"commas."
+"You can change this list at any time by sending a new comma-separated list of symbols."
 
 #: handlers/user_settings.py:78
-msgid ""
-"⚠️ Por favor, envía una lista de símbolos de monedas separados por comas."
-" Ejemplo: `BTC, ETH, HIVE`"
-msgstr ""
-"⚠️ Send a list of coin symbols separated by commas. Example: `BTC, ETH, "
-"HIVE`"
+msgid "⚠️ Por favor, envía una lista de símbolos de monedas separados por comas. Ejemplo: `BTC, ETH, HIVE`"
+msgstr "⚠️ Please send a comma-separated list of coin symbols. Example: `BTC, ETH, HIVE`"
 
 #: handlers/user_settings.py:94
 #, python-brace-format
@@ -661,20 +604,19 @@ msgid ""
 "✅ Listo! recibirás alertas para las siguientes monedas:\n"
 "`{monedas_str}`."
 msgstr ""
-"✅ Done! You'll get alerts for these coins:\n"
+"✅ All set! You will receive alerts for the following coins:\n"
 "`{monedas_str}`."
 
 #: handlers/user_settings.py:101
 msgid "⚠️ No tienes monedas configuradas para la alerta de tempralidad."
-msgstr "⚠️ No coins set up for scheduled alerts."
+msgstr "⚠️ You have no coins configured for scheduled alerts."
 
 #: handlers/user_settings.py:114
 msgid ""
-"🛑 Alertas detenidas. Ya no recibirás mensajes cada hora (a menos que "
-"vuelvas a configurar tu lista o ajustes la temporalidad)."
+"🛑 Alertas detenidas. Ya no recibirás mensajes cada hora (a menos que vuelvas a configurar tu lista o ajustes la "
+"temporalidad)."
 msgstr ""
-"🛑 Alerts stopped. No more hourly messages (unless you set up your list "
-"again or change the timing)."
+"🛑 Alerts stopped. You will no longer receive hourly messages (unless you reconfigure your watchlist or adjust the frequency)."
 
 #: handlers/user_settings.py:138
 #, fuzzy, python-brace-format
@@ -685,11 +627,11 @@ msgid ""
 "Tu plan actual permite un mínimo de: *{min_val} horas*.\n"
 "Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 8`)."
 msgstr ""
-"⚙️ *Timing Settings*\n"
+"⚙️ *Frequency Settings*\n"
 "Your current alert interval is *{intervalo_actual} hours*.\n"
 "\n"
 "Your current plan allows a minimum of: *{min_val} hours*.\n"
-"To change it, send: `/temp <hours>` (ex: `/temp 8`)."
+"To change it, send: `/temp <hours>` (e.g., `/temp 8`)."
 
 #: handlers/user_settings.py:156
 #, fuzzy
@@ -698,23 +640,21 @@ msgid ""
 "—————————————————\n"
 "\n"
 "—————————————————\n"
-"🚀 Adquiere el 'Pack Control Total' en /shop para desbloquear alertas "
-"rápidas (hasta 0.25h), estre otras funciones."
+"🚀 Adquiere el 'Pack Control Total' en /shop para desbloquear alertas rápidas (hasta 0.25h), estre otras funciones."
 msgstr ""
 "🔒 *Premium Feature*\n"
 "—————————————————\n"
 "\n"
 "—————————————————\n"
-"🚀 Get the 'Total Control Pack' in /shop to unlock faster alerts (down to "
-"0.25h) and more."
+"🚀 Purchase the 'Total Control Pack' at /shop to unlock high-frequency alerts (down to 0.25h) and other exclusive features."
 
 #: handlers/user_settings.py:167
 msgid "⚠️ El máximo permitido es 24 horas."
-msgstr "⚠️ Max allowed is 24 hours."
+msgstr "⚠️ The maximum allowed is 24 hours."
 
 #: handlers/user_settings.py:180
 msgid "❌ No se pudo guardar tu configuración. ¿Estás registrado con /start?"
-msgstr "❌ Can't save your settings. Did you register with /start?"
+msgstr "❌ Could not save your settings. Are you registered via /start?"
 
 #: handlers/user_settings.py:197
 #, python-brace-format
@@ -722,16 +662,16 @@ msgid ""
 "✅ ¡Temporalidad actualizada a *{interval_h} horas*!\n"
 "Tus alertas llegarán con esta frecuencia.{extra}"
 msgstr ""
-"✅ Timing updated to *{interval_h} hours*!\n"
-"Your alerts will come at this frequency.{extra}"
+"✅ Frequency updated to *{interval_h} hours*!\n"
+"Your alerts will now arrive at this interval.{extra}"
 
 #: handlers/user_settings.py:206
 msgid "⚠️ Formato inválido. Usa un número. Ejemplo: `/temp 4` o `/temp 2.5`"
-msgstr "⚠️ Wrong format. Use a number. Example: `/temp 4` or `/temp 2.5`"
+msgstr "⚠️ Invalid format. Please use a number. Example: `/temp 4` or `/temp 2.5`"
 
 #: handlers/user_settings.py:209
 msgid "⚠️ Debes especificar las horas. Ejemplo: `/temp 4`"
-msgstr "⚠️ Need to specify hours. Example: `/temp 4`"
+msgstr "⚠️ You must specify the hours. Example: `/temp 4`"
 
 #: handlers/user_settings.py:224
 msgid "ninguna"
@@ -742,16 +682,15 @@ msgstr "none"
 msgid ""
 "⚠️ *Formato incorrecto*.\n"
 "\n"
-"Para establecer tu lista de monedas, envía el comando seguido de los "
-"símbolos. Ejemplo:\n"
+"Para establecer tu lista de monedas, envía el comando seguido de los símbolos. Ejemplo:\n"
 "\n"
 "`/monedas BTC, ETH, HIVE, SOL`\n"
 "\n"
 "Tu lista actual es: {lista_str}"
 msgstr ""
-"⚠️ *Wrong format*.\n"
+"⚠️ *Incorrect format*.\n"
 "\n"
-"To set your watchlist, send the command followed by symbols. Example:\n"
+"To set your watchlist, send the command followed by the symbols. Example:\n"
 "\n"
 "`/monedas BTC, ETH, HIVE, SOL`\n"
 "\n"
@@ -759,7 +698,7 @@ msgstr ""
 
 #: handlers/user_settings.py:246
 msgid "⚠️ No pude encontrar ninguna moneda en tu mensaje. Intenta de nuevo."
-msgstr "⚠️ Can't find any coins in your message. Try again."
+msgstr "⚠️ I couldn't find any coins in your message. Please try again."
 
 #: handlers/user_settings.py:266
 msgid ""
@@ -769,7 +708,7 @@ msgid ""
 "*Precios actuales:*\n"
 "•\n"
 msgstr ""
-"✅ *Your watchlist was saved.*\n"
+"✅ *Your watchlist has been saved.*\n"
 "—————————————————\n"
 "\n"
 "*Current Prices:*\n"
@@ -780,16 +719,14 @@ msgid "No encontrado"
 msgstr "Not Found"
 
 #: handlers/user_settings.py:280
-msgid ""
-"✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los "
-"precios en este momento."
-msgstr "✅ *Your watchlist was saved*, but couldn't get prices right now."
+msgid "✅ *Tu lista de monedas ha sido guardada*, pero no pude obtener los precios en este momento."
+msgstr "✅ *Your watchlist has been saved*, but I couldn't retrieve the prices right now."
 
-#: handlers/user_settings.py:342
+#: handlers/user_settings.py:341
 msgid "_(No hay alertas configuradas por el administrador)_"
-msgstr "_(No alerts set by admin)_"
+msgstr "_(No alerts configured by the administrator)_"
 
-#: handlers/user_settings.py:358
+#: handlers/user_settings.py:357
 msgid ""
 "🚨 *Configuración de Alertas HBD*\n"
 "—————————————————\n"
@@ -799,68 +736,67 @@ msgstr ""
 "—————————————————\n"
 "\n"
 
-#: handlers/user_settings.py:360
+#: handlers/user_settings.py:359
 msgid "✅ Tus notificaciones están *ACTIVADAS*"
-msgstr "✅ Your notifications are *ON*"
+msgstr "✅ Your notifications are *ENABLED*"
 
-#: handlers/user_settings.py:360
+#: handlers/user_settings.py:359
 msgid "☑️ Tus notificaciones están *DESACTIVADAS*"
-msgstr "☑️ Your notifications are *OFF*"
+msgstr "☑️ Your notifications are *DISABLED*"
 
-#: handlers/user_settings.py:367
+#: handlers/user_settings.py:366
 msgid "Usa el botón abajo para cambiar tu preferencia."
-msgstr "Use the button below to switch."
+msgstr "Use the button below to change your preference."
 
-#: handlers/user_settings.py:372
+#: handlers/user_settings.py:371
 msgid "🔕 Desactivar mis alertas"
-msgstr "🔕 Turn My Alerts Off"
+msgstr "🔕 Disable My Alerts"
 
-#: handlers/user_settings.py:374
+#: handlers/user_settings.py:373
 msgid "🔔 Activar mis alertas"
-msgstr "🔔 Turn My Alerts On"
+msgstr "🔔 Enable My Alerts"
 
-#: handlers/user_settings.py:396
+#: handlers/user_settings.py:395
 msgid "✅ ¡Alertas de HBD *activadas*! Volverás a recibir notificaciones."
-msgstr "✅ HBD Alerts *turned on*! You'll get notifications again."
+msgstr "✅ HBD Alerts *enabled*! You will receive notifications again."
 
-#: handlers/user_settings.py:407
+#: handlers/user_settings.py:406
 msgid "☑️ Alertas de HBD *desactivadas*. Ya no recibirás estos mensajes."
-msgstr "☑️ HBD Alerts *turned off*. No more of these messages."
+msgstr "☑️ HBD Alerts *disabled*. You will no longer receive these messages."
 
-#: handlers/user_settings.py:412
+#: handlers/user_settings.py:411
 msgid "🔔 Activar alertas de HBD"
-msgstr "🔔 Turn HBD Alerts On"
+msgstr "🔔 Enable HBD Alerts"
 
-#: handlers/user_settings.py:434
+#: handlers/user_settings.py:433
 #, python-brace-format
 msgid ""
 "🌐 *Selecciona tu idioma:*\n"
 "\n"
 "El idioma actual es: {current_lang_name}"
 msgstr ""
-"🌐 *Pick your language:*\n"
+"🌐 *Select your language:*\n"
 "\n"
-"Current language is: {current_lang_name}"
+"The current language is: {current_lang_name}"
 
-#: handlers/user_settings.py:464
+#: handlers/user_settings.py:463
 #, python-brace-format
 msgid ""
 "✅ ¡Idioma cambiado a *{new_lang_name}*!\n"
 "Usa el comando /lang si deseas cambiarlo de nuevo."
 msgstr ""
-"✅ Language switched to *{new_lang_name}*!\n"
-"Use /lang if you want to change it again."
+"✅ Language changed to *{new_lang_name}*!\n"
+"Use the /lang command if you wish to change it again."
 
-#: handlers/user_settings.py:474
+#: handlers/user_settings.py:473
 msgid "⚠️ Idioma no soportado."
 msgstr "⚠️ Language not supported."
 
-#: handlers/weather.py:270
+#: handlers/weather.py:256
 msgid ""
 "🌤️ *Centro de Clima BitBread*\n"
 "\n"
-"Consulta el clima detallado de cualquier ciudad o gestiona tus alertas "
-"automáticas.\n"
+"Consulta el clima detallado de cualquier ciudad o gestiona tus alertas automáticas.\n"
 "\n"
 "Selecciona una opción:"
 msgstr ""
@@ -868,37 +804,35 @@ msgstr ""
 "\n"
 "Check detailed weather for any city or manage your automatic alerts.\n"
 "\n"
-"Pick an option:"
+"Select an option:"
 
-#: handlers/weather.py:331
+#: handlers/weather.py:322
 msgid ""
 "📍 *Suscripción a Alertas*\n"
 "\n"
-"Para enviarte alertas precisas y configurar tu zona horaria "
-"automáticamente, necesito tu ubicación.\n"
+"Para enviarte alertas precisas y configurar tu zona horaria automáticamente, necesito tu ubicación.\n"
 "\n"
 "👇 *Pulsa el botón de abajo para compartirla:*"
 msgstr ""
 "📍 *Alert Subscription*\n"
 "\n"
-"To send you accurate alerts and set your timezone automatically, I need "
-"your location.\n"
+"To send you accurate alerts and automatically set your timezone, I need your location.\n"
 "\n"
 "👇 *Tap the button below to share it:*"
 
-#: handlers/weather.py:576
+#: handlers/weather.py:569
 msgid "❌ No tienes suscripción activa. Usa /weather_sub."
 msgstr "❌ No active subscription. Use /weather_sub."
 
-#: handlers/weather.py:596
+#: handlers/weather.py:589
 msgid "🗑️ Eliminar Suscripción"
 msgstr "🗑️ Delete Subscription"
 
-#: handlers/weather.py:597
+#: handlers/weather.py:590
 msgid "🔙 Volver"
 msgstr "🔙 Back"
 
-#: handlers/weather.py:601
+#: handlers/weather.py:594
 msgid ""
 "⚙️ *Configuración de Clima*\n"
 "cityalert_time*Alertas Locales:*\n"
@@ -911,18 +845,18 @@ msgid ""
 msgstr ""
 "⚙️ *Weather Settings*\n"
 "cityalert_time*Local Alerts:*\n"
-"Get weather alerts for your area.\n"
+"Get weather warnings for your area.\n"
 "\n"
 "*Global Alerts:*\n"
-"Worldwide earthquakes, tsunamis, hurricanes, and volcanoes.\n"
+"Global impact earthquakes, tsunamis, hurricanes, and volcanoes.\n"
 "\n"
-"Tap to turn on/off:"
+"Tap the buttons to enable/disable:"
 
-#: handlers/weather.py:658
+#: handlers/weather.py:651
 msgid "¿Seguro que quieres dejar de recibir alertas de clima?"
-msgstr "Sure you want to stop getting weather alerts?"
+msgstr "Are you sure you want to stop receiving weather alerts?"
 
-#: handlers/weather.py:663
+#: handlers/weather.py:656
 msgid "🗑️ Suscripción eliminada."
 msgstr "🗑️ Subscription deleted."
 
@@ -936,44 +870,26 @@ msgstr "🗑️ Subscription deleted."
 #~ msgstr ""
 #~ "⚠️ *Connection Error*\n"
 #~ "\n"
-#~ "Can't connect to elToque right now.\n"
+#~ "We couldn't connect to elToque right now.\n"
 #~ "Their server might be overloaded or down.\n"
 #~ "\n"
-#~ "👮‍♂️ _Admins were told._"
+#~ "👮‍♂️ _Admins have been notified._"
 
 #~ msgid "Fuente: elTOQUE.com"
 #~ msgstr "Source: elTOQUE.com"
 
-#~ msgid ""
-#~ "⚠️ El valor debe ser un número "
-#~ "entre *0.5* (30min) y *24.0* horas. "
-#~ "Ejemplo: `2.5`"
-#~ msgstr ""
-#~ "⚠️ Needs to be a number between"
-#~ " *0.5* (30min) and *24.0* hours. "
-#~ "Example: `2.5`"
+#~ msgid "⚠️ El valor debe ser un número entre *0.5* (30min) y *24.0* horas. Ejemplo: `2.5`"
+#~ msgstr "⚠️ The value must be a number between *0.5* (30min) and *24.0* hours. Example: `2.5`"
 
 #~ msgid ""
 #~ "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
-#~ "La alerta con tus monedas ha sido"
-#~ " *reprogramada* para ejecutarse cada "
-#~ "{interval_h} horas."
+#~ "La alerta con tus monedas ha sido *reprogramada* para ejecutarse cada {interval_h} horas."
 #~ msgstr ""
-#~ "✅ Alert timing updated to *{interval_h} hours*!\n"
-#~ "Your coin alerts have been *rescheduled*"
-#~ " to run every {interval_h} hours."
-
-#~ msgid ""
-#~ "✅ ¡Temporalidad de alerta actualizada a *{interval_h} horas*!\n"
-#~ "⚠️ Pero hubo un error al "
-#~ "reprogramar la alerta. Intenta enviar "
-#~ "/temp nuevamente."
-#~ msgstr ""
-#~ "✅ Alert timing updated to *{interval_h} hours*!\n"
-#~ "⚠️ But there was an error rescheduling the alert. Try /temp again."
+#~ "✅ Alert frequency updated to *{interval_h} hours*!\n"
+#~ "Your watchlist alert has been *rescheduled* to run every {interval_h} hours."
 
 #~ msgid "😕 No estás registrado en el sistema."
-#~ msgstr "😕 You're not signed up."
+#~ msgstr "😕 You are not registered in the system."
 
 #~ msgid ""
 #~ "👤 *Tu Perfil Registrado*\n"
@@ -991,43 +907,59 @@ msgstr "🗑️ Subscription deleted."
 #~ "—————————————————\n"
 #~ "_Solo puedes ver tu propia información 🙂_"
 #~ msgstr ""
-#~ "👤 *Your Profile*\n"
+#~ "👤 *Your Registered Profile*\n"
 #~ "—————————————————\n"
-#~ "📋 *Your Info:*\n"
+#~ "📋 *General Info:*\n"
 #~ "  - Name: {nombre_completo}\n"
 #~ "  - ID: `{user_id}`\n"
 #~ "  - Username: {username_str}\n"
-#~ "  - Watchlist: `{monedas_str}`\n"
-#~ "  - Temp Alert: every {intervalo_h}h\n"
-#~ "  - Cross Alerts: {alertas_activas} active\n"
+#~ "  - Coins: `{monedas_str}`\n"
+#~ "  - Frequency Alert: every {intervalo_h}h\n"
+#~ "  - Price Alerts: {alertas_activas} active\n"
 #~ "\n"
 #~ "✨ *Your Subscriptions:*\n"
 #~ "{suscripciones_str}\n"
 #~ "—————————————————\n"
-#~ "_You can only see your own stuff 🙂_"
+#~ "_Only you can see your own info 🙂_"
 
 #~ msgid "⏳ Reintentando conexión ({i}/{max})..."
-#~ msgstr "⏳ Trying again ({i}/{max})..."
-
-#~ msgid ""
-#~ "⚠️ *Error de Conexión con elToque*.\n"
-#~ "Inténtalo más tarde."
-#~ msgstr ""
-#~ "⚠️ *Can't connect to elToque*.\n"
-#~ "Try again later."
+#~ msgstr "⏳ Retrying connection ({i}/{max})..."
 
 #~ msgid "🎨 Generando imagen de tasas..."
-#~ msgstr "🎨 Making rates image..."
+#~ msgstr "🎨 Generating rates image..."
 
 #~ msgid "😕 Error de formato en datos."
-#~ msgstr "😕 Data looks wrong."
+#~ msgstr "😕 Data format error."
 
 #~ msgid "Actualizado:"
 #~ msgstr "Updated:"
 
 #~ msgid "⚠️ Binance sin datos. Probando TradingView..."
-#~ msgstr "⚠️ No Binance data. Trying TradingView..."
+#~ msgstr "⚠️ No data on Binance. Trying TradingView..."
 
 #~ msgid "❌ Error inesperado generando gráfico: {e}"
-#~ msgstr "❌ Oops making chart: {e}"
+#~ msgstr "❌ Unexpected error generating chart: {e}"
 
+#~ msgid ""
+#~ "—————————————————\n"
+#~ "☔ ¡No olvides el paraguas!"
+#~ msgstr ""
+#~ "\n"
+#~ "—————————————————\n"
+#~ "☔ Don't forget your umbrella!"
+
+#~ msgid ""
+#~ "—————————————————\n"
+#~ "⚡ Toma precauciones y resguárdate."
+#~ msgstr ""
+#~ "\n"
+#~ "—————————————————\n"
+#~ "⚡ Take precautions and seek shelter."
+
+#~ msgid ""
+#~ "—————————————————\n"
+#~ "🧴 Usa protector solar si vas a salir."
+#~ msgstr ""
+#~ "\n"
+#~ "—————————————————\n"
+#~ "🧴 Use sunscreen if you're heading out."
