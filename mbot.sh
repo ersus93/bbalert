@@ -892,66 +892,252 @@ git_clone_repository() {
     fi
 }
 
-# Actualizar código del repositorio
+# Forzar pull descartando cambios locales
+force_pull_repository() {
+    local branch="$1"
+    local remote="${2:-origin}"
+
+    print_warning "Se descartarán TODOS los cambios locales."
+    print_info "Esto incluye: archivos modificados, archivos sin trackear, y commits locales no pusheados."
+    echo ""
+    read -p "¿Estás COMPLETAMENTE SEGURO? Escribe 'SI' para confirmar: " confirm_force
+
+    if [[ "$confirm_force" != "SI" ]]; then
+        print_info "Operación cancelada. No se realizaron cambios."
+        return 1
+    fi
+
+    print_step "Guardando backup de seguridad (stash)..."
+    git stash push -m "Backup automático antes de force-pull ($(date '+%Y-%m-%d %H:%M:%S'))" --include-untracked 2>/dev/null || true
+
+    print_step "Reseteando a estado limpio..."
+    if ! git reset --hard "${remote}/${branch}"; then
+        print_error "Falló el reset. Intentando estrategia alternativa..."
+
+        # Estrategia alternativa: limpiar todo y fetch de nuevo
+        print_step "Limpiando archivos no trackeados..."
+        git clean -fd || true
+
+        print_step "Fetch forzado..."
+        git fetch "${remote}" "${branch}" --force
+
+        print_step "Reset hard..."
+        git reset --hard "${remote}/${branch}"
+    fi
+
+    print_success "Código forzado a la versión de GitHub."
+    print_info "Backup guardado en: git stash list"
+    return 0
+}
+
+# Detectar por qué falló el pull
+diagnose_pull_failure() {
+    local exit_code=$1
+    local branch=$2
+
+    print_error "El pull falló (código: $exit_code)"
+    echo ""
+    print_info "Diagnóstico de posibles causas:"
+    echo ""
+
+    # Verificar cambios locales sin commitear
+    if ! git diff-index --quiet HEAD --; then
+        echo -e "  ${RED}•${NC} Tienes cambios locales sin commitear:"
+        git status --short | head -10
+        echo ""
+    fi
+
+    # Verificar archivos sin trackear
+    local untracked=$(git ls-files --others --exclude-standard 2>/dev/null | wc -l)
+    if [ "$untracked" -gt 0 ]; then
+        echo -e "  ${RED}•${NC} Hay $untracked archivo(s) sin trackear en el directorio"
+        echo ""
+    fi
+
+    # Verificar commits locales no pusheados
+    local unpushed=$(git log @{u}..HEAD --oneline 2>/dev/null | wc -l)
+    if [ "$unpushed" -gt 0 ]; then
+        echo -e "  ${RED}•${NC} Tienes $unpushed commit(s) locales no pusheados"
+        echo ""
+    fi
+
+    # Verificar conflictos de merge previos
+    if [ -d ".git/rebase-merge" ] || [ -d ".git/rebase-apply" ]; then
+        echo -e "  ${RED}•${NC} Hay un rebase/merge en progreso sin completar"
+        echo ""
+    fi
+
+    # Verificar divergencia de ramas
+    local local_hash=$(git rev-parse HEAD)
+    local remote_hash=$(git rev-parse "@{u}" 2>/dev/null || echo "")
+    if [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
+        local base_hash=$(git merge-base HEAD "@{u}" 2>/dev/null || echo "")
+        if [ "$base_hash" != "$local_hash" ] && [ "$base_hash" != "$remote_hash" ]; then
+            echo -e "  ${RED}•${NC} Las ramas han divergido (tienen historiales diferentes)"
+            echo ""
+        fi
+    fi
+}
+
+# Actualizar código del repositorio con manejo robusto de errores
 git_pull_repository() {
+    local force_mode="${1:-false}"
+
     print_header "📥 ACTUALIZAR CÓDIGO DEL REPOSITORIO"
-    
-    cd "$PROJECT_DIR" || return 1
-    
+
+    cd "$PROJECT_DIR" || { print_error "No se pudo acceder a $PROJECT_DIR"; return 1; }
+
     # Verificar que es un repo git
     if [ ! -d ".git" ]; then
         print_error "Este directorio no es un repositorio Git."
         return 1
     fi
-    
+
     # Mostrar rama actual
-    CURRENT_BRANCH=$(git branch --show-current)
-    print_info "Rama actual: $CURRENT_BRANCH"
-    
+    local current_branch
+    current_branch=$(git branch --show-current)
+    print_info "Rama actual: $current_branch"
+
+    # Verificar si hay remote configurado
+    if ! git remote get-url origin &>/dev/null; then
+        print_error "No hay remote configurado."
+        return 1
+    fi
+
     # Fetch
     print_step "Buscando actualizaciones..."
-    git fetch origin
-    
+    if ! git fetch origin; then
+        print_error "Falló el fetch. Verifica tu conexión a internet y acceso al repositorio."
+        return 1
+    fi
+
+    # Verificar si hay upstream configurado
+    if ! git rev-parse --abbrev-ref '@{u}' &>/dev/null; then
+        print_warning "No hay upstream configurado para la rama $current_branch"
+        print_info "Configurando upstream a origin/$current_branch..."
+        git branch --set-upstream-to="origin/${current_branch}" "$current_branch" || {
+            print_error "No se pudo configurar upstream"
+            return 1
+        }
+    fi
+
     # Verificar si hay cambios
-    LOCAL=$(git rev-parse HEAD)
-    REMOTE=$(git rev-parse @{u} 2>/dev/null)
-    
-    if [ "$LOCAL" = "$REMOTE" ]; then
+    local local_hash remote_hash
+    local_hash=$(git rev-parse HEAD)
+    remote_hash=$(git rev-parse '@{u}' 2>/dev/null || echo "")
+
+    if [ -z "$remote_hash" ]; then
+        print_error "No se pudo obtener el estado remoto"
+        return 1
+    fi
+
+    if [ "$local_hash" = "$remote_hash" ]; then
         print_success "El código está actualizado."
         return 0
     fi
-    
+
     # Mostrar cambios disponibles
     print_info "Nuevos commits disponibles:"
     git log HEAD..@{u} --oneline
-    
     echo ""
-    read -p "¿Actualizar ahora? (S/n): " confirm
-    if [[ "$confirm" =~ ^[nN]$ ]]; then
-        return 0
+
+    # Si estamos en modo force, saltar confirmación
+    if [[ "$force_mode" == "true" ]]; then
+        print_warning "Modo FORZAR activado - Se descartarán cambios locales"
+    else
+        read -p "¿Actualizar ahora? (S/n): " confirm
+        if [[ "$confirm" =~ ^[nN]$ ]]; then
+            return 0
+        fi
     fi
-    
-    # Pull
-    print_step "Actualizando código..."
-    git pull origin "$CURRENT_BRANCH"
-    
-    if [ $? -eq 0 ]; then
+
+    # Intentar pull normal primero
+    print_step "Intentando actualización normal..."
+    if git pull origin "$current_branch"; then
         print_success "Código actualizado correctamente."
-        
-        # Preguntar sobre dependencias
-        read -p "¿Actualizar dependencias? (S/n): " update_deps
-        if [[ ! "$update_deps" =~ ^[nN]$ ]]; then
-            install_dependencies
-        fi
-        
-        # Preguntar sobre reinicio
-        if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-            read -p "¿Reiniciar el bot? (S/n): " restart_bot
-            if [[ ! "$restart_bot" =~ ^[nN]$ ]]; then
-                manage_service "restart"
-            fi
+    else
+        local pull_exit_code=$?
+        echo ""
+        diagnose_pull_failure "$pull_exit_code" "$current_branch"
+        echo ""
+
+        # Opciones para resolver
+        if [[ "$force_mode" == "true" ]]; then
+            print_warning "Modo forzar activado - Aplicando solución automática..."
+            force_pull_repository "$current_branch" "origin"
+        else
+            echo -e "${YELLOW}Opciones disponibles:${NC}"
+            echo ""
+            echo "  1) Forzar actualización (DESCARTAR cambios locales)"
+            echo "     → Usa la versión exacta de GitHub"
+            echo ""
+            echo "  2) Ver diferencias (comparar cambios locales)"
+            echo "     → Muestra qué cambios tienes sin commitear"
+            echo ""
+            echo "  3) Intentar stash (guardar cambios temporalmente)"
+            echo "     → Guarda tus cambios y luego hace pull"
+            echo ""
+            echo "  4) Cancelar"
+            echo "     → No hacer nada, salir"
+            echo ""
+            read -p "Selecciona una opción (1-4): " resolve_choice
+
+            case "$resolve_choice" in
+                1)
+                    force_pull_repository "$current_branch" "origin"
+                    ;;
+                2)
+                    echo ""
+                    print_info "Diferencias de archivos modificados:"
+                    git diff --stat
+                    echo ""
+                    read -p "Presiona Enter para volver al menú..."
+                    return 1
+                    ;;
+                3)
+                    print_step "Guardando cambios locales en stash..."
+                    if git stash push -m "Auto-stash antes de pull ($(date '+%Y-%m-%d %H:%M:%S'))"; then
+                        print_success "Cambios guardados en stash"
+                        print_step "Intentando pull nuevamente..."
+                        if git pull origin "$current_branch"; then
+                            print_success "Pull exitoso"
+                            print_info "Tus cambios guardados están en: git stash list"
+                            print_info "Para recuperarlos: git stash pop"
+                        else
+                            print_error "El pull sigue fallando incluso después del stash"
+                            return 1
+                        fi
+                    else
+                        print_error "No se pudieron guardar los cambios en stash"
+                        return 1
+                    fi
+                    ;;
+                *)
+                    print_info "Operación cancelada."
+                    return 1
+                    ;;
+            esac
         fi
     fi
+
+    # Si llegamos aquí, el pull fue exitoso (normal o forzado)
+    print_success "Código sincronizado con GitHub"
+
+    # Preguntar sobre dependencias
+    read -p "¿Actualizar dependencias? (S/n): " update_deps
+    if [[ ! "$update_deps" =~ ^[nN]$ ]]; then
+        install_dependencies
+    fi
+
+    # Preguntar sobre reinicio
+    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
+        read -p "¿Reiniciar el bot? (S/n): " restart_bot
+        if [[ ! "$restart_bot" =~ ^[nN]$ ]]; then
+            manage_service "restart"
+        fi
+    fi
+
+    return 0
 }
 
 # Cambiar de rama
@@ -1274,6 +1460,14 @@ if [ "$1" == "--install" ]; then
     exit 0
 fi
 
+# Si se pasa --force-pull, activar modo forzar en git pull
+if [ "$1" == "--force-pull" ]; then
+    export FORCE_PULL=true
+    select_target_directory
+    git_pull_repository true
+    exit 0
+fi
+
 # Seleccionar directorio al inicio
 select_target_directory
 
@@ -1294,7 +1488,7 @@ while true; do
         9)  status_bot ;;
         10) view_logs;;
         11) git_clone_repository; read -p "Presiona Enter para continuar..." ;;
-        12) git_pull_repository ;;
+        12) git_pull_repository "${FORCE_PULL:-false}" ;;
         13) git_switch_branch ;;
         14) git_show_status ;;
         15) git_show_history ;;
