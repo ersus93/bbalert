@@ -64,18 +64,31 @@ async def start_add_reminder(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return WAITING_TEXT
 
 async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Guarda el texto y pide la hora."""
+    """Guarda el texto y pide la hora mostrando botones de opciones rápidas."""
     context.user_data['rem_text'] = update.message.text
+    
+    # Botones de opciones rápidas para tiempo
+    keyboard = [
+        [
+            InlineKeyboardButton("⏱️ 10m", callback_data="time_10"),
+            InlineKeyboardButton("⏱️ 30m", callback_data="time_30"),
+            InlineKeyboardButton("⏱️ 1h", callback_data="time_60"),
+        ],
+        [
+            InlineKeyboardButton("🌅 Mañana 09:00", callback_data="time_morning"),
+            InlineKeyboardButton("🌇 Tarde 15:00", callback_data="time_afternoon"),
+        ],
+        [
+            InlineKeyboardButton("🌙 Noche 20:00", callback_data="time_evening"),
+            InlineKeyboardButton("📝 Otro horario...", callback_data="time_custom"),
+        ],
+    ]
+    
     await update.message.reply_text(
-        "⏰ *¿Cuándo?*\n\n"
-        "Formatos aceptados:\n"
-        "• `10m`, `30m` (minutos)\n"
-        "• `1h`, `2h` (horas)\n"
-        "• `20:00` (hora hoy/mañana)\n"
-        "• `mañana 09:00`\n"
-        "• `04/02 10:00` (fecha y hora)\n"
-        "• `25-12-2026 10:00` (fecha completa)",
-        parse_mode="Markdown"
+        "⏰ *¿Cuándo quieres el recordatorio?*\n\n"
+        "Selecciona una opción rápida o escribe manualmente:",
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return WAITING_TIME
 
@@ -270,12 +283,68 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
         # Solo borrar el mensaje o editarlo para decir "Completado"
         await query.edit_message_text("✅ *Recordatorio completado.*", parse_mode="Markdown")
 
+# Handler para callbacks de tiempo en el estado WAITING_TIME
+async def time_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja los callbacks de tiempo rápido durante el flujo de creación."""
+    query = update.callback_query
+    data = query.data
+    user_id = update.effective_user.id
+    text = context.user_data.get('rem_text')
+    now = datetime.now()
+    trigger_dt = None
+    
+    await query.answer()
+    
+    if data == "time_10":
+        trigger_dt = now + timedelta(minutes=10)
+    elif data == "time_30":
+        trigger_dt = now + timedelta(minutes=30)
+    elif data == "time_60":
+        trigger_dt = now + timedelta(hours=1)
+    elif data == "time_morning":
+        trigger_dt = (now + timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
+    elif data == "time_afternoon":
+        trigger_dt = now.replace(hour=15, minute=0, second=0, microsecond=0)
+        if trigger_dt < now:
+            trigger_dt += timedelta(days=1)
+    elif data == "time_evening":
+        trigger_dt = now.replace(hour=20, minute=0, second=0, microsecond=0)
+        if trigger_dt < now:
+            trigger_dt += timedelta(days=1)
+    elif data == "time_custom":
+        # Usuario quiere escribir manualmente
+        await query.edit_message_text(
+            "⏰ *¿Cuándo?*\n\n"
+            "Escribe la fecha/hora manualmente:\n"
+            "• `10m`, `30m` (minutos)\n"
+            "• `1h`, `2h` (horas)\n"
+            "• `20:00` (hora hoy/mañana)\n"
+            "• `mañana 09:00`\n"
+            "• `04/02 10:00` (fecha y hora)\n"
+            "• `25-12-2026 10:00` (fecha completa)",
+            parse_mode="Markdown"
+        )
+        return WAITING_TIME
+    
+    if trigger_dt:
+        add_reminder(user_id, text, trigger_dt)
+        msg_dt = trigger_dt.strftime('%d/%m/%Y a las %H:%M')
+        await query.edit_message_text(
+            f"✅ *Recordatorio guardado.*\n\n📅 {msg_dt}\n📝 {text}",
+            parse_mode="Markdown"
+        )
+    
+    return ConversationHandler.END
+
 # Definición del ConversationHandler
 reminders_conv_handler = ConversationHandler(
     entry_points=[CallbackQueryHandler(start_add_reminder, pattern="^rem_new$")],
     states={
         WAITING_TEXT: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text)],
-        WAITING_TIME: [MessageHandler(filters.TEXT & ~filters.COMMAND, receive_time)],
+        WAITING_TIME: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, receive_time),
+            CallbackQueryHandler(time_callback_handler, pattern="^time_"),
+        ],
     },
     fallbacks=[CommandHandler("cancel", cancel_op)],
 )

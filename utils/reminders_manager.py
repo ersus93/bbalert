@@ -49,9 +49,12 @@ def add_reminder(user_id, text, trigger_time_dt):
     return reminder_id
 
 def get_user_reminders(user_id):
-    """Obtiene los recordatorios de un usuario."""
+    """Obtiene los recordatorios de un usuario ordenados por fecha/hora."""
     data = load_reminders()
-    return data.get(str(user_id), [])
+    reminders = data.get(str(user_id), [])
+    # Ordenar por fecha/hora (más próximo primero)
+    reminders.sort(key=lambda r: datetime.fromisoformat(r['time']))
+    return reminders
 
 def delete_reminder(user_id, reminder_id):
     """Elimina un recordatorio específico."""
