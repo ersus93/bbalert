@@ -259,13 +259,16 @@ def obtener_datos_usuario_seguro(chat_id):
             'ver': 0,
             'tasa': 0,
             'ta': 0,
-            'temp_changes': 0
+            'temp_changes': 0,
+            'reminders': 0,
+            'weather': 0,
+            'btc': 0,
         }
         guardar = True
     else:
         # IMPORTANTE: Si ya existe el registro de hoy, verificamos que tenga TODAS las claves nuevas.
         # Esto soluciona el bug de usuarios antiguos que tienen acceso ilimitado.
-        keys_necesarias = ['ver', 'tasa', 'ta', 'temp_changes']
+        keys_necesarias = ['ver', 'tasa', 'ta', 'temp_changes', 'reminders', 'weather', 'btc']
         for key in keys_necesarias:
             if key not in usuario['daily_usage']:
                 usuario['daily_usage'][key] = 0
@@ -274,12 +277,20 @@ def obtener_datos_usuario_seguro(chat_id):
     # 2. Suscripciones (Relleno de estructura si falta)
     if 'subscriptions' not in usuario:
         usuario['subscriptions'] = {
-            'alerts_extra': {'qty': 0, 'expires': None}, 
-            'coins_extra': {'qty': 0, 'expires': None},  
-            'watchlist_bundle': {'active': False, 'expires': None}, 
-            'tasa_vip': {'active': False, 'expires': None}, 
-            'ta_vip': {'active': False, 'expires': None}    
+            'alerts_extra': {'qty': 0, 'expires': None},
+            'coins_extra': {'qty': 0, 'expires': None},
+            'watchlist_bundle': {'active': False, 'expires': None},
+            'tasa_vip': {'active': False, 'expires': None},
+            'ta_vip': {'active': False, 'expires': None}
         }
+        guardar = True
+
+    # 3. Campos de tracking (Relleno si faltan — compatibilidad con usuarios antiguos)
+    if 'last_seen' not in usuario:
+        usuario['last_seen'] = None
+        guardar = True
+    if 'registered_at' not in usuario:
+        usuario['registered_at'] = None
         guardar = True
         
     if guardar:
@@ -426,13 +437,13 @@ def check_feature_access(chat_id, feature_type, current_count=None):
     return True, "OK"
 
 def registrar_uso_comando(chat_id, comando):
-    """Incrementa el contador de uso para un comando específico."""
+    """Incrementa el contador de uso para un comando específico y actualiza last_seen."""
     # Los admins no registran uso (son ilimitados)
     if chat_id in ADMIN_CHAT_IDS:
-        return 
+        return
 
     # Aseguramos que la estructura exista antes de escribir
-    obtener_datos_usuario_seguro(chat_id) 
+    obtener_datos_usuario_seguro(chat_id)
     
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
@@ -445,6 +456,10 @@ def registrar_uso_comando(chat_id, comando):
         daily[comando] = actual + 1
         
         usuarios[chat_id_str]['daily_usage'] = daily # Asegurar asignación
+        
+        # MEJORA: Actualizar last_seen con cada uso de comando (actividad real del usuario)
+        usuarios[chat_id_str]['last_seen'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         guardar_usuarios(usuarios)
         
         # LOG DE DEBUG (Opcional: te ayudará a ver en consola si cuenta)
@@ -589,7 +604,7 @@ def update_last_alert_timestamp(chat_id):
 def registrar_usuario(chat_id, user_lang_code: str = 'es'):
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
-    if chat_id_str not in usuarios: 
+    if chat_id_str not in usuarios:
         lang_to_save = 'es'
         if user_lang_code and user_lang_code.startswith('en'):
             lang_to_save = 'en'
@@ -597,7 +612,10 @@ def registrar_usuario(chat_id, user_lang_code: str = 'es'):
             "monedas": ["BTC", "HIVE", "HBD", "TON"],
             "hbd_alerts": False,
             "language": lang_to_save,
-            "intervalo_alerta_h": 1.0
+            "intervalo_alerta_h": 1.0,
+            # MEJORA: Campos de tracking para estadísticas del dashboard
+            "registered_at": datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            "last_seen": None,
         }
         guardar_usuarios(usuarios)
 

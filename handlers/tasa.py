@@ -20,18 +20,19 @@ from utils.year_manager import get_simple_year_string
 
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    chat_id = update.effective_chat.id 
+    chat_id = update.effective_chat.id
 
     # === GUARDIA DE PAGO ===
-#    acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
-#    if not acceso:
-#        if update.callback_query:
-#           await update.callback_query.answer(mensaje, show_alert=True)
-#        else:
-#            await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
-#        return
+    acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
+    if not acceso:
+        if update.callback_query:
+            await update.callback_query.answer(mensaje, show_alert=True)
+        else:
+            await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        return
     
-#    registrar_uso_comando(chat_id, 'tasa')
+    # BUG-3 FIX: Registrar uso del comando /tasa para estadísticas del dashboard
+    registrar_uso_comando(chat_id, 'tasa')
     
     # Manejo del mensaje de estado (botón vs comando)
     msg_estado = None
@@ -57,11 +58,6 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             add_log_line(f"❌ Error en {name}: {e}")
             return None
-
-    # 🚀 OPTIMIZACIÓN: Iniciar generación de imagen EN PARALELO con las peticiones
-    # Esto reduce el tiempo total ya que la imagen se genera mientras se obtienen los datos
-    # NOTA: run_in_executor devuelve un Future directamente, no necesita create_task
-    image_future = loop.run_in_executor(None, generar_imagen_tasas_eltoque)
 
     # Ejecutar peticiones en paralelo, pero con timeouts INDIVIDUALES
     # Si CADECA falla, BCC y ElToque siguen vivos.
@@ -215,11 +211,13 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         mensaje_texto_final += f"\n—————————————————\n_{actualizado_label} {timestamp_str}_\n{fuente_label}\n\n{ytext}"
         mensaje_texto_final += get_random_ad_text()
 
-        # 🚀 OPTIMIZACIÓN: Esperar la imagen que se generó en paralelo
-        # Con timeout para no bloquear si la generación falla
+        # Generar imagen con datos actualizados
         image_bio = None
         try:
-            image_bio = await asyncio.wait_for(image_future, timeout=5)
+            image_bio = await asyncio.wait_for(
+                loop.run_in_executor(None, generar_imagen_tasas_eltoque, tasas_actuales), 
+                timeout=5
+            )
         except asyncio.TimeoutError:
             add_log_line("⚠️ Timeout esperando generación de imagen")
             image_bio = None

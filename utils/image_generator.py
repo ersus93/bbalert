@@ -13,15 +13,21 @@ from utils.logger import logger
 # Configuración de estilo (Azul oscuro tomado de tu imagen)
 COLOR_TINTA = "#0B1E38"
 
-def generar_imagen_tasas_eltoque():
+def generar_imagen_tasas_eltoque(tasas=None):
     """
     Carga la plantilla 'img.jpg' desde la carpeta data y superpone
     las tasas de cambio y la fecha en el área en blanco.
     
     Optimizado para generar imágenes JPEG comprimidas y ligeras.
+    
+    Args:
+        tasas (dict, optional): Datos de tasas actualizados a mostrar. Si no se proporciona,
+            carga datos del historial.
     """
-    # 1. Cargar datos del historial
-    tasas = load_eltoque_history()
+    # 1. Obtener datos de tasas
+    if tasas is None:
+        tasas = load_eltoque_history()
+        
     if not tasas:
         logger.warning("⚠️ No hay datos de tasas disponibles para generar imagen.")
         return None
