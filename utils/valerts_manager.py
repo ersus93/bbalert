@@ -97,9 +97,10 @@ def get_symbol_state(symbol, timeframe="4h"):
     if timeframe not in data[symbol]:
         # Inicializar estructura vacía por Timeframe
         data[symbol][timeframe] = {
-            "last_candle_time": 0, 
-            "levels": {}, 
-            "alerted_levels": []
+            "last_candle_time": 0,
+            "levels": {},
+            "alerted_levels": [],
+            "source": "BINANCE"
         }
         # Guardamos la inicialización para persistencia futura
         save_json(VALERTS_STATE_PATH, data)

@@ -1,6 +1,7 @@
 # core/valerts_loop.py
 
 import asyncio
+import time
 from telegram.constants import ParseMode
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -12,8 +13,9 @@ from utils.valerts_manager import (
 )
 from utils.file_manager import add_log_line
 from utils.ads_manager import get_random_ad_text
+from utils.tv_helper import get_tv_data
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
-from handlers.valerts_handlers import get_kline_data 
+from handlers.valerts_handlers import get_kline_data
 
 # Variable global para la función de envío
 _sender_func = None
@@ -58,26 +60,55 @@ async def valerts_monitor_loop(bot):
                     if not subs: 
                         continue
                     
-                    # 2. Obtención de Datos
-                    # Usamos limit=300 para asegurar cálculos correctos de EMAs
+                    # 2. Obtención de Datos (Binance primero, TradingView fallback)
+                    source = "BINANCE"
                     df = get_kline_data(symbol, interval, limit=300)
-                    if df is None or len(df) < 100: 
-                        continue
-                    
-                    # Datos básicos de velas
-                    last_closed = df.iloc[-2]
-                    curr_candle = df.iloc[-1]
-                    candle_time = int(last_closed['open_time'])
-                    current_price = float(curr_candle['close'])
-                    
-                    # 3. Análisis Técnico Avanzado
-                    analyzer = BTCAdvancedAnalyzer(df)
-                    levels_fib = analyzer.get_support_resistance_dynamic(interval=interval)
-                    momentum_signal, mom_emoji, (buy_score, sell_score), reasons = analyzer.get_momentum_signal()
-                    divergence = analyzer.detect_rsi_divergence(lookback=5)
+
+                    if df is None or len(df) < 100:
+                        # Fallback a TradingView
+                        add_log_line(f"⚠️ Binance falló para {symbol} {interval}, intentando TradingView...")
+                        tv_data = get_tv_data(symbol, interval)
+                        if tv_data:
+                            source = "TV"
+                            add_log_line(f"✅ TradingView activo para {symbol} {interval}")
+                            levels_fib = {
+                                'R3': tv_data.get('R3', 0),
+                                'R2': tv_data.get('R2', 0),
+                                'R1': tv_data.get('R1', 0),
+                                'P': tv_data.get('P', 0),
+                                'S1': tv_data.get('S1', 0),
+                                'S2': tv_data.get('S2', 0),
+                                'S3': tv_data.get('S3', 0),
+                                'FIB_618': (tv_data.get('R1', 0) + tv_data.get('S1', 0)) / 2,
+                                'current_price': tv_data.get('current_price', 0)
+                            }
+                            current_price = tv_data.get('current_price', 0)
+                            momentum_signal = tv_data.get('recommendation', 'NEUTRAL')
+                            mom_emoji = "🐂" if "BUY" in momentum_signal else "🐻" if "SELL" in momentum_signal else "⚖️"
+                            buy_score = tv_data.get('buy_count', 0)
+                            sell_score = tv_data.get('sell_count', 0)
+                            divergence = None
+                            reasons = []
+                            candle_time = int(time.time() * 1000)  # Timestamp actual en ms
+                        else:
+                            add_log_line(f"❌ TradingView también falló para {symbol} {interval}")
+                            continue
+                    else:
+                        # Datos básicos de velas de Binance
+                        last_closed = df.iloc[-2]
+                        curr_candle = df.iloc[-1]
+                        candle_time = int(last_closed['open_time'])
+                        current_price = float(curr_candle['close'])
+
+                        # 3. Análisis Técnico Avanzado (Binance)
+                        analyzer = BTCAdvancedAnalyzer(df)
+                        levels_fib = analyzer.get_support_resistance_dynamic(interval=interval)
+                        momentum_signal, mom_emoji, (buy_score, sell_score), reasons = analyzer.get_momentum_signal()
+                        divergence = analyzer.detect_rsi_divergence(lookback=5)
                     
                     # 4. Gestión de Estado (Persistencia)
                     current_state = get_symbol_state(symbol, interval)
+                    current_state['source'] = source  # Guardar fuente de datos
                     last_saved_time = current_state.get('last_candle_time', 0)
                     loaded_levels = current_state.get('levels', {})
                     
@@ -164,9 +195,13 @@ async def valerts_monitor_loop(bot):
                             )
                             msg_session += get_random_ad_text()
                             
-                            # Botón para ver análisis completo
-                            kb = [[InlineKeyboardButton(f"📊 Ver Análisis {display_sym}", callback_data=f"valerts_view|{symbol}|BINANCE|{interval}")]]
-                            
+                            # Botón para ver análisis completo (usar fuente dinámica)
+                            kb = [[InlineKeyboardButton(f"📊 Ver Análisis {display_sym}", callback_data=f"valerts_view|{symbol}|{source}|{interval}")]]
+
+                            # Agregar info de fuente para TradingView
+                            if source == "TV":
+                                msg_session += f"\n🌐 _Fuente: TradingView (datos con delay ~1-2m)_\n"
+
                             await _sender_func(msg_session, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
                     else:
@@ -296,22 +331,34 @@ async def valerts_monitor_loop(bot):
                         clean_code = trigger_level.replace('_UP', '').replace('_DOWN', '')
                         level_price = levels.get(clean_code, 0)
 
+                        # Formato diferenciado para TradingView
+                        if source == "TV":
+                            alert_emoji = "📡"
+                            alert_title = f"{alert_data['titulo']} [TradingView]"
+                            source_line = f"\n🌐 _Fuente: TradingView (datos con delay ~1-2m)_\n"
+                        else:
+                            alert_emoji = alert_data['emoji']
+                            alert_title = alert_data['titulo']
+                            source_line = "\n"
+
                         msg = (
-                            f"{alert_data['emoji']} *{alert_data['titulo']}*\n"
+                            f"{alert_emoji} *{alert_title}*\n"
                             f"—————————————————\n"
-                            f"📊 {alert_data['descripcion']}\n\n"
+                            f"📊 {alert_data['descripcion']}\n"
+                            f"{source_line}"
                             f"*Contexto Técnico:*\n"
                             f"{mom_emoji} Momentum: {momentum_signal}\n"
                             f"⚖️ Score: {buy_score} Compra | {sell_score} Venta\n"
                         )
-                        
-                        # Razones clave y Divergencias
-                        if reasons:
-                            msg += f"• _Clave: {reasons[0]}_\n"
-                        if divergence:
-                            d_type, d_text = divergence
-                            d_icon = "🐂" if d_type == "BULLISH" else "🐻"
-                            msg += f"{d_icon} *Divergencia:* {d_text}\n"
+
+                        # Razones clave y Divergencias (solo para Binance)
+                        if source == "BINANCE":
+                            if reasons:
+                                msg += f"• _Clave: {reasons[0]}_\n"
+                            if divergence:
+                                d_type, d_text = divergence
+                                d_icon = "🐂" if d_type == "BULLISH" else "🐻"
+                                msg += f"{d_icon} *Divergencia:* {d_text}\n"
                         msg += "\n"
 
                         msg += (
@@ -323,12 +370,12 @@ async def valerts_monitor_loop(bot):
                             f"_{alert_data['recomendacion']}_\n\n"
                             f"⏳ *Marco Temporal:* {interval.upper()}"
                         )
-                        
+
                         msg += get_random_ad_text()
-                        
-                        # Botón para ir al análisis
-                        kb = [[InlineKeyboardButton(f"📊 Ver Análisis {display_sym}", callback_data=f"valerts_view|{symbol}|BINANCE|{interval}")]]
-                        
+
+                        # Botón para ir al análisis (usar fuente dinámica)
+                        kb = [[InlineKeyboardButton(f"📊 Ver Análisis {display_sym}", callback_data=f"valerts_view|{symbol}|{source}|{interval}")]]
+
                         await _sender_func(msg, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
                         
                         # Actualizar estado para no repetir
