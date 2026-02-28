@@ -51,8 +51,8 @@ async def reminders_monitor_loop(bot):
                                     InlineKeyboardButton(_("💤 1h", user_id), callback_data=f"rem_postpone_{rem['id']}_60"),
                                 ],
                                 [
-                                    InlineKeyboardButton(_("🔁 Repetir", user_id), callback_data=f"rem_repeat_{rem['id']}"),
-                                    InlineKeyboardButton(_("✅ Entendido", user_id), callback_data=f"rem_ack_{rem['id']}")
+                                    InlineKeyboardButton(_("✅ Recibido", user_id), callback_data=f"rem_ack_{rem['id']}"),
+                                    InlineKeyboardButton(_("🗑 Eliminar", user_id), callback_data=f"rem_delete_notif_{rem['id']}")
                                 ]
                             ]
                             

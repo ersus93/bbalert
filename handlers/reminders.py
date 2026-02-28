@@ -470,10 +470,12 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
             # Opcional: Si falló al borrar, refrescamos la lista general
             await rec_command(update, context)
 
-    # --- ACCIONES AL DISPARARSE LA ALERTA (POSTPONE / ACK) ---
+    # --- ACCIONES AL DISPARARSE LA ALERTA (POSTPONE / ACK / DELETE) ---
     elif data.startswith("rem_postpone_"):
         # data format: rem_postpone_{id}_{minutes}
-        _, _, rem_id, mins = data.split("_")
+        parts = data.split("_")
+        rem_id = parts[2]
+        mins = parts[3]
         
         # OJO: Como el loop borró el recordatorio al enviarlo, aquí tenemos que "re-crearlo"
         # O, si modificaste el loop para no borrar, simplemente actualizas.
@@ -499,6 +501,13 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
     elif data.startswith("rem_ack_"):
         # Solo borrar el mensaje o editarlo para decir "Completado"
         await query.edit_message_text(_("✅ *Recordatorio completado.*", user_id), parse_mode="Markdown")
+
+    elif data.startswith("rem_delete_notif_"):
+        rem_id = data.split("_")[3]
+        if delete_reminder(user_id, rem_id):
+            await query.edit_message_text(_("🗑 *Recordatorio eliminado.*", user_id), parse_mode="Markdown")
+        else:
+            await query.edit_message_text(_("⚠️ El recordatorio ya no existe.", user_id), parse_mode="Markdown")
 
 # Handler para callbacks de tiempo en el estado WAITING_TIME
 async def time_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -560,6 +569,7 @@ reminders_conv_handler = ConversationHandler(
         ],
         WAITING_RECURRENCE_INTERVAL: [
             CallbackQueryHandler(handle_recurrence_interval, pattern="^recur_interval_"),
+            CallbackQueryHandler(handle_recurrence_confirm, pattern="^recur_confirm_"),
         ],
     },
     fallbacks=[CommandHandler("cancel", cancel_op)],
