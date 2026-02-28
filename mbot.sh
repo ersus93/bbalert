@@ -613,24 +613,24 @@ manage_service() {
 
 start_bot() {
     print_header "▶️ INICIANDO BOT: $FOLDER_NAME"
-    
-    # Actualizar versión antes de iniciar
-    update_version
-    
+
+    # Preguntar por actualización de versión antes de iniciar
+    prompt_version_update
+
     if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
         print_warning "El servicio ya está corriendo."
         read -p "¿Deseas reiniciarlo? (s/N): " restart_opt
-        
+
         if [[ "$restart_opt" =~ ^[sS]$ ]]; then
             manage_service "restart"
         fi
     else
         manage_service "start"
     fi
-    
+
     echo ""
     read -p "¿Ver logs en tiempo real? (s/N): " view_logs_opt
-    
+
     if [[ "$view_logs_opt" =~ ^[sS]$ ]]; then
         view_logs
     fi
@@ -645,19 +645,13 @@ stop_bot() {
 
 restart_bot() {
     print_header "🔄 REINICIANDO BOT: $FOLDER_NAME"
-    
-    # Actualizar versión antes de reiniciar
-    update_version
-    
+
+    # Preguntar por actualización de versión antes de reiniciar
+    prompt_version_update
+
     manage_service "restart"
     echo ""
-    read -p "¿Ver logs en tiempo real? (s/N): " view_logs_opt
-    
-    if [[ "$view_logs_opt" =~ ^[sS]$ ]]; then
-        view_logs
-    else
-        read -p "Presiona Enter para continuar..."
-    fi
+    view_logs
 }
 
 status_bot() {
@@ -675,21 +669,50 @@ view_logs() {
     $SUDO journalctl -u "$SERVICE_NAME" -f
 }
 
-# Actualizar versión automáticamente al iniciar/reiniciar
+# Nueva función para preguntar actualización de versión
+prompt_version_update() {
+    print_header "🔄 ACTUALIZACIÓN DE VERSIÓN"
+
+    read -p "¿Deseas actualizar la versión del bot? (s/N): " update_choice
+
+    if [[ "$update_choice" =~ ^[sS]$ ]]; then
+        echo ""
+        print_info "Selecciona el tipo de actualización:"
+        echo ""
+        echo -e "  ${GREEN}1)${NC} Simple (patch)   - Último número +1  (ej: 1.0.0 → 1.0.1)"
+        echo -e "  ${GREEN}2)${NC} Grande (minor)   - Segundo número +1 (ej: 1.0.5 → 1.1.0)"
+        echo -e "  ${GREEN}3)${NC} Completa (major) - Primer número +1  (ej: 1.2.3 → 2.0.0)"
+        echo -e "  ${YELLOW}0)${NC} Cancelar"
+        echo ""
+        read -p "Selecciona una opción (0-3): " version_choice
+
+        case $version_choice in
+            1) update_version "patch" ;;
+            2) update_version "minor" ;;
+            3) update_version "major" ;;
+            0) print_info "Actualización cancelada." ;;
+            *) print_error "Opción inválida. No se actualizará la versión." ;;
+        esac
+    else
+        print_info "Manteniendo versión actual."
+    fi
+}
+
+# Actualizar versión según el tipo especificado
 update_version() {
+    local VERSION_TYPE="${1:-patch}"  # patch por defecto
     local VERSION_SCRIPT="$PROJECT_DIR/update_version.py"
-    
+
     if [ -f "$VERSION_SCRIPT" ]; then
-        print_step "Actualizando versión del bot..."
+        print_step "Actualizando versión del bot (tipo: $VERSION_TYPE)..."
         cd "$PROJECT_DIR"
-        
+
         # Verificar que el venv existe
         if [ -f "$PYTHON_BIN" ]; then
-            "$PYTHON_BIN" "$VERSION_SCRIPT" --auto 2>/dev/null
-            print_success "Versión actualizada."
+            "$PYTHON_BIN" "$VERSION_SCRIPT" "$VERSION_TYPE"
         else
             print_warning "Entorno virtual no encontrado, usando Python del sistema."
-            python3 "$VERSION_SCRIPT" --auto 2>/dev/null || print_warning "No se pudo actualizar la versión."
+            python3 "$VERSION_SCRIPT" "$VERSION_TYPE" || print_warning "No se pudo actualizar la versión."
         fi
     else
         print_warning "No se encontró update_version.py en $PROJECT_DIR"
