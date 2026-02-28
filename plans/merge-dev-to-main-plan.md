@@ -36,6 +36,7 @@ main/
 ├── locales/
 ├── scripts/
 ├── systemd/
+├── tests/
 └── utils/
 ```
 
@@ -67,11 +68,16 @@ flowchart TB
         K --> L[Crear tag de versión]
         L --> M[Publicar release]
     end
-    
+
+    subgraph Retorno
+        N[Regresar a rama dev]
+    end
+
     style A fill:#bbf,stroke:#333
     style E fill:#ff9,stroke:#333
     style G fill:#9f9,stroke:#333
     style K fill:#f9f,stroke:#333
+    style N fill:#9f9,stroke:#333
 ```
 
 ---
@@ -270,6 +276,19 @@ git diff origin/main origin/dev --stat ':!docs' ':!plans'
 
 ---
 
+## Paso 7: Regresar a Rama dev
+
+Después de completar el merge a main, regresar a la rama `dev` para continuar el desarrollo:
+
+```bash
+# Regresar a dev para continuar desarrollo
+git checkout dev
+```
+
+> **Nota**: Es importante regresar a `dev` inmediatamente después del merge para evitar hacer commits accidentales en `main`.
+
+---
+
 ## Resumen de Comandos (Secuencia Completa)
 
 ```bash
@@ -299,6 +318,9 @@ git push origin main
 
 # === LIMPIEZA ===
 git branch -d merge-dev-to-main
+
+# === RETORNO A DEV ===
+git checkout dev
 ```
 
 ---
@@ -340,6 +362,9 @@ El repositorio `main` debe contener **solo** lo necesario para que el bot funcio
 | requirements.txt | |
 | Scripts de deploy | |
 | Configuración systemd | |
+| Tests (`tests/`) | |
+
+**Nota sobre tests/**: Los tests se mantienen en `main` porque son código funcional que permite validar instalaciones y ejecutar CI/CD. Son considerados parte del código de producción, no documentación de desarrollo.
 
 ### Flujo de Trabajo Recomendado
 
