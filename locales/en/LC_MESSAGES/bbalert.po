@@ -1617,6 +1617,70 @@ msgstr "until"
 msgid "Frase Del Día"
 msgstr "Phrase of the Day"
 
+#: handlers/tasa.py:138
+msgid "🏢 *CADECA (Casas de Cambio)*\n↳ _Aeropuertos, Puertos y Hoteles_"
+msgstr "🏢 *CADECA (Exchange Houses)*\n↳ _Airports, Ports & Hotels_"
+
+#: handlers/tasa.py:140
+msgid "\n⚠️ _(Caché) WEB OUT_"
+msgstr "\n⚠️ _(Cache) WEB OUT_"
+
+#: handlers/tasa.py:145
+msgid "_Moneda_     _Compra_      _Venta_\n"
+msgstr "_Currency_     _Buy_      _Sell_\n"
+
+#: handlers/tasa.py:168
+msgid "\n•••\n\n🏢 *CADECA (Casas de Cambio)*\n↳ _Aeropuertos, Puertos y Hoteles_\n—————————————————\n ⚠️ No disponible\n_Probablemente esten sin corriente 🫣_"
+msgstr "\n•••\n\n🏢 *CADECA (Exchange Houses)*\n↳ _Airports, Ports & Hotels_\n—————————————————\n ⚠️ Not available\n_They might be without power 🫣_"
+
+#: handlers/tasa.py:176
+msgid "\n•••\n\n🏛 *TASA OFICIAL (BCC)*\n—————————————————\n"
+msgstr "\n•••\n\n🏛 *OFFICIAL RATE (BCC)*\n—————————————————\n"
+
+#: handlers/tasa.py:205
+msgid "\n\n•••\n\n🏛 *TASA OFICIAL (BCC)\n—————————————————\n ⚠️ No disponible"
+msgstr "\n\n•••\n\n🏛 *OFFICIAL RATE (BCC)*\n—————————————————\n ⚠️ Not available"
+
+#: handlers/tasa.py:229
+msgid "🗺 Ver Tasas por Provincia"
+msgstr "🗺 View Provincial Rates"
+
+#: handlers/tasa.py:230
+msgid "🔄 Actualizar"
+msgstr "🔄 Refresh"
+
+#: handlers/tasa.py:292
+msgid "🗺 Cargando datos provinciales..."
+msgstr "🗺 Loading provincial data..."
+
+#: handlers/tasa.py:313
+msgid "⚠️ *Datos provinciales no disponibles.*\nLa API actual solo devolvió tasas nacionales."
+msgstr "⚠️ *Regional data is currently unavailable.*\nThe API only returned national rates."
+
+#: handlers/tasa.py:314
+msgid "🔙 Volver a Nacional"
+msgstr "🔙 Back to National"
+
+#: handlers/tasa.py:332
+msgid "🗺 *TASAS POR PROVINCIAS*\n—————————————————\n"
+msgstr "🗺 *PROVINCIAL RATES*\n—————————————————\n"
+
+#: handlers/tasa.py:349
+msgid "⚠️ Datos vacíos o estructura desconocida.\n"
+msgstr "⚠️ Empty data or unknown structure.\n"
+
+#: handlers/tasa.py:354
+msgid "🔙 Volver a Nacional"
+msgstr "🔙 Back to National"
+
+#: handlers/tasa.py:374
+msgid "❌ Error al procesar provincias. Revisa los logs."
+msgstr "❌ Error processing provinces. Please check the logs."
+
+#: handlers/tasa.py:386
+msgid "🔄 Recargando tasas nacionales..."
+msgstr "🔄 Reloading national rates..."
+
 #~ msgid ""
 #~ "⚠️ *Error de Conexión*\n"
 #~ "\n"

@@ -135,14 +135,14 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not es_dato_viejo:
                 save_cadeca_history(tasas_cadeca)
             
-            titulo_cadeca = "🏢 *CADECA (Casas de Cambio)*\n↳ _Aeropuertos, Puertos y Hoteles_"
+            titulo_cadeca = _("🏢 *CADECA (Exchange Houses)*\n↳ _Airports, Ports & Hotels_", user_id)
             if es_dato_viejo:
-                titulo_cadeca += "\n⚠️ _(Caché) WEB OUT_"
+                titulo_cadeca += _("\n⚠️ _(Cache) WEB OUT_", user_id)
                 
             mensaje_texto_final += f"\n\n•••\n\n{titulo_cadeca}\n—————————————————\n"
             orden_cadeca = ['EUR', 'USD', 'MLC', 'CAD', 'MXN', 'GBP', 'CHF', 'RUB', 'AUD', 'JPY']
             
-            mensaje_texto_final += "_Moneda_     _Compra_      _Venta_\n"
+            mensaje_texto_final += _("_Currency_     _Buy_      _Sell_\n", user_id)
 
             for m in orden_cadeca:
                 if m in tasas_cadeca:
@@ -165,7 +165,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     linea = f" *{m}*          {compra:6.2f}       {venta:6.2f}  {indicador}"
                     mensaje_texto_final += linea + "\n"
         else:
-             mensaje_texto_final += "\n•••\n\n🏢 *CADECA (Casas de Cambio)*\n↳ _Aeropuertos, Puertos y Hoteles_\n—————————————————\n ⚠️ No disponible\n_Probablemente esten sin corriente 🫣_"
+             mensaje_texto_final += _("\n•••\n\n🏢 *CADECA (Exchange Houses)*\n↳ _Airports, Ports & Hotels_\n—————————————————\n ⚠️ Not available\n_They might be without power 🫣_", user_id)
 
         # 3. BLOQUE BCC (Oficial) - CON HISTORIAL
         if tasas_bcc:
@@ -173,7 +173,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             tasas_anteriores_bcc = load_bcc_history()
             save_bcc_history(tasas_bcc)
 
-            mensaje_texto_final += "\n•••\n\n🏛 *TASA OFICIAL (BCC)*\n—————————————————\n"
+            mensaje_texto_final += _("\n•••\n\n🏛 *OFFICIAL RATE (BCC)*\n—————————————————\n", user_id)
             orden_bcc = [  'EUR',  'USD',  'MLC',  'CAD',  'MXN',  'GBP',  'CHF',    'RUB',  'AUD',    'JPY']
             
             for m in orden_bcc:
@@ -202,7 +202,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if m not in orden_bcc:
                     mensaje_texto_final += f"*{m}:* {val:,.2f}  *CUP*\n"
         else:
-             mensaje_texto_final += "\n\n•••\n\n🏛 *TASA OFICIAL (BCC)\n—————————————————\n ⚠️ No disponible"
+             mensaje_texto_final += _("\n\n•••\n\n🏛 *OFFICIAL RATE (BCC)*\n—————————————————\n ⚠️ Not available", user_id)
 
         # Footer
         ytext = get_simple_year_string()
@@ -226,8 +226,8 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             image_bio = None
         
         keyboard = [
-            [InlineKeyboardButton("🗺 Ver Tasas por Provincia", callback_data="eltoque_provincias")],
-            [InlineKeyboardButton("🔄 Actualizar", callback_data="eltoque_refresh")]
+            [InlineKeyboardButton(_("🗺 View Provincial Rates", user_id), callback_data="eltoque_provincias")],
+            [InlineKeyboardButton(_("🔄 Refresh", user_id), callback_data="eltoque_refresh")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
@@ -288,8 +288,9 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = update.effective_user.id
     # 1. Avisar a Telegram que recibimos el clic
-    await query.answer("🗺 Cargando datos provinciales...")
+    await query.answer(_("🗺 Loading provincial data...", user_id))
     
     add_log_line("🔍 Iniciando solicitud de provincias...")
 
@@ -310,8 +311,8 @@ async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFA
             add_log_line("⚠️ La clave 'provincias' no está en el JSON de la API.")
             
             # FALLBACK: Editamos el mensaje para que el usuario sepa que falló
-            msj_error = "⚠️ *Datos provinciales no disponibles.*\nLa API actual solo devolvió tasas nacionales."
-            keyboard_back = [[InlineKeyboardButton("🔙 Volver a Nacional", callback_data="eltoque_refresh")]]
+            msj_error = _("⚠️ *Regional data is currently unavailable.*\nThe API only returned national rates.", user_id)
+            keyboard_back = [[InlineKeyboardButton(_("🔙 Back to National", user_id), callback_data="eltoque_refresh")]]
             
             if query.message.photo:
                 await query.edit_message_caption(
@@ -329,7 +330,7 @@ async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFA
 
         # 3. Si hay datos, construimos el mensaje
         provincias_data = data['provincias']
-        mensaje = "🗺 *TASAS POR PROVINCIAS*\n—————————————————\n"
+        mensaje = _("🗺 *PROVINCIAL RATES*\n—————————————————\n", user_id)
         
         hay_datos = False
         for nombre, info in provincias_data.items():
@@ -346,12 +347,12 @@ async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFA
                 hay_datos = True
 
         if not hay_datos:
-            mensaje += "⚠️ Datos vacíos o estructura desconocida.\n"
+            mensaje += _("⚠️ Empty data or unknown structure.\n", user_id)
 
         mensaje += get_random_ad_text()
         
         # 4. Editar el mensaje final
-        keyboard = [[InlineKeyboardButton("🔙 Volver a Nacional", callback_data="eltoque_refresh")]]
+        keyboard = [[InlineKeyboardButton(_("🔙 Back to National", user_id), callback_data="eltoque_refresh")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         if query.message.photo:
@@ -373,7 +374,7 @@ async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFA
         try:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
-                text="❌ Error al procesar provincias. Revisa los logs.",
+                text=_("❌ Error processing provinces. Please check the logs.", user_id),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Volver", callback_data="eltoque_refresh")]])
             )
         except:
@@ -383,7 +384,8 @@ async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFA
 async def eltoque_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Vuelve a mostrar las tasas nacionales desde el botón de Provincias."""
     query = update.callback_query
-    await query.answer("🔄 Recargando tasas nacionales...")
+    user_id = update.effective_user.id
+    await query.answer(_("🔄 Reloading national rates...", user_id))
     
     # Simulamos que el usuario escribió /tasa de nuevo
     # Creamos un objeto simulado para reutilizar la lógica
