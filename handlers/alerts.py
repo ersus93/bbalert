@@ -7,14 +7,11 @@ import openpyxl
 from datetime import datetime
 from telegram import Update, Bot
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-from telegram.ext import ConversationHandler, ContextTypes
-from telegram.ext import ConversationHandler, CallbackQueryHandler
+from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYTHON_VERSION, LOG_LINES, USUARIOS_PATH
 from core.api_client import obtener_precios_control
 from core.loops import set_custom_alert_history_util # Nueva importación
-from core.config import ADMIN_CHAT_IDS
 from utils.file_manager import(\
      delete_all_alerts, add_price_alert, get_user_alerts,
         delete_price_alert, cargar_usuarios, guardar_usuarios, registrar_usuario,

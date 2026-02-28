@@ -8,22 +8,18 @@ import openpyxl
 from datetime import datetime
 from telegram import Update
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
-from telegram.ext import ConversationHandler, ContextTypes
-from telegram.ext import ConversationHandler, CallbackQueryHandler
+from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
-# importaciones de utilidades y configuración
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYTHON_VERSION, LOG_LINES, USUARIOS_PATH
 from utils.file_manager import(cargar_usuarios, guardar_usuarios, registrar_usuario,\
                                actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, add_log_line,\
                                 add_price_alert, get_user_alerts, delete_price_alert,delete_all_alerts,\
-                                      toggle_hbd_alert_status, set_user_language, get_user_language,\
+                                      set_user_language, get_user_language,\
                                       toggle_hbd_alert_status, modify_hbd_threshold, load_hbd_thresholds,\
                                         check_feature_access, registrar_uso_comando
                                 ) 
 from core.api_client import obtener_precios_control
 from core.loops import set_custom_alert_history_util # Nueva importación
-from core.config import ADMIN_CHAT_IDS
 
 from core.i18n import _ # <-- AGREGAR LA FUNCIÓN DE TRADUCCIÓN
 
@@ -32,7 +28,7 @@ SUPPORTED_LANGUAGES = {
     'es': '🇪🇸 Español',
     'en': '🇬🇧 English'
 }
-    # Agrega más aquí cuando tengas los archivos .po/.mo
+# Agrega más aquí cuando tengas los archivos .po/.mo
 
 
 # ... (set_admin_util y set_logs_util) ...

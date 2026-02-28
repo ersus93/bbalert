@@ -9,7 +9,7 @@ import uuid # Para generar IDs únicos si es necesario
 import openpyxl
 from utils.logger import logger
 from core.config import (
-    USUARIOS_PATH, LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, 
+    LOG_LINES, LOG_MAX, CUSTOM_ALERT_HISTORY_PATH, 
     PRICE_ALERTS_PATH, HBD_HISTORY_PATH, ELTOQUE_HISTORY_PATH, 
     LAST_PRICES_PATH, HBD_THRESHOLDS_PATH, ADMIN_CHAT_IDS, USUARIOS_PATH
 )
