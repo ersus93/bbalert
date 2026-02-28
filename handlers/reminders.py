@@ -8,7 +8,7 @@ from utils.logger import logger
 from core.i18n import _
 
 # Estados de la conversación
-WAITING_TEXT, WAITING_TIME = range(2)
+WAITING_TEXT, WAITING_TIME, WAITING_RECURRENCE_CONFIRM, WAITING_RECURRENCE_TYPE, WAITING_RECURRENCE_INTERVAL = range(5)
 
 async def rec_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Muestra la lista de recordatorios y el menú principal."""
@@ -95,7 +95,7 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return WAITING_TIME
 
 async def receive_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Procesa la hora (soporta fechas completas) y guarda todo."""
+    """Procesa la hora (soporta fechas completas) y muestra confirmación de recurrencia."""
     user_id = update.effective_user.id
     time_str = update.message.text.lower().strip()
     text = context.user_data.get('rem_text')
@@ -165,23 +165,16 @@ async def receive_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         trigger_dt = now.replace(hour=h, minute=m, second=0) + timedelta(days=1)
                         break
         
-        # --- BLOQUE FINAL DE GUARDADO (Igual que antes) ---
+        # --- VALIDACIÓN Y TRANSICIÓN A RECURRENCIA ---
         if trigger_dt:
             # Una validación extra: no permitir fechas en el pasado
             if trigger_dt < now:
                  await update.message.reply_text(_("⚠️ La fecha indicada ya pasó. Por favor, indica una fecha futura.", user_id))
                  return WAITING_TIME
 
-            add_reminder(user_id, text, trigger_dt)
-            
-            # Formateo bonito para la confirmación
-            msg_dt = trigger_dt.strftime('%d/%m/%Y a las %H:%M')
-            
-            await update.message.reply_text(
-                _("✅ *Recordatorio guardado.*\n\n📅 {msg_dt}\n📝 {text}", user_id).format(msg_dt=msg_dt, text=text),
-                parse_mode="Markdown"
-            )
-            return ConversationHandler.END
+            # Guardamos el tiempo y vamos a confirmar recurrencia
+            context.user_data['rem_time'] = trigger_dt
+            return await ask_recurrence_confirm(update, context, via_message=True)
         else:
             await update.message.reply_text(_("⚠️ No entendí la hora/fecha. Prueba formato: `DD/MM HH:MM` o `10m`.", user_id))
             return WAITING_TIME
@@ -191,8 +184,229 @@ async def receive_time(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(_("⚠️ Error procesando la fecha. Intenta de nuevo.", user_id))
         return WAITING_TIME
 
+async def ask_recurrence_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE, via_message=False):
+    """Pregunta si el usuario quiere que el recordatorio se repita."""
+    user_id = update.effective_user.id
+    trigger_dt = context.user_data.get('rem_time')
+    msg_dt = trigger_dt.strftime('%d/%m/%Y a las %H:%M')
+    
+    keyboard = [
+        [
+            InlineKeyboardButton(_("✅ Sí", user_id), callback_data="recur_confirm_yes"),
+            InlineKeyboardButton(_("❌ No", user_id), callback_data="recur_confirm_no"),
+        ]
+    ]
+    
+    message_text = _(
+        "⏰ *Fecha seleccionada:* {msg_dt}\n\n"
+        "🔄 *¿Quieres que este recordatorio se repita?*", user_id
+    ).format(msg_dt=msg_dt)
+    
+    if via_message:
+        await update.message.reply_text(
+            message_text,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    else:
+        await update.callback_query.edit_message_text(
+            message_text,
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    
+    return WAITING_RECURRENCE_CONFIRM
+
+async def handle_recurrence_confirm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja la confirmación de recurrencia (Sí/No)."""
+    query = update.callback_query
+    data = query.data
+    user_id = update.effective_user.id
+    
+    await query.answer()
+    
+    if data == "recur_confirm_no":
+        # Guardar sin recurrencia
+        return await save_reminder_with_recurrence(update, context, recurrence_config=None)
+    else:  # recur_confirm_yes
+        # Mostrar menú de tipos de recurrencia
+        return await show_recurrence_type_menu(update, context)
+
+async def show_recurrence_type_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra el menú de selección de tipo de frecuencia."""
+    user_id = update.effective_user.id
+    
+    keyboard = [
+        [InlineKeyboardButton(_("📅 Todos los días", user_id), callback_data="recur_type_daily")],
+        [InlineKeyboardButton(_("📆 Cada semana", user_id), callback_data="recur_type_weekly")],
+        [InlineKeyboardButton(_("🗓 Cada mes", user_id), callback_data="recur_type_monthly")],
+        [InlineKeyboardButton(_("📆 Cada año", user_id), callback_data="recur_type_yearly")],
+        [InlineKeyboardButton(_("⚙️ Personalizado...", user_id), callback_data="recur_type_custom")],
+    ]
+    
+    await update.callback_query.edit_message_text(
+        _("🔄 *¿Con qué frecuencia se debe repetir?*", user_id),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return WAITING_RECURRENCE_TYPE
+
+async def handle_recurrence_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja la selección del tipo de frecuencia."""
+    query = update.callback_query
+    data = query.data
+    user_id = update.effective_user.id
+    
+    await query.answer()
+    
+    recurrence_map = {
+        "recur_type_daily": ("daily", 1),
+        "recur_type_weekly": ("weekly", 1),
+        "recur_type_monthly": ("monthly", 1),
+        "recur_type_yearly": ("yearly", 1),
+    }
+    
+    if data == "recur_type_custom":
+        # Mostrar opciones de intervalo personalizado
+        return await show_recurrence_interval_menu(update, context)
+    elif data in recurrence_map:
+        recur_type, interval = recurrence_map[data]
+        recurrence_config = {
+            "enabled": True,
+            "type": recur_type,
+            "interval": interval,
+            "end_date": None,
+            "occurrence_count": 0
+        }
+        return await save_reminder_with_recurrence(update, context, recurrence_config)
+    
+    return WAITING_RECURRENCE_TYPE
+
+async def show_recurrence_interval_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra el menú para seleccionar intervalo personalizado (1-30)."""
+    user_id = update.effective_user.id
+    
+    # Crear filas de botones con números 1-15 y 16-30
+    keyboard = []
+    row1 = [InlineKeyboardButton(str(i), callback_data=f"recur_interval_{i}") for i in range(1, 6)]
+    row2 = [InlineKeyboardButton(str(i), callback_data=f"recur_interval_{i}") for i in range(6, 11)]
+    row3 = [InlineKeyboardButton(str(i), callback_data=f"recur_interval_{i}") for i in range(11, 16)]
+    row4 = [InlineKeyboardButton(str(i), callback_data=f"recur_interval_{i}") for i in range(16, 21)]
+    row5 = [InlineKeyboardButton(str(i), callback_data=f"recur_interval_{i}") for i in range(21, 26)]
+    row6 = [InlineKeyboardButton(str(i), callback_data=f"recur_interval_{i}") for i in range(26, 31)]
+    
+    keyboard = [row1, row2, row3, row4, row5, row6]
+    keyboard.append([InlineKeyboardButton(_("🔙 Volver", user_id), callback_data="recur_confirm_yes")])
+    
+    await update.callback_query.edit_message_text(
+        _("⚙️ *Selecciona el intervalo de repetición:*\n\n"
+          "Por ejemplo, selecciona `3` para que se repita cada 3 días.", user_id),
+        parse_mode="Markdown",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return WAITING_RECURRENCE_INTERVAL
+
+async def handle_recurrence_interval(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Maneja la selección del intervalo personalizado."""
+    query = update.callback_query
+    data = query.data
+    user_id = update.effective_user.id
+    
+    await query.answer()
+    
+    # Extraer el número del callback data: recur_interval_{n}
+    try:
+        interval = int(data.split("_")[2])
+        recurrence_config = {
+            "enabled": True,
+            "type": "daily",  # Por defecto diario con intervalo personalizado
+            "interval": interval,
+            "end_date": None,
+            "occurrence_count": 0
+        }
+        return await save_reminder_with_recurrence(update, context, recurrence_config)
+    except (IndexError, ValueError):
+        logger.error(f"Error parseando intervalo de recurrencia: {data}")
+        await query.edit_message_text(
+            _("⚠️ Error seleccionando el intervalo. Intenta de nuevo.", user_id),
+            parse_mode="Markdown"
+        )
+        return WAITING_RECURRENCE_INTERVAL
+
+async def save_reminder_with_recurrence(update: Update, context: ContextTypes.DEFAULT_TYPE, recurrence_config=None):
+    """Guarda el recordatorio con o sin configuración de recurrencia."""
+    user_id = update.effective_user.id
+    text = context.user_data.get('rem_text')
+    trigger_dt = context.user_data.get('rem_time')
+    
+    if not text or not trigger_dt:
+        logger.error(f"Datos incompletos al guardar recordatorio: text={text}, time={trigger_dt}")
+        msg_target = update.callback_query if update.callback_query else update.message
+        await msg_target.edit_message_text(
+            _("⚠️ Error: datos incompletos. Por favor, empieza de nuevo con /rec", user_id),
+            parse_mode="Markdown"
+        )
+        return ConversationHandler.END
+    
+    try:
+        # Guardar el recordatorio
+        add_reminder(user_id, text, trigger_dt, recurrence_config)
+        
+        # Formatear mensaje de confirmación
+        msg_dt = trigger_dt.strftime('%d/%m/%Y a las %H:%M')
+        
+        if recurrence_config and recurrence_config.get("enabled"):
+            recur_type_labels = {
+                "daily": _("día(s)", user_id),
+                "weekly": _("semana(s)", user_id),
+                "monthly": _("mes(es)", user_id),
+                "yearly": _("año(s)", user_id),
+            }
+            recur_type = recurrence_config.get("type", "daily")
+            interval = recurrence_config.get("interval", 1)
+            recur_label = recur_type_labels.get(recur_type, _("período(s)", user_id))
+            
+            if interval == 1:
+                recur_text = _(", se repite cada {type}", user_id).format(type=recur_type)
+            else:
+                recur_text = _(", se repite cada {interval} {type}", user_id).format(interval=interval, type=recur_label)
+            
+            confirm_msg = _(
+                "✅ *Recordatorio guardado.*\n\n"
+                "📅 {msg_dt}\n"
+                "📝 {text}\n"
+                "🔄{recur_text}", user_id
+            ).format(msg_dt=msg_dt, text=text, recur_text=recur_text)
+        else:
+            confirm_msg = _(
+                "✅ *Recordatorio guardado.*\n\n"
+                "📅 {msg_dt}\n"
+                "📝 {text}", user_id
+            ).format(msg_dt=msg_dt, text=text)
+        
+        # Limpiar datos de usuario
+        context.user_data.pop('rem_text', None)
+        context.user_data.pop('rem_time', None)
+        
+        # Enviar confirmación
+        query = update.callback_query
+        await query.edit_message_text(confirm_msg, parse_mode="Markdown")
+        
+    except Exception as e:
+        logger.error(f"Error guardando recordatorio: {e}")
+        query = update.callback_query
+        await query.edit_message_text(
+            _("⚠️ Error guardando el recordatorio. Intenta de nuevo.", user_id),
+            parse_mode="Markdown"
+        )
+    
+    return ConversationHandler.END
+
 async def cancel_op(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    # Limpiar datos de usuario al cancelar
+    context.user_data.pop('rem_text', None)
+    context.user_data.pop('rem_time', None)
     await update.message.reply_text(_("❌ Operación cancelada.", user_id))
     return ConversationHandler.END
 
@@ -256,10 +470,12 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
             # Opcional: Si falló al borrar, refrescamos la lista general
             await rec_command(update, context)
 
-    # --- ACCIONES AL DISPARARSE LA ALERTA (POSTPONE / ACK) ---
+    # --- ACCIONES AL DISPARARSE LA ALERTA (POSTPONE / ACK / DELETE) ---
     elif data.startswith("rem_postpone_"):
         # data format: rem_postpone_{id}_{minutes}
-        _, _, rem_id, mins = data.split("_")
+        parts = data.split("_")
+        rem_id = parts[2]
+        mins = parts[3]
         
         # OJO: Como el loop borró el recordatorio al enviarlo, aquí tenemos que "re-crearlo"
         # O, si modificaste el loop para no borrar, simplemente actualizas.
@@ -285,6 +501,13 @@ async def reminders_callback_handler(update: Update, context: ContextTypes.DEFAU
     elif data.startswith("rem_ack_"):
         # Solo borrar el mensaje o editarlo para decir "Completado"
         await query.edit_message_text(_("✅ *Recordatorio completado.*", user_id), parse_mode="Markdown")
+
+    elif data.startswith("rem_delete_notif_"):
+        rem_id = data.split("_")[3]
+        if delete_reminder(user_id, rem_id):
+            await query.edit_message_text(_("🗑 *Recordatorio eliminado.*", user_id), parse_mode="Markdown")
+        else:
+            await query.edit_message_text(_("⚠️ El recordatorio ya no existe.", user_id), parse_mode="Markdown")
 
 # Handler para callbacks de tiempo en el estado WAITING_TIME
 async def time_callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -323,12 +546,9 @@ async def time_callback_handler(update: Update, context: ContextTypes.DEFAULT_TY
         return WAITING_TIME
     
     if trigger_dt:
-        add_reminder(user_id, text, trigger_dt)
-        msg_dt = trigger_dt.strftime('%d/%m/%Y a las %H:%M')
-        await query.edit_message_text(
-            _("✅ *Recordatorio guardado.*\n\n📅 {msg_dt}\n📝 {text}", user_id).format(msg_dt=msg_dt, text=text),
-            parse_mode="Markdown"
-        )
+        # Guardamos el tiempo y vamos a confirmar recurrencia
+        context.user_data['rem_time'] = trigger_dt
+        return await ask_recurrence_confirm(update, context)
     
     return ConversationHandler.END
 
@@ -340,6 +560,16 @@ reminders_conv_handler = ConversationHandler(
         WAITING_TIME: [
             MessageHandler(filters.TEXT & ~filters.COMMAND, receive_time),
             CallbackQueryHandler(time_callback_handler, pattern="^time_"),
+        ],
+        WAITING_RECURRENCE_CONFIRM: [
+            CallbackQueryHandler(handle_recurrence_confirm, pattern="^recur_confirm_"),
+        ],
+        WAITING_RECURRENCE_TYPE: [
+            CallbackQueryHandler(handle_recurrence_type, pattern="^recur_type_"),
+        ],
+        WAITING_RECURRENCE_INTERVAL: [
+            CallbackQueryHandler(handle_recurrence_interval, pattern="^recur_interval_"),
+            CallbackQueryHandler(handle_recurrence_confirm, pattern="^recur_confirm_"),
         ],
     },
     fallbacks=[CommandHandler("cancel", cancel_op)],
