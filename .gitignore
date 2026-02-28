@@ -21,3 +21,7 @@ env/
 .vscode/
 logs/
 *.log
+
+# Archivo de versión local (generado automáticamente)
+# Cada entorno (local/VPS) mantiene su propia versión
+version.txt

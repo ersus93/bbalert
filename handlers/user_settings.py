@@ -305,7 +305,7 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         try:
             precio = float(args[1].replace(',', '.'))
         except ValueError:
-            await update.message.reply_text("⚠️ El precio debe ser un número válido.")
+            await update.message.reply_text(_("⚠️ El precio debe ser un número válido.", user_id))
             return
 
         sub_action = args[2].lower() if len(args) > 2 else None
@@ -316,7 +316,7 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
             if sub_action in ['run', 'stop']:
                 final_action = sub_action
             else:
-                await update.message.reply_text("⚠️ Para editar usa: `/hbdalerts edit <precio> run` o `stop`.")
+                await update.message.reply_text(_("⚠️ Para editar usa: `/hbdalerts edit <precio> run` o `stop`.", user_id))
                 return
 
         success, msg = modify_hbd_threshold(precio, final_action)

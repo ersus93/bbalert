@@ -281,7 +281,7 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
                 await update.callback_query.answer("❌ No disponible en Binance Local", show_alert=True)
                 return # IMPORTANTE: Detenemos ejecución aquí, el mensaje anterior se mantiene intacto
     else:
-        msg_wait = await message.reply_text(f"⏳ _Analizando {full_symbol} ({timeframe})..._", parse_mode=ParseMode.MARKDOWN)
+        msg_wait = await message.reply_text(_("⏳ _Analizando {full_symbol} ({timeframe})..._", user_id).format(full_symbol=full_symbol, timeframe=timeframe), parse_mode=ParseMode.MARKDOWN)
 
     # === LÓGICA DE OBTENCIÓN DE DATOS ===
     loop = asyncio.get_running_loop()
@@ -529,9 +529,10 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
 
 async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Callback del botón IA. 
+    Callback del botón IA.
     Funciona tanto para reportes de BINANCE (Local) como de TRADINGVIEW (TV).
     """
+    user_id = update.effective_user.id
     query = update.callback_query
     await query.answer("🧠 Analizando datos...") 
     
@@ -553,7 +554,7 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         original_report_text = query.message.caption if query.message.caption else query.message.text
         
         if not original_report_text:
-             await query.message.reply_text("❌ Error: No se pudo leer el reporte en pantalla.", parse_mode=ParseMode.MARKDOWN)
+             await query.message.reply_text(_("❌ Error: No se pudo leer el reporte en pantalla.", user_id), parse_mode=ParseMode.MARKDOWN)
              return
 
         # 3. Preparar el texto enriquecido para la IA
@@ -590,7 +591,7 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     except Exception as e:
         print(f"Error en callback IA: {e}")
         try:
-            await query.message.reply_text("⚠️ La IA está ocupada, intenta de nuevo.", parse_mode=ParseMode.MARKDOWN)
+            await query.message.reply_text(_("⚠️ La IA está ocupada, intenta de nuevo.", user_id), parse_mode=ParseMode.MARKDOWN)
         except:
             pass
 

@@ -4,6 +4,7 @@ from datetime import datetime
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from utils.reminders_manager import load_reminders, save_reminders
 from utils.logger import logger
+from core.i18n import _
 
 async def reminders_monitor_loop(bot):
     """Bucle infinito que revisa recordatorios cada 30 segundos."""
@@ -16,6 +17,7 @@ async def reminders_monitor_loop(bot):
             dirty = False # Flag para saber si hay que guardar cambios
             
             for user_id_str, reminders in data.items():
+                user_id = int(user_id_str)
                 active_reminders = []
                 for rem in reminders:
                     trigger_time = datetime.fromisoformat(rem["time"])
@@ -26,20 +28,22 @@ async def reminders_monitor_loop(bot):
                             # Botones para posponer o borrar (este último es visual, ya que se borra al enviarse)
                             keyboard = [
                                 [
-                                    InlineKeyboardButton("💤 15m", callback_data=f"rem_postpone_{rem['id']}_15"),
-                                    InlineKeyboardButton("💤 1h", callback_data=f"rem_postpone_{rem['id']}_60"),
+                                    InlineKeyboardButton(_("💤 15m", user_id), callback_data=f"rem_postpone_{rem['id']}_15"),
+                                    InlineKeyboardButton(_("💤 1h", user_id), callback_data=f"rem_postpone_{rem['id']}_60"),
                                 ],
-                                [InlineKeyboardButton("✅ Entendido", callback_data=f"rem_ack_{rem['id']}")]
+                                [InlineKeyboardButton(_("✅ Entendido", user_id), callback_data=f"rem_ack_{rem['id']}")]
                             ]
                             
-                            msg_text = (
-                                f"🔔 *RECORDATORIO*\n\n"
-                                f"📝 {rem['text']}\n"
-                                f"⏰ {trigger_time.strftime('%H:%M')}"
+                            msg_template = _(
+                                "🔔 *RECORDATORIO*\n\n"
+                                "📝 {text}\n"
+                                "⏰ {time}",
+                                user_id
                             )
+                            msg_text = msg_template.format(text=rem['text'], time=trigger_time.strftime('%H:%M'))
                             
                             await bot.send_message(
-                                chat_id=int(user_id_str),
+                                chat_id=user_id,
                                 text=msg_text,
                                 parse_mode="Markdown",
                                 reply_markup=InlineKeyboardMarkup(keyboard)

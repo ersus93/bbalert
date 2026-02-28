@@ -53,6 +53,17 @@ def get_kline_data(symbol, interval="4h", limit=200):
 def _get_valerts_keyboard(user_id, symbol, current_source="BINANCE", current_tf="4h"):
     keyboard = []
     
+    # Extract display symbol (e.g., "ETH" from "ETHUSDT")
+    display_sym = symbol.replace("USDT", "")
+    
+    # 0. Botón de Análisis IA (Primera fila)
+    keyboard.append([
+        InlineKeyboardButton(
+            "✨ Análisis IA", 
+            callback_data=f"ai_analyze|{current_source}|{display_sym}|USDT|{current_tf}"
+        )
+    ])
+    
     # 1. Botones de Suscripción (Multi-TF)
     tfs_interest = ["1h", "4h", "12h", "1d"]
     row_subs = []

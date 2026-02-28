@@ -135,7 +135,7 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
     df = get_btc_klines(interval=target_tf, limit=150)
     
     if df is None or df.empty:
-        await update.message.reply_text("⚠️ Error obteniendo datos de Binance.")
+        await update.message.reply_text(_("⚠️ Error obteniendo datos de Binance.", user_id))
         return
     
     

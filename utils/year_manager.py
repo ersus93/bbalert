@@ -5,7 +5,9 @@ import os
 import random
 import math
 from datetime import datetime, date
+from typing import Optional
 from core.config import YEAR_QUOTES_PATH, YEAR_SUBS_PATH
+from core.i18n import _
 
 # --- GESTIÓN DE FRASES (QUOTES) ---
 
@@ -123,30 +125,30 @@ def get_simple_year_string():
     bar = generate_progress_bar(data['percent'], length=12)
     return f"📅 {data['year']} Progress: \n{bar} {data['percent']:.2f}%"
 
-def get_detailed_year_message():
+def get_detailed_year_message(user_id: Optional[int] = None):
     """Mensaje completo y divertido para el comando /y o el loop."""
     data = get_year_progress_data()
     quote = get_daily_quote()
     bar = generate_progress_bar(data['percent'], length=20)
-    
+
     # Textos dinámicos según el porcentaje
     status_mood = ""
-    if data['percent'] < 2: status_mood = "🍀 Recién estamos empezando..."
-    elif data['percent'] < 10: status_mood = "🌱 Arrancando motores..."
-    elif data['percent'] < 50: status_mood = "🏃‍♂️ Aún hay tiempo de cumplir propósitos."
-    elif data['percent'] < 80: status_mood = "🔥 ¡Se nos va el año!"
-    else: status_mood = "🏁 Recta final, ¡agárrate!"
+    if data['percent'] < 2: status_mood = _("🍀 Recién estamos empezando...", user_id)
+    elif data['percent'] < 10: status_mood = _("🌱 Arrancando motores...", user_id)
+    elif data['percent'] < 50: status_mood = _("🏃‍♂️ Aún hay tiempo de cumplir propósitos.", user_id)
+    elif data['percent'] < 80: status_mood = _("🔥 ¡Se nos va el año!", user_id)
+    else: status_mood = _("🏁 Recta final, ¡agárrate!", user_id)
 
     msg = (
-        f"🗓 *ESTADO DEL AÑO {data['year']}*\n"
+        f"🗓 *{ _('ESTADO DEL AÑO', user_id) } {data['year']}*\n"
         f"•••\n"
-        f"📆 *Fecha:* {data['date_str']}\n"
-        f"⏳ *Progreso:* `{data['percent']:.2f}%`\n"
+        f"📆 *{ _('Fecha', user_id) }:* {data['date_str']}\n"
+        f"⏳ *{ _('Progreso', user_id) }:* `{data['percent']:.2f}%`\n"
         f"📊 `{bar}`\n\n"
-        f"🔚 Faltan *{data['days_left']} días* para {data['year']+1}.\n"
+        f"🔚 { _('Faltan', user_id) } *{data['days_left']} { _('días', user_id) }* { _('para', user_id) } {data['year']+1}.\n"
         f"💭 _{status_mood}_\n"
         f"•••\n"
-        f"💡 *Frase Del Día:*\n"
-        f"“{quote}”"
+        f"💡 *{ _('Frase Del Día', user_id) }:*\n"
+        f"\"{quote}\""
     )
     return msg

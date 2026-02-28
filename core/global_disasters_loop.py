@@ -7,6 +7,7 @@ from telegram.constants import ParseMode
 from utils.file_manager import add_log_line
 from utils.weather_manager import weather_manager, buffer_global_event
 from utils.global_disasters_api import disaster_monitor
+from core.i18n import _
 
 # ========================================
 # FUNCIÓN HAVERSINE PARA DISTANCIA
@@ -50,55 +51,57 @@ DISASTER_EMOJIS = {
     "Unknown": "⚠️"
 }
 
-def format_disaster_message(event: dict, distance_km: float = None) -> str:
+from typing import Optional
+
+def format_disaster_message(event: dict, distance_km: Optional[float] = None, user_id: Optional[int] = None) -> str:
     """Formatea mensaje de desastre con datos opcionales de distancia."""
     
     emoji = DISASTER_EMOJIS.get(event['type'], "⚠️")
     
     # Color según severidad
     if event['severity'] == "Red":
-        sev_icon = "🔴 *CRÍTICO*"
+        sev_icon = "🔴 *" + _("CRÍTICO", user_id) + "*"
     elif event['severity'] == "Orange":
-        sev_icon = "🟠 *ALTO*"
+        sev_icon = "🟠 *" + _("ALTO", user_id) + "*"
     else:
-        sev_icon = "🟢 *MODERADO*"
+        sev_icon = "🟢 *" + _("MODERADO", user_id) + "*"
     
     # Traducción de tipos
     type_names = {
-        "Earthquake": "Terremoto",
-        "Tsunami": "Tsunami",
-        "Cyclone": "Ciclón/Huracán",
-        "Volcano": "Erupción Volcánica",
-        "Flood": "Inundación",
-        "Drought": "Sequía"
+        "Earthquake": _("Terremoto", user_id),
+        "Tsunami": _("Tsunami", user_id),
+        "Cyclone": _("Ciclón/Huracán", user_id),
+        "Volcano": _("Erupción Volcánica", user_id),
+        "Flood": _("Inundación", user_id),
+        "Drought": _("Sequía", user_id)
     }
     
-    type_spanish = type_names.get(event['type'], event['type'])
+    type_translated = type_names.get(event['type'], event['type'])
     
     msg = (
         f"{emoji} {sev_icon}\n"
         f"—————————————————\n"
-        f"🌐 *Tipo:* {type_spanish}\n"
-        f"📍 *Ubicación:* {event['location']}\n"
+        f"🌐 *{_('Tipo', user_id)}:* {type_translated}\n"
+        f"📍 *{_('Ubicación', user_id)}:* {event['location']}\n"
     )
     
     # Datos específicos según tipo
     if event['type'] == "Earthquake" and 'magnitude' in event:
-        msg += f"📊 *Magnitud:* {event['magnitude']:.1f}\n"
-        msg += f"📏 *Profundidad:* {event['depth']:.1f} km\n"
+        msg += f"📊 *{_('Magnitud', user_id)}:* {event['magnitude']:.1f}\n"
+        msg += f"📏 *{_('Profundidad', user_id)}:* {event['depth']:.1f} km\n"
     
     # Distancia al usuario (si aplica)
     if distance_km is not None:
         if distance_km < 500:
-            msg += f"📏 *Distancia:* ⚠️ **{int(distance_km)} km de ti**\n"
+            msg += f"📏 *{_('Distancia', user_id)}:* ⚠️ **{int(distance_km)} km {_('de ti', user_id)}**\n"
         else:
-            msg += f"📏 *Distancia:* {int(distance_km)} km de ti\n"
+            msg += f"📏 *{_('Distancia', user_id)}:* {int(distance_km)} km {_('de ti', user_id)}\n"
     
     msg += (
-        f"📅 *Fecha:* {event['published']}\n\n"
+        f"📅 *{_('Fecha', user_id)}:* {event['published']}\n\n"
         f"ℹ️ {event['description'][:150]}...\n\n"
-        f"🔗 [Más información]({event['link']})\n\n"
-        f"_Fuente: {event['source']}_"
+        f"🔗 [{_('Más información', user_id)}]({event['link']})\n\n"
+        f"_{_('Fuente', user_id)}: {event['source']}_"
     )
     
     return msg
@@ -219,7 +222,7 @@ async def global_disasters_loop(bot: Bot):
                     
                     if should_send_immediate:
                         try:
-                            msg = format_disaster_message(event, distance_km)
+                            msg = format_disaster_message(event, distance_km, user_id)
                             
                             # Enviar mensaje
                             await bot.send_message(
