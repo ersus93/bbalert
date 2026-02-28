@@ -23,9 +23,15 @@ from utils.weather_manager import load_weather_subscriptions
 from utils.valerts_manager import get_active_symbols, get_valerts_subscribers
 from utils.btc_manager import load_btc_subs
 from collections import Counter
-from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history
+from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history, migrate_user_timestamps
 from utils.ads_manager import load_ads, add_ad, delete_ad
 from utils.logger import LOG_FILE_PATH
+from utils.telemetry import (
+    get_retention_metrics,
+    get_commands_per_user,
+    get_daily_events,
+    get_users_registration_stats
+)
 from core.config import ( 
     VERSION, PID, PYTHON_VERSION, STATE, ADMIN_CHAT_IDS, 
     USUARIOS_PATH, PRICE_ALERTS_PATH, HBD_HISTORY_PATH,
@@ -420,6 +426,16 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 3. VISTA DE ADMINISTRADOR (DASHBOARD PRO)
     msg_loading = await update.message.reply_text(_("⏳ *Analizando Big Data...*", chat_id), parse_mode=ParseMode.MARKDOWN)
     
+    # --- MIGRACIÓN DE TIMESTAMPS (retroactiva) ---
+    # Asegura que todos los usuarios tengan registered_at estimado si no existe
+    migration_result = migrate_user_timestamps()
+    
+    # --- NUEVAS MÉTRICAS DE TELEMETRÍA ---
+    retention = get_retention_metrics()
+    cmd_stats = get_commands_per_user()
+    daily_events = get_daily_events()
+    reg_stats = get_users_registration_stats()
+    
     # --- A. CÁLCULOS DE USUARIOS ---
     total_users = len(usuarios)
     active_24h = 0
@@ -622,7 +638,19 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"├ Activos 24h: `{active_24h}` ({pct_24h}%)\n"
         f"├ Activos 7d:  `{active_7d}` ({pct_7d}%)\n"
         f"├ Activos 30d: `{active_30d}` ({pct_30d}%)\n"
-        f"└ Nuevos: hoy `{new_today}` | 7d `{new_7d}` | 30d `{new_30d}`\n\n"
+        f"├ Nuevos: hoy `{new_today}` | 7d `{new_7d}` | 30d `{new_30d}`\n"
+        f"└ Datos completos: `{reg_stats['with_registered_at']}/{total_users}` ({reg_stats['data_quality_pct']}%)\n\n"
+        
+        f"📊 *MÉTRICAS DE RETENCIÓN*\n"
+        f"├ Retención 7d: `{retention['retention_7d']}%`\n"
+        f"├ Churn: `{retention['churn_rate']}%`\n"
+        f"└ Stickiness: `{retention['stickiness']}%` (DAU/MAU)\n\n"
+        
+        f"📈 *EVENTOS HOY*\n"
+        f"├ Nuevos: `{daily_events['joins_today']}`\n"
+        f"├ Comandos: `{daily_events['commands_today']}`\n"
+        f"├ Promedio/cmd: `{cmd_stats['avg_per_user']}`\n"
+        f"└ Alertas: `{daily_events['alerts_today']}`\n\n"
         
         f"💎 *NEGOCIO (Suscripciones Activas)*\n"
         f"├ 📦 Pack Control Total: `{vip_stats['watchlist_bundle']}`\n"

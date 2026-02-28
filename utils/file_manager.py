@@ -15,6 +15,69 @@ from core.config import (
 )
 
 _USUARIOS_CACHE = None
+_MIGRATION_TIMESTAMPS_DONE = False
+
+
+def migrate_user_timestamps():
+    """
+    Migrate legacy user data to include registered_at timestamps.
+    For users without registered_at, attempts to estimate from available data.
+    Returns counts of migrated users.
+    """
+    global _MIGRATION_TIMESTAMPS_DONE
+    
+    # Only run once per process
+    if _MIGRATION_TIMESTAMPS_DONE:
+        return {'migrated': 0, 'already_had': 0, 'failed': 0}
+    
+    usuarios = cargar_usuarios()
+    migrated = 0
+    already_had = 0
+    failed = 0
+    now = datetime.now()
+    
+    for uid, u in usuarios.items():
+        # Skip if already has registered_at
+        if u.get('registered_at'):
+            already_had += 1
+            continue
+        
+        # Try to estimate registration date from available data
+        estimated_date = None
+        
+        # 1. Use last_alert_timestamp as oldest available activity
+        if u.get('last_alert_timestamp'):
+            try:
+                estimated_date = u['last_alert_timestamp']
+            except:
+                pass
+        
+        # 2. Use last_seen as fallback
+        if not estimated_date and u.get('last_seen'):
+            try:
+                estimated_date = u['last_seen']
+            except:
+                pass
+        
+        # 3. Use a default far-past date if no data available
+        if not estimated_date:
+            # Default to 90 days ago as conservative estimate
+            estimated_date = (now - timedelta(days=90)).strftime('%Y-%m-%d %H:%M:%S')
+            failed += 1  # Mark as failed (estimated) since we had no real data
+        else:
+            migrated += 1
+        
+        # Set the estimated registration date
+        u['registered_at'] = estimated_date
+    
+    # Save if any changes were made
+    if migrated > 0 or failed > 0:
+        guardar_usuarios(usuarios)
+        logger.info(f"Migration complete: {migrated} migrated, {failed} estimated, {already_had} already had timestamps")
+    
+    _MIGRATION_TIMESTAMPS_DONE = True
+    return {'migrated': migrated, 'already_had': already_had, 'failed': failed}
+
 
 # === Inicialización de Archivos ===
 def inicializar_archivos():
@@ -192,9 +255,96 @@ inicializar_archivos()
 
 # === GESTIÓN DE USUARIOS ===
 
+def migrate_user_timestamps():
+    """
+    Migra timestamps retroactivamente para usuarios existentes sin 'registered_at' o 'last_seen'.
+
+    Returns:
+        tuple: (migrated_count, skipped_count)
+    """
+    global _MIGRATION_TIMESTAMPS_DONE
+
+    if _MIGRATION_TIMESTAMPS_DONE:
+        return (0, 0)
+
+    try:
+        usuarios = cargar_usuarios()
+        if not usuarios:
+            _MIGRATION_TIMESTAMPS_DONE = True
+            return (0, 0)
+
+        migrated_count = 0
+        skipped_count = 0
+
+        # Obtener tiempo de modificacion del archivo como fallback
+        file_mtime = None
+        try:
+            if os.path.exists(USUARIOS_PATH):
+                file_mtime = datetime.fromtimestamp(os.path.getmtime(USUARIOS_PATH))
+        except Exception:
+            file_mtime = datetime.now()
+
+        for chat_id_str, user_data in usuarios.items():
+            needs_save = False
+
+            # Migrar registered_at
+            if not user_data.get('registered_at'):
+                registered_at = None
+
+                # Intentar usar last_alert_timestamp si existe
+                if user_data.get('last_alert_timestamp'):
+                    try:
+                        registered_at = user_data['last_alert_timestamp']
+                    except Exception:
+                        pass
+
+                # Fallback: usar fecha de modificacion del archivo
+                if not registered_at and file_mtime:
+                    registered_at = file_mtime.strftime('%Y-%m-%d %H:%M:%S')
+
+                if registered_at:
+                    user_data['registered_at'] = registered_at
+                    needs_save = True
+
+            # Migrar last_seen
+            if not user_data.get('last_seen'):
+                last_seen = None
+
+                # Intentar usar last_alert_timestamp si existe
+                if user_data.get('last_alert_timestamp'):
+                    try:
+                        last_seen = user_data['last_alert_timestamp']
+                    except Exception:
+                        pass
+
+                # Si no hay last_alert_timestamp, dejar como None (no hay buen fallback)
+                if last_seen:
+                    user_data['last_seen'] = last_seen
+                    needs_save = True
+
+            if needs_save:
+                migrated_count += 1
+            else:
+                skipped_count += 1
+
+        if migrated_count > 0:
+            guardar_usuarios(usuarios)
+            logger.info(f"✅ Migracion completada: {migrated_count} usuarios actualizados, {skipped_count} sin cambios")
+        else:
+            logger.info(f"✅ Migracion: Todos los usuarios ya tenian timestamps ({skipped_count} verificados)")
+
+        _MIGRATION_TIMESTAMPS_DONE = True
+        return (migrated_count, skipped_count)
+
+    except Exception as e:
+        logger.error(f"❌ Error durante la migracion de timestamps: {e}")
+        _MIGRATION_TIMESTAMPS_DONE = True
+        return (0, 0)
+
+
 def cargar_usuarios():
     global _USUARIOS_CACHE
-    
+
     # Si ya está en memoria, usar memoria (rápido y seguro)
     if _USUARIOS_CACHE is not None:
         return _USUARIOS_CACHE
@@ -206,6 +356,8 @@ def cargar_usuarios():
     try:
         with open(USUARIOS_PATH, 'r', encoding='utf-8') as f:
             _USUARIOS_CACHE = json.load(f)
+            # Ejecutar migracion automaticamente despues de cargar
+            migrate_user_timestamps()
             return _USUARIOS_CACHE
     except json.JSONDecodeError:
         # Si el archivo está roto, intentamos recuperar backup o iniciar vacío

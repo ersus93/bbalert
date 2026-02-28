@@ -36,6 +36,7 @@ WEATHER_SUBS_PATH = os.path.join(DATA_DIR, "weather_subs.json")
 WEATHER_LAST_ALERTS_PATH = os.path.join(DATA_DIR, "weather_last_alerts.json")
 YEAR_QUOTES_PATH = os.path.join(DATA_DIR, "year_quotes.json")
 YEAR_SUBS_PATH = os.path.join(DATA_DIR, "year_subs.json")
+EVENTS_LOG_PATH = os.path.join(DATA_DIR, "events_log.json")
 # --- Configuración de la Aplicación ---
 PID = os.getpid()
 STATE = "RUNNING"
