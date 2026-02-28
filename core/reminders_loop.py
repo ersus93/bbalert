@@ -2,9 +2,30 @@ import asyncio
 import json
 from datetime import datetime
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from utils.reminders_manager import load_reminders, save_reminders
+from utils.reminders_manager import load_reminders, save_reminders, is_recurring, calculate_next_occurrence, update_reminder_time
 from utils.logger import logger
 from core.i18n import _
+
+
+def get_recurrence_description(reminder, user_id):
+    """Obtiene la descripción de recurrencia del recordatorio."""
+    if not reminder.get("recurrence") or not reminder["recurrence"].get("enabled"):
+        return ""
+    
+    r = reminder["recurrence"]
+    type_map = {
+        "daily": _("cada día", user_id),
+        "weekly": _("cada semana", user_id),
+        "monthly": _("cada mes", user_id),
+        "yearly": _("cada año", user_id)
+    }
+    
+    interval = r.get("interval", 1)
+    if interval == 1:
+        return type_map.get(r["type"], "")
+    else:
+        return f"{interval} {type_map.get(r['type'], r['type'])}s"
+
 
 async def reminders_monitor_loop(bot):
     """Bucle infinito que revisa recordatorios cada 30 segundos."""
@@ -14,7 +35,7 @@ async def reminders_monitor_loop(bot):
         try:
             now = datetime.now()
             data = load_reminders()
-            dirty = False # Flag para saber si hay que guardar cambios
+            dirty = False
             
             for user_id_str, reminders in data.items():
                 user_id = int(user_id_str)
@@ -23,15 +44,16 @@ async def reminders_monitor_loop(bot):
                     trigger_time = datetime.fromisoformat(rem["time"])
                     
                     if now >= trigger_time:
-                        # ¡ES HORA! Enviar alerta
                         try:
-                            # Botones para posponer o borrar (este último es visual, ya que se borra al enviarse)
                             keyboard = [
                                 [
                                     InlineKeyboardButton(_("💤 15m", user_id), callback_data=f"rem_postpone_{rem['id']}_15"),
                                     InlineKeyboardButton(_("💤 1h", user_id), callback_data=f"rem_postpone_{rem['id']}_60"),
                                 ],
-                                [InlineKeyboardButton(_("✅ Entendido", user_id), callback_data=f"rem_ack_{rem['id']}")]
+                                [
+                                    InlineKeyboardButton(_("🔁 Repetir", user_id), callback_data=f"rem_repeat_{rem['id']}"),
+                                    InlineKeyboardButton(_("✅ Entendido", user_id), callback_data=f"rem_ack_{rem['id']}")
+                                ]
                             ]
                             
                             msg_template = _(
@@ -42,6 +64,10 @@ async def reminders_monitor_loop(bot):
                             )
                             msg_text = msg_template.format(text=rem['text'], time=trigger_time.strftime('%H:%M'))
                             
+                            recurrence_desc = get_recurrence_description(rem, user_id)
+                            if recurrence_desc:
+                                msg_text += f"\n🔄 {_('Se repetirá', user_id)}: {recurrence_desc}"
+                            
                             await bot.send_message(
                                 chat_id=user_id,
                                 text=msg_text,
@@ -50,20 +76,25 @@ async def reminders_monitor_loop(bot):
                             )
                             logger.info(f"🔔 Recordatorio enviado a {user_id_str}: {rem['text']}")
                             
-                            # NO lo agregamos a active_reminders, efectivamente borrándolo de la lista pendiente
-                            # A MENOS que quieras que persista hasta que le den "Entendido".
-                            # En este diseño: Se envía y se borra del JSON (si el usuario quiere posponer, el botón re-creará la entrada).
-                            dirty = True
-                            
+                            if is_recurring(rem):
+                                next_time = calculate_next_occurrence(rem)
+                                if next_time:
+                                    rem["time"] = next_time.isoformat()
+                                    active_reminders.append(rem)
+                                    dirty = True
+                                    logger.info(f"🔄 Recordatorio recurrente recalculado para {user_id_str}: {rem['text']} → {next_time.isoformat()}")
+                                else:
+                                    dirty = True
+                                    logger.info(f"⏹️ Recordatorio recurrente finalizado para {user_id_str}: {rem['text']}")
+                            else:
+                                dirty = True
+                                
                         except Exception as e:
                             logger.error(f"Error enviando recordatorio a {user_id_str}: {e}")
-                            # Si falla el envío, lo mantenemos para reintentar (o podrías decidir borrarlo)
                             active_reminders.append(rem)
                     else:
-                        # Aún no es la hora, se queda
                         active_reminders.append(rem)
                 
-                # Actualizamos la lista del usuario
                 if len(active_reminders) != len(reminders):
                     data[user_id_str] = active_reminders
                     dirty = True
@@ -74,4 +105,4 @@ async def reminders_monitor_loop(bot):
         except Exception as e:
             logger.error(f"❌ Error crítico en reminders_monitor_loop: {e}")
         
-        await asyncio.sleep(30) # Revisar cada 30 segundos
+        await asyncio.sleep(30)
