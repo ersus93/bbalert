@@ -212,15 +212,40 @@ async def valerts_monitor_loop(bot):
                                 await _sender_func(msg_session, subs, reply_markup=InlineKeyboardMarkup(kb), parse_mode=ParseMode.MARKDOWN)
 
                         elif source == "TV":
-                            # TV: solo inicializar estado, NO enviar mensaje
-                            # Inicializar alerted_levels básicos para TV (solo P_UP/P_DOWN según posición)
+                            # TV: Aplicar misma lógica de posicionamiento que Binance para evitar spam
                             pre_filled_alerts = []
-                            if current_price >= levels_fib['P']:
+
+                            # A) ANÁLISIS ALCISTA - Marcar niveles ya superados como alertados
+                            if current_price >= levels_fib['R3']:
+                                pre_filled_alerts.extend(['P_UP', 'R1', 'R2', 'R3'])
+                            elif current_price >= levels_fib['R2']:
+                                pre_filled_alerts.extend(['P_UP', 'R1', 'R2'])
+                            elif current_price >= levels_fib['R1']:
+                                pre_filled_alerts.extend(['P_UP', 'R1'])
+                            elif current_price >= levels_fib['P']:
                                 pre_filled_alerts.append('P_UP')
-                            else:
+
+                            # B) ANÁLISIS BAJISTA - Marcar niveles ya perforados como alertados
+                            elif current_price <= levels_fib['S3']:
+                                pre_filled_alerts.extend(['P_DOWN', 'S1', 'S2', 'S3'])
+                            elif current_price <= levels_fib['S2']:
+                                pre_filled_alerts.extend(['P_DOWN', 'S1', 'S2'])
+                            elif current_price <= levels_fib['S1']:
+                                pre_filled_alerts.extend(['P_DOWN', 'S1'])
+                            elif current_price < levels_fib['P']:
                                 pre_filled_alerts.append('P_DOWN')
+
+                            # C) GOLDEN POCKET
+                            if current_price >= levels_fib['FIB_618']:
+                                if 'FIB_618_UP' not in pre_filled_alerts:
+                                    pre_filled_alerts.append('FIB_618_UP')
+                            else:
+                                if 'FIB_618_DOWN' not in pre_filled_alerts:
+                                    pre_filled_alerts.append('FIB_618_DOWN')
+
                             current_state['alerted_levels'] = pre_filled_alerts
                             state_changed = True
+                            # NOTA: No enviamos reporte de sesión para TV (tiene delay), solo inicializamos estado
 
                     else:
                         # Si no es nueva vela, actualizamos precio para referencias futuras
