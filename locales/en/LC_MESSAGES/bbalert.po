@@ -246,7 +246,7 @@ msgstr "✅ Received"
 #: core/reminders_loop.py:55 handlers/reminders.py:28
 
 msgid "🗑 Eliminar"
-msgstr "🗑️ Delete Subscription"
+msgstr "🗑 Delete"
 
 #: core/reminders_loop.py:60
 #, python-brace-format
@@ -832,7 +832,7 @@ msgstr "➕ New Reminder"
 #: handlers/reminders.py:29
 #, python-brace-format
 msgid "🔄 Actualizar"
-msgstr "🔄 Refresh /p {symbol}"
+msgstr "🔄 Refresh"
 
 #: handlers/reminders.py:63
 msgid ""
@@ -1022,7 +1022,7 @@ msgstr "⚠️ Error saving reminder. Try again."
 #: handlers/reminders.py:410
 
 msgid "❌ Operación cancelada."
-msgstr "🚫 Operation canceled."
+msgstr "❌ Operation canceled."
 
 #: handlers/reminders.py:432 handlers/reminders.py:448
 msgid "🗑 *Selecciona para eliminar:*"
