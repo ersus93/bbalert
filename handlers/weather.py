@@ -188,10 +188,10 @@ async def responder_clima_actual(update: Update, context: ContextTypes.DEFAULT_T
             get_groq_weather_advice, 
             msg
         )
-        msg += f"\n\n💡 *Consejos de 🤖 @BitBreadIAbot:*\n—————————————————\n\n{ai_recommendation}\n"
+        msg += f"\n\n💡 *Consejos:*\n—————————————————\n{ai_recommendation}"
     except Exception as e:
         add_log_line(f"⚠️ Error IA Manual: {e}")
-        msg += "\n💡 *Consejo:* Lleva lo necesario según el clima.\n"
+        msg += "\n💡 *Consejo:* Lleva lo necesario según el clima."
 
     # 7. Publicidad y Envío
     msg += "\n" + get_random_ad_text()
