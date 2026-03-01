@@ -344,6 +344,17 @@ proc_global = psutil.Process(os.getpid())
 # Hacemos una primera lectura "falsa" al arrancar para iniciar el contador
 proc_global.cpu_percent(interval=None)
 
+def _escape_markdown(text):
+    """Escape special Markdown characters to prevent parsing errors."""
+    if text is None:
+        return ""
+    text = str(text)
+    # Escape special Markdown characters
+    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in escape_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Dashboard de Administración SUPER PRO.
@@ -615,59 +626,107 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pct_7d  = int(active_7d  / total_users * 100) if total_users else 0
     pct_30d = int(active_30d / total_users * 100) if total_users else 0
 
+    # Escape all values for Markdown to prevent parsing errors
+    uptime_str_esc = _escape_markdown(uptime_str)
+    mem_usage_esc = _escape_markdown(f"{mem_usage:.2f}")
+    mem_asignada_esc = _escape_markdown(f"{mem_asignada:.2f}")
+    cpu_percent_esc = _escape_markdown(cpu_percent)
+    size_file_esc = _escape_markdown(f"{size['file_size']:.2f}")
+    total_usage_today_esc = _escape_markdown(total_usage_today)
+    usage_ver_esc = _escape_markdown(usage_breakdown['ver'])
+    usage_tasa_esc = _escape_markdown(usage_breakdown['tasa'])
+    usage_ta_esc = _escape_markdown(usage_breakdown['ta'])
+    total_alerts_active_esc = _escape_markdown(total_alerts_active)
+    top_cmds_str_esc = _escape_markdown(top_cmds_str)
+    total_users_esc = _escape_markdown(total_users)
+    lang_es_esc = _escape_markdown(lang_es)
+    lang_en_esc = _escape_markdown(lang_en)
+    active_24h_esc = _escape_markdown(active_24h)
+    pct_24h_esc = _escape_markdown(pct_24h)
+    active_7d_esc = _escape_markdown(active_7d)
+    pct_7d_esc = _escape_markdown(pct_7d)
+    active_30d_esc = _escape_markdown(active_30d)
+    pct_30d_esc = _escape_markdown(pct_30d)
+    new_today_esc = _escape_markdown(new_today)
+    new_7d_esc = _escape_markdown(new_7d)
+    new_30d_esc = _escape_markdown(new_30d)
+    reg_stats_with_esc = _escape_markdown(reg_stats['with_registered_at'])
+    reg_stats_quality_esc = _escape_markdown(reg_stats['data_quality_pct'])
+    retention_7d_esc = _escape_markdown(retention['retention_7d'])
+    churn_rate_esc = _escape_markdown(retention['churn_rate'])
+    stickiness_esc = _escape_markdown(retention['stickiness'])
+    daily_joins_esc = _escape_markdown(daily_events['joins_today'])
+    daily_commands_esc = _escape_markdown(daily_events['commands_today'])
+    cmd_avg_esc = _escape_markdown(cmd_stats['avg_per_user'])
+    daily_alerts_esc = _escape_markdown(daily_events['alerts_today'])
+    vip_watchlist_esc = _escape_markdown(vip_stats['watchlist_bundle'])
+    vip_tasa_esc = _escape_markdown(vip_stats['tasa_vip'])
+    vip_ta_esc = _escape_markdown(vip_stats['ta_vip'])
+    vip_coins_esc = _escape_markdown(vip_stats['coins_extra_users'])
+    vip_alerts_esc = _escape_markdown(vip_stats['alerts_extra_users'])
+    subs_expiring_esc = _escape_markdown(subs_expiring_soon)
+    btc_subscribers_esc = _escape_markdown(btc_subscribers)
+    hbd_subscribers_esc = _escape_markdown(hbd_subscribers)
+    weather_subscribers_esc = _escape_markdown(weather_subscribers)
+    valerts_total_users_esc = _escape_markdown(valerts_total_users)
+    valerts_symbols_esc = _escape_markdown(valerts_active_symbols_count)
+    top_coins_str_esc = _escape_markdown(top_coins_str)
+    VERSION_esc = _escape_markdown(VERSION)
+    now_str_esc = _escape_markdown(now.strftime('%d/%m/%Y %H:%M'))
+
     dashboard = (
-        f"👮‍♂️ *PANEL DE CONTROL* v{VERSION}\n"
-        f"📅 {now.strftime('%d/%m/%Y %H:%M')}\n"
+        f"👮‍♂️ *PANEL DE CONTROL* v{VERSION_esc}\n"
+        f"📅 {now_str_esc}\n"
         f"———————————————————\n\n"
 
         f"*🖥️ ESTADO DEL SISTEMA*\n"
-        f"├ *Uptime:* `{uptime_str}`\n"
-        f"├ *RAM:* `{mem_usage:.2f} MB`\n"
-        f"├ *VMS:* `{mem_asignada:.2f} MB`\n"
-        f"├ *CPU:* `{cpu_percent}%`\n"
-        f"└ *DATA:* `{size['file_size']:.2f} MB`\n\n"
+        f"├ *Uptime:* `{uptime_str_esc}`\n"
+        f"├ *RAM:* `{mem_usage_esc} MB`\n"
+        f"├ *VMS:* `{mem_asignada_esc} MB`\n"
+        f"├ *CPU:* `{cpu_percent_esc}%`\n"
+        f"└ *DATA:* `{size_file_esc} MB`\n\n"
 
         f"⚙️ *CARGA DEL SISTEMA (Hoy)*\n"
-        f"├ Comandos Procesados: `{total_usage_today}`\n"
-        f"├ /ver: `{usage_breakdown['ver']}` | /tasa: `{usage_breakdown['tasa']}` | /ta: `{usage_breakdown['ta']}`\n"
-        f"├ Alertas Cruce Vigilando: `{total_alerts_active}`\n"
-        f"└ Top Comandos:\n{top_cmds_str}\n\n"
+        f"├ Comandos Procesados: `{total_usage_today_esc}`\n"
+        f"├ /ver: `{usage_ver_esc}` | /tasa: `{usage_tasa_esc}` | /ta: `{usage_ta_esc}`\n"
+        f"├ Alertas Cruce Vigilando: `{total_alerts_active_esc}`\n"
+        f"└ Top Comandos:\n{top_cmds_str_esc}\n\n"
 
         f"👥 *USUARIOS*\n"
-        f"├ Totales: `{total_users}` | 🇪🇸 {lang_es} | 🇺🇸 {lang_en}\n"
-        f"├ Activos 24h: `{active_24h}` ({pct_24h}%)\n"
-        f"├ Activos 7d:  `{active_7d}` ({pct_7d}%)\n"
-        f"├ Activos 30d: `{active_30d}` ({pct_30d}%)\n"
-        f"├ Nuevos: hoy `{new_today}` | 7d `{new_7d}` | 30d `{new_30d}`\n"
-        f"└ Datos completos: `{reg_stats['with_registered_at']}/{total_users}` ({reg_stats['data_quality_pct']}%)\n\n"
-        
+        f"├ Totales: `{total_users_esc}` | 🇪🇸 {lang_es_esc} | 🇺🇸 {lang_en_esc}\n"
+        f"├ Activos 24h: `{active_24h_esc}` ({pct_24h_esc}%)\n"
+        f"├ Activos 7d:  `{active_7d_esc}` ({pct_7d_esc}%)\n"
+        f"├ Activos 30d: `{active_30d_esc}` ({pct_30d_esc}%)\n"
+        f"├ Nuevos: hoy `{new_today_esc}` | 7d `{new_7d_esc}` | 30d `{new_30d_esc}`\n"
+        f"└ Datos completos: `{reg_stats_with_esc}/{total_users_esc}` ({reg_stats_quality_esc}%)\n\n"
+
         f"📊 *MÉTRICAS DE RETENCIÓN*\n"
-        f"├ Retención 7d: `{retention['retention_7d']}%`\n"
-        f"├ Churn: `{retention['churn_rate']}%`\n"
-        f"└ Stickiness: `{retention['stickiness']}%` (DAU/MAU)\n\n"
-        
+        f"├ Retención 7d: `{retention_7d_esc}%`\n"
+        f"├ Churn: `{churn_rate_esc}%`\n"
+        f"└ Stickiness: `{stickiness_esc}%` (DAU/MAU)\n\n"
+
         f"📈 *EVENTOS HOY*\n"
-        f"├ Nuevos: `{daily_events['joins_today']}`\n"
-        f"├ Comandos: `{daily_events['commands_today']}`\n"
-        f"├ Promedio/cmd: `{cmd_stats['avg_per_user']}`\n"
-        f"└ Alertas: `{daily_events['alerts_today']}`\n\n"
-        
+        f"├ Nuevos: `{daily_joins_esc}`\n"
+        f"├ Comandos: `{daily_commands_esc}`\n"
+        f"├ Promedio/cmd: `{cmd_avg_esc}`\n"
+        f"└ Alertas: `{daily_alerts_esc}`\n\n"
+
         f"💎 *NEGOCIO (Suscripciones Activas)*\n"
-        f"├ 📦 Pack Control Total: `{vip_stats['watchlist_bundle']}`\n"
-        f"├ 💱 Tasa VIP: `{vip_stats['tasa_vip']}`\n"
-        f"├ 📈 TA Pro: `{vip_stats['ta_vip']}`\n"
-        f"├ ➕ Extras: `{vip_stats['coins_extra_users']}` Coins | `{vip_stats['alerts_extra_users']}` Alertas\n"
-        f"└ ⚠️ Próximas a vencer (7d): `{subs_expiring_soon}`\n\n"
-        
+        f"├ 📦 Pack Control Total: `{vip_watchlist_esc}`\n"
+        f"├ 💱 Tasa VIP: `{vip_tasa_esc}`\n"
+        f"├ 📈 TA Pro: `{vip_ta_esc}`\n"
+        f"├ ➕ Extras: `{vip_coins_esc}` Coins | `{vip_alerts_esc}` Alertas\n"
+        f"└ ⚠️ Próximas a vencer (7d): `{subs_expiring_esc}`\n\n"
+
         f"📢 *SERVICIOS DE NOTIFICACIÓN*\n"
-        f"├ 🦁 Monitor BTC: `{btc_subscribers}` usuarios\n"
-        f"├ 🐝 Monitor HBD: `{hbd_subscribers}` usuarios\n"
-        f"├ 🌦️ Monitor Clima: `{weather_subscribers}` usuarios\n"
-        f"└ 🚀 Valerts: `{valerts_total_users}` usuarios en `{valerts_active_symbols_count}` monedas\n\n"
-        
+        f"├ 🦁 Monitor BTC: `{btc_subscribers_esc}` usuarios\n"
+        f"├ 🐝 Monitor HBD: `{hbd_subscribers_esc}` usuarios\n"
+        f"├ 🌦️ Monitor Clima: `{weather_subscribers_esc}` usuarios\n"
+        f"└ 🚀 Valerts: `{valerts_total_users_esc}` usuarios en `{valerts_symbols_esc}` monedas\n\n"
+
         f"🏆 *TENDENCIAS DE MERCADO*\n"
         f"🔥 Top Monedas Vigiladas:\n"
-        f"`{top_coins_str}`\n"
+        f"`{top_coins_str_esc}`\n"
     )
 
     await msg_loading.edit_text(dashboard, parse_mode=ParseMode.MARKDOWN)
