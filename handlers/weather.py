@@ -194,7 +194,7 @@ async def responder_clima_actual(update: Update, context: ContextTypes.DEFAULT_T
         msg += "\n💡 *Consejo:* Lleva lo necesario según el clima."
 
     # 7. Publicidad y Envío
-    msg += "\n" + get_random_ad_text()
+    msg += "" + get_random_ad_text()
 
     if update.message:
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
