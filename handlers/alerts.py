@@ -17,7 +17,7 @@ from utils.file_manager import(\
         delete_price_alert, cargar_usuarios, guardar_usuarios, registrar_usuario,
             actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, 
             add_log_line, load_price_alerts, update_alert_status,
-            check_feature_access, get_user_alerts
+            check_feature_access, get_user_alerts, registrar_uso_comando
 )
 from core.i18n import _
 # ------------------------------------------------------------------
@@ -93,6 +93,7 @@ async def alerta_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     num_alertas_db = len(alertas_actuales)
     # Verificamos si caben 2 más (una arriba, una abajo)
     acceso, mensaje = check_feature_access(user_id, 'alerts_capacity', current_count=num_alertas_db)
+    registrar_uso_comando(user_id, 'alerta')
     
     if not acceso:
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)

@@ -113,6 +113,8 @@ async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    registrar_uso_comando(user_id, 'graf')
+
     par = f"{base}{quote}"
     url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{par}&interval={intervalo}"
 
