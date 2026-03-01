@@ -345,15 +345,16 @@ proc_global = psutil.Process(os.getpid())
 proc_global.cpu_percent(interval=None)
 
 def _clean_markdown(text):
-    """Escape special Markdown characters to prevent parsing errors."""
+    """Clean text for Markdown by removing problematic characters.
+    
+    Replaces Markdown special chars with spaces to prevent parsing errors
+    while keeping the text readable (no visible backslashes).
+    """
     if text is None:
         return ""
     text = str(text)
-    # Escape special Markdown characters
-    escape_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
-    for char in escape_chars:
-        text = text.replace(char, f'\\{char}')
-    return text
+    # Replace with spaces to avoid visible escape characters
+    return text.replace("_", " ").replace("*", " ").replace("`", " ").replace("[", "(").replace("]", ")")
 
 async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
