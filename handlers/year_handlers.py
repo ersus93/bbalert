@@ -101,13 +101,17 @@ async def year_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 elif result['success']:
                     ctx = result['context']
                     daily = get_extended_daily_quote()
+                    remaining = ctx['limit'] - ctx['current']
                     await update.message.reply_text(
                         _("✅ Frase {current} de {limit} añadida para el año {year}.\n"
-                          "La frase de hoy es: \"{quote}\"").format(
+                          "La frase de hoy es: ({daily_number}) \"{quote}\"\n"
+                          "Faltan para completar el año: {remaining}").format(
                             current=ctx['current'],
                             limit=ctx['limit'],
                             year=ctx['year'],
-                            quote=daily['quote']
+                            daily_number=daily['context']['current'],
+                            quote=daily['quote'],
+                            remaining=remaining
                         )
                     )
                 else:
@@ -121,12 +125,16 @@ async def year_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif result['success']:
                 ctx = result['context']
                 daily = get_extended_daily_quote()
+                remaining = ctx['limit'] - ctx['current']
                 await update.message.reply_text(
                     _("✅ Frase {current} de {limit} añadida a la colección del año.\n"
-                      "La frase de hoy es: \"{quote}\"").format(
+                      "La frase de hoy es: ({daily_number}) \"{quote}\"\n"
+                      "Faltan para completar el año: {remaining}").format(
                         current=ctx['current'],
                         limit=ctx['limit'],
-                        quote=daily['quote']
+                        daily_number=daily['context']['current'],
+                        quote=daily['quote'],
+                        remaining=remaining
                     )
                 )
             else:

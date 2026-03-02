@@ -1366,12 +1366,12 @@ msgstr ""
 
 #: handlers/year_handlers.py:125
 #, python-brace-format
-msgid "✅ Frase {current} de {limit} añadida a la colección del año.\nLa frase de hoy es: \"{quote}\""
+msgid "✅ Frase {current} de {limit} añadida a la colección del año.\nLa frase de hoy es: ({daily_number}) \"{quote}\"\nFaltan para completar el año: {remaining}"
 msgstr ""
 
 #: handlers/year_handlers.py:105
 #, python-brace-format
-msgid "✅ Frase {current} de {limit} añadida para el año {year}.\nLa frase de hoy es: \"{quote}\""
+msgid "✅ Frase {current} de {limit} añadida para el año {year}.\nLa frase de hoy es: ({daily_number}) \"{quote}\"\nFaltan para completar el año: {remaining}"
 msgstr ""
 
 #: handlers/year_handlers.py:85

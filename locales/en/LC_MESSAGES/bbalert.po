@@ -1802,13 +1802,13 @@ msgstr "📊 View Technical Analysis (4H)"
 
 #: handlers/year_handlers.py:125
 #, python-brace-format
-msgid "✅ Frase {current} de {limit} añadida a la colección del año.\nLa frase de hoy es: \"{quote}\""
-msgstr "✅ Phrase {current} of {limit} added to the year collection.\nToday's phrase is: \"{quote}\""
+msgid "✅ Frase {current} de {limit} añadida a la colección del año.\nLa frase de hoy es: ({daily_number}) \"{quote}\"\nFaltan para completar el año: {remaining}"
+msgstr "✅ Phrase {current} of {limit} added to the year collection.\nToday's phrase is: ({daily_number}) \"{quote}\"\nRemaining to complete the year: {remaining}"
 
 #: handlers/year_handlers.py:105
 #, python-brace-format
-msgid "✅ Frase {current} de {limit} añadida para el año {year}.\nLa frase de hoy es: \"{quote}\""
-msgstr "✅ Phrase {current} of {limit} added for year {year}.\nToday's phrase is: \"{quote}\""
+msgid "✅ Frase {current} de {limit} añadida para el año {year}.\nLa frase de hoy es: ({daily_number}) \"{quote}\"\nFaltan para completar el año: {remaining}"
+msgstr "✅ Phrase {current} of {limit} added for year {year}.\nToday's phrase is: ({daily_number}) \"{quote}\"\nRemaining to complete the year: {remaining}"
 
 #: handlers/year_handlers.py:85
 #, python-brace-format
