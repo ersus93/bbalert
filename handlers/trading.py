@@ -113,6 +113,8 @@ async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    registrar_uso_comando(user_id, 'graf')
+
     par = f"{base}{quote}"
     url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{par}&interval={intervalo}"
 
@@ -226,10 +228,12 @@ async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Inyección de publicidad
     mensaje += get_random_ad_text()
 
-    # Botón de actualizar
-    btn_text = _("🔄 Actualizar /p {symbol}", user_id).format(symbol=datos['symbol'])
+    # Botones de actualizar y análisis técnico
+    btn_refresh = _("🔄 Actualizar /p {symbol}", user_id).format(symbol=datos['symbol'])
+    btn_ta = _("📊 Ver Análisis Técnico (4H)", user_id)
     keyboard = InlineKeyboardMarkup([
-        [InlineKeyboardButton(btn_text, callback_data=f"refresh_{datos['symbol']}")]
+        [InlineKeyboardButton(btn_refresh, callback_data=f"refresh_{datos['symbol']}")],
+        [InlineKeyboardButton(btn_ta, callback_data=f"ta_quick|{datos['symbol']}|4h")]
     ])
 
     # Detectar si es un callback (refresh) o un comando nuevo
@@ -263,6 +267,27 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
     moneda = query.data.replace("refresh_", "").upper()
     context.args = [moneda]
     await p_command(update, context)
+
+async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback para el botón "Ver Análisis Técnico" en el comando /p.
+    Llama al comando /ta con la moneda y timeframe 4h.
+    Fuerza el uso de TradingView para evitar el check early de Binance.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    # Parsear callback_data: ta_quick|SYMBOL|4h
+    parts = query.data.split("|")
+    if len(parts) >= 2:
+        moneda = parts[1].upper()
+        pair = "USDT"
+        timeframe = "4h"
+
+        # Importar y llamar al comando ta con override_args
+        # Esto permite el flujo completo: intenta Binance, si falla hace fallback a TV
+        from handlers.ta import ta_command
+        await ta_command(update, context, override_source="BINANCE", override_args=[moneda, pair, timeframe], skip_binance_check=True)
 
 
 # === NUEVA LÓGICA PARA /MK ===

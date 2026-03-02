@@ -1,14 +1,51 @@
 # handlers/year_handlers.py
 
+import os
+import json
+from datetime import datetime
+
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from utils.year_manager import (
-    get_detailed_year_message, 
-    add_quote, 
-    update_user_sub, 
-    load_subs
+    get_detailed_year_message,
+    add_quote,
+    update_user_sub,
+    load_subs,
+    get_quote_stats,
+    get_extended_daily_quote,
+    get_quote_context,
+    is_new_year,
+    add_new_year_greeting,
+    get_year_limit
 )
+from core.config import YEAR_QUOTES_PATH
 from core.i18n import _ # Si usas traducción, si no, quítalo
+
+
+def _get_first_extra_flag():
+    """Retorna True si es la primera vez que se supera el límite este año."""
+    flag_file = os.path.join(os.path.dirname(YEAR_QUOTES_PATH), ".year_extra_flag")
+    current_year = datetime.now().year
+    try:
+        if os.path.exists(flag_file):
+            with open(flag_file, 'r') as f:
+                data = json.load(f)
+                if data.get('year') == current_year:
+                    return data.get('asked', False)
+    except:
+        pass
+    return False
+
+
+def _set_first_extra_flag(asked=True):
+    """Marca que ya se mostró la pregunta de pasar al siguiente año."""
+    flag_file = os.path.join(os.path.dirname(YEAR_QUOTES_PATH), ".year_extra_flag")
+    current_year = datetime.now().year
+    try:
+        with open(flag_file, 'w') as f:
+            json.dump({'year': current_year, 'asked': asked}, f)
+    except:
+        pass
 
 # como usar en otros mensajes: 
 # from utils.year_manager import get_simple_year_string
@@ -24,16 +61,84 @@ async def year_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # 1. Modo Agregar Frase: /y add La frase...
     if args and args[0].lower() == "add":
-        # Verificar admin si quieres, o dejarlo libre
+        # Detectar y manejar cambio de año automáticamente
+        if is_new_year():
+            add_new_year_greeting()
+
         text_to_add = " ".join(args[1:])
         if len(text_to_add) < 5:
-            await update.message.reply_text(_("❌ Escribe una frase más larga. Uso: `/y add Tu frase aquí`"), parse_mode="Markdown")
+            await update.message.reply_text(
+                _("❌ Escribe una frase más larga. Uso: `/y add Tu frase aquí`"),
+                parse_mode="Markdown"
+            )
             return
-        
-        if add_quote(text_to_add):
-            await update.message.reply_text(_("✅ Frase añadida a la colección del año."))
+
+        stats = get_quote_stats()
+
+        # Verificar si se alcanzó el límite
+        if stats['has_reached_limit']:
+            # Primera vez que se supera el límite
+            if not _get_first_extra_flag():
+                _set_first_extra_flag(True)
+                next_year = datetime.now().year + 1
+                await update.message.reply_text(
+                    _("⚠️ Has alcanzado el límite de frases para {year} ({limit} frases).\n\n"
+                      "¿Deseas añadir esta frase para el año {next_year}?\n"
+                      "Usa `/y add {text}`").format(
+                        year=datetime.now().year,
+                        limit=stats['limit'],
+                        next_year=next_year,
+                        text=text_to_add
+                    ),
+                    parse_mode="Markdown"
+                )
+                return
+            else:
+                # Modo año siguiente - añadir normalmente
+                result = add_quote(text_to_add)
+                if result['is_duplicate']:
+                    await update.message.reply_text(_("⚠️ Esa frase ya existe."))
+                elif result['success']:
+                    ctx = result['context']
+                    daily = get_extended_daily_quote()
+                    remaining = ctx['limit'] - ctx['current']
+                    await update.message.reply_text(
+                        _("✅ Frase {current} de {limit} añadida para el año {year}.\n"
+                          "La frase de hoy es: ({daily_number}) \"{quote}\"\n"
+                          "Faltan para completar el año: {remaining}").format(
+                            current=ctx['current'],
+                            limit=ctx['limit'],
+                            year=ctx['year'],
+                            daily_number=daily['context']['current'],
+                            quote=daily['quote'],
+                            remaining=remaining
+                        )
+                    )
+                else:
+                    await update.message.reply_text(_("❌ Error al guardar la frase."))
+                return
         else:
-            await update.message.reply_text(_("⚠️ Esa frase ya existe."))
+            # Dentro del límite normal
+            result = add_quote(text_to_add)
+            if result['is_duplicate']:
+                await update.message.reply_text(_("⚠️ Esa frase ya existe."))
+            elif result['success']:
+                ctx = result['context']
+                daily = get_extended_daily_quote()
+                remaining = ctx['limit'] - ctx['current']
+                await update.message.reply_text(
+                    _("✅ Frase {current} de {limit} añadida a la colección del año.\n"
+                      "La frase de hoy es: ({daily_number}) \"{quote}\"\n"
+                      "Faltan para completar el año: {remaining}").format(
+                        current=ctx['current'],
+                        limit=ctx['limit'],
+                        daily_number=daily['context']['current'],
+                        quote=daily['quote'],
+                        remaining=remaining
+                    )
+                )
+            else:
+                await update.message.reply_text(_("❌ Error al guardar la frase."))
         return
 
     # 2. Modo Mostrar Info (por defecto)

@@ -1359,3 +1359,32 @@ msgstr ""
 msgid "Frase Del Día"
 msgstr ""
 
+
+#: handlers/trading.py:232
+msgid "📊 Ver Análisis Técnico (4H)"
+msgstr ""
+
+#: handlers/year_handlers.py:125
+#, python-brace-format
+msgid "✅ Frase {current} de {limit} añadida a la colección del año.\nLa frase de hoy es: ({daily_number}) \"{quote}\"\nFaltan para completar el año: {remaining}"
+msgstr ""
+
+#: handlers/year_handlers.py:105
+#, python-brace-format
+msgid "✅ Frase {current} de {limit} añadida para el año {year}.\nLa frase de hoy es: ({daily_number}) \"{quote}\"\nFaltan para completar el año: {remaining}"
+msgstr ""
+
+#: handlers/year_handlers.py:85
+#, python-brace-format
+msgid "⚠️ Has alcanzado el límite de frases para {year} ({limit} frases).\n\n¿Deseas añadir esta frase para el año {next_year}?\nUsa \`/y add {text}\`"
+msgstr ""
+
+#: handlers/year_handlers.py:114 handlers/year_handlers.py:133
+msgid "❌ Error al guardar la frase."
+msgstr ""
+
+#: utils/year_manager.py:114
+#, python-brace-format
+msgid "🎉 ¡Feliz año {year}! 🎆✨ Que este año esté lleno de éxitos y bendiciones. 🥂"
+msgstr ""
+

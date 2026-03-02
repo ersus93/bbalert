@@ -68,7 +68,7 @@ def calculate_table_indicators(df):
     def safe_ind(name, series):
         try:
             df[name] = series if series is not None else 0.0
-        except:
+        except (KeyError, TypeError):
             df[name] = 0.0
 
     # Indicadores específicos para la tabla
@@ -98,12 +98,12 @@ def get_tradingview_analysis_enhanced(symbol_pair, interval_str):
         # Intentar Binance primero
         handler = TA_Handler(symbol=symbol_pair, screener="crypto", exchange="BINANCE", interval=tv_interval)
         analysis = handler.get_analysis()
-    except:
+    except Exception:
         try:
             # Fallback a GateIO o genérico
             handler = TA_Handler(symbol=symbol_pair, screener="crypto", exchange="GATEIO", interval=tv_interval)
             analysis = handler.get_analysis()
-        except:
+        except Exception:
             return None
 
     if not analysis: return None
@@ -172,13 +172,13 @@ def calculate_table_indicators(df):
     """Calcula indicadores visuales para la tabla."""
     def safe_ind(name, series):
         try: df[name] = series if series is not None else 0.0
-        except: df[name] = 0.0
+        except (KeyError, TypeError): df[name] = 0.0
 
     safe_ind('RSI', df.ta.rsi(length=14))
     safe_ind('MFI', df.ta.mfi(length=14))
     safe_ind('CCI', df.ta.cci(length=20))
     try: safe_ind('ADX', df.ta.adx(length=14)['ADX_14'])
-    except: df['ADX'] = 0.0
+    except (KeyError, TypeError): df['ADX'] = 0.0
     safe_ind('WILLR', df.ta.willr(length=14))
     safe_ind('OBV', df.ta.obv())
     return df.iloc[-3:]
@@ -196,11 +196,11 @@ def get_tradingview_analysis_enhanced(symbol_pair, interval_str):
     try:
         handler = TA_Handler(symbol=symbol_pair, screener="crypto", exchange="BINANCE", interval=tv_interval)
         analysis = handler.get_analysis()
-    except:
+    except Exception:
         try:
             handler = TA_Handler(symbol=symbol_pair, screener="crypto", exchange="GATEIO", interval=tv_interval)
             analysis = handler.get_analysis()
-        except:
+        except Exception:
             return None
 
     if not analysis: return None
@@ -227,7 +227,7 @@ def get_tradingview_analysis_enhanced(symbol_pair, interval_str):
         'ATR': ind.get('ATR', 0)
     }
 
-async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None):
+async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None, skip_binance_check=False):
     """
     Controlador maestro de Análisis Técnico con soporte para Switch de Fuente.
     """
@@ -272,7 +272,7 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
     if is_callback:
         # Si es callback, no mandamos mensaje nuevo, editaremos el existente.
         # Pero primero validamos disponibilidad si se pide LOCAL
-        if target_source == "BINANCE":
+        if target_source == "BINANCE" and not skip_binance_check:
             # Chequeo rápido de existencia
             # NOTA: Hacemos esto antes de borrar nada para poder cancelar si falla
             loop = asyncio.get_running_loop()
@@ -402,7 +402,7 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
             if abs(f) > 10000: return f"{f/1000:.1f}k".rjust(width)
             elif abs(f) > 999: return f"{f:.0f}".rjust(width)
             else: return f"{f:.2f}".rjust(width)
-        except: return "   --  ".center(width)
+        except (ValueError, TypeError): return "   --  ".center(width)
 
     table_msg = "```text\nIND     ACTUAL   PREVIO     ANT.\n──────  ───────  ───────  ───────\n"
     rows = [("RSI", 'RSI_list'), ("MFI", 'MFI_list'), ("CCI", 'CCI_list'), ("WR%", 'WR_list'), ("ADX", 'ADX_list'), ("OBV", 'OBV_list')]
@@ -592,7 +592,7 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         print(f"Error en callback IA: {e}")
         try:
             await query.message.reply_text(_("⚠️ La IA está ocupada, intenta de nuevo.", user_id), parse_mode=ParseMode.MARKDOWN)
-        except:
+        except Exception:
             pass
 
 

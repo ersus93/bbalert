@@ -98,7 +98,9 @@ def get_groq_crypto_analysis(symbol, timeframe, technical_report_text):
         response = requests.post(url, headers=headers, json=payload, timeout=15)
         response.raise_for_status()
         result = response.json()
-        return result['choices'][0]['message']['content']
+        content = result["choices"][0]["message"]["content"]
+        disclaimer = "\n\n⚠️ *Disclaimer:* Este análisis no constituye asesoramiento financiero. Los mercados de criptomonedas son altamente volátiles. Opera bajo tu propio riesgo."
+        return content + disclaimer
 
     except Exception as e:
         print(f"❌ Error interno IA: {e}")
@@ -125,7 +127,8 @@ def get_groq_weather_advice(weather_report_text):
         "analiza la hora local no tienes que repetirala es solo para que bases tu respuesta segun el momento para evitar que digas sal a tomar el sol si es de noche"
         "Recomienda qué vestir (ej. paraguas, abrigo, ropa ligera etc... segun las condiciones del clima)."
         "Hogar/Coche Consejos prácticos (ej. cerrar ventanas, lavar coche, regar plantas, cosas asi se creativo)."
-        "Salud/Aire Libre: analiza si es buen momento para salir, a realizar acividades, explica la respuesta.\n"
+        "Salud/Aire Libre: analiza si es buen momento para salir, a realizar acividades, explica la respuesta."
+        "no es una lista estricata o categorias fijas, es sol para que tengas una idea, puedes dar recomendaciones segun el reporte que consideres utiles."
         
         "Reglas:\n"
         "- Usa emojis.\n"

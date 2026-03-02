@@ -379,7 +379,7 @@ async def btc_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE,
         # Si el mensaje no cambia, al menos el usuario ve una notificación flotante
         try:
             await update.callback_query.answer("Analizando...") 
-        except:
+        except Exception:
             pass
 
         try:
@@ -437,7 +437,7 @@ async def btc_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
                         # Si el botón dice "ir a TV", es que estamos en BINANCE
                         current_source = "BINANCE" if "TV" in parts[1] else "TV"
                     break
-    except:
+    except Exception:
         pass
 
     # 4. Regenerar el teclado completo con el nuevo estado

@@ -143,7 +143,7 @@ async def responder_clima_actual(update: Update, context: ContextTypes.DEFAULT_T
     # Si tienes la funcion get_emoji definida en este archivo o importada, úsala:
     try:
         weather_emoji = WEATHER_EMOJIS.get(current['weather'][0]['main'].lower(), "🌤️")
-    except:
+    except (KeyError, IndexError, AttributeError):
         weather_emoji = "🌤️"
 
     city_name = ciudad_guardada if ciudad_guardada else current.get('name', 'Ubicación')
@@ -188,13 +188,13 @@ async def responder_clima_actual(update: Update, context: ContextTypes.DEFAULT_T
             get_groq_weather_advice, 
             msg
         )
-        msg += f"\n\n💡 *Consejos de 🤖 @BitBreadIAbot:*\n—————————————————\n\n{ai_recommendation}\n"
+        msg += f"\n\n💡 *Consejos:*\n—————————————————\n{ai_recommendation}"
     except Exception as e:
         add_log_line(f"⚠️ Error IA Manual: {e}")
-        msg += "\n💡 *Consejo:* Lleva lo necesario según el clima.\n"
+        msg += "\n💡 *Consejo:* Lleva lo necesario según el clima."
 
     # 7. Publicidad y Envío
-    msg += "\n" + get_random_ad_text()
+    msg += "" + get_random_ad_text()
 
     if update.message:
         await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
@@ -548,7 +548,7 @@ async def weather_time_callback(update: Update, context: ContextTypes.DEFAULT_TY
     
     try:
         await query.message.delete()
-    except:
+    except Exception:
         pass
 
 

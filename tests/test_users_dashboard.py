@@ -40,7 +40,7 @@ class TestActive24hCalculation(unittest.TestCase):
                     last_dt = datetime.strptime(last_seen_str, '%Y-%m-%d %H:%M:%S')
                     if (now - last_dt).days < 1:  # BUG: solo días completos
                         count += 1
-                except:
+                except Exception:
                     pass
         return count
 
@@ -54,7 +54,7 @@ class TestActive24hCalculation(unittest.TestCase):
                     last_dt = datetime.strptime(last_seen_str, '%Y-%m-%d %H:%M:%S')
                     if (now - last_dt).total_seconds() < 86400:  # FIX: exacto
                         count += 1
-                except:
+                except Exception:
                     pass
         return count
 
@@ -178,7 +178,7 @@ class TestNewUsersMetrics(unittest.TestCase):
                         new_7d += 1
                     if reg_dt >= cutoff_30d:
                         new_30d += 1
-                except:
+                except Exception:
                     pass
         
         return new_today, new_7d, new_30d
@@ -232,7 +232,7 @@ class TestExpiringSubscriptions(unittest.TestCase):
                         exp_dt = datetime.strptime(s['expires'], '%Y-%m-%d %H:%M:%S')
                         if now < exp_dt <= expiry_window:
                             count += 1
-                    except:
+                    except Exception:
                         pass
         return count
 
