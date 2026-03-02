@@ -227,7 +227,7 @@ def get_tradingview_analysis_enhanced(symbol_pair, interval_str):
         'ATR': ind.get('ATR', 0)
     }
 
-async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None):
+async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None, skip_binance_check=False):
     """
     Controlador maestro de Análisis Técnico con soporte para Switch de Fuente.
     """
@@ -272,7 +272,7 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
     if is_callback:
         # Si es callback, no mandamos mensaje nuevo, editaremos el existente.
         # Pero primero validamos disponibilidad si se pide LOCAL
-        if target_source == "BINANCE":
+        if target_source == "BINANCE" and not skip_binance_check:
             # Chequeo rápido de existencia
             # NOTA: Hacemos esto antes de borrar nada para poder cancelar si falla
             loop = asyncio.get_running_loop()
