@@ -49,14 +49,14 @@ def migrate_user_timestamps():
         if u.get('last_alert_timestamp'):
             try:
                 estimated_date = u['last_alert_timestamp']
-            except:
+            except Exception:
                 pass
         
         # 2. Use last_seen as fallback
         if not estimated_date and u.get('last_seen'):
             try:
                 estimated_date = u['last_seen']
-            except:
+            except Exception:
                 pass
         
         # 3. Use a default far-past date if no data available

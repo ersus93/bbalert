@@ -45,7 +45,7 @@ def obtener_tasas_bcc():
                 if 'tasas' in temp_data and isinstance(temp_data['tasas'], list):
                     data = temp_data
                     break # Encontramos el correcto
-            except:
+            except Exception:
                 continue
         
         if not data:

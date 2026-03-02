@@ -40,7 +40,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.answer()
         # Intentamos borrar el mensaje anterior para que se vea fresco
         try: await update.callback_query.message.delete()
-        except: pass
+        except Exception: pass
         msg_estado = await context.bot.send_message(user_id, _("⏳ Conectando con fuentes (ElToque, CADECA & BCC)...", user_id))
     else:
         msg_estado = await update.message.reply_text(_("⏳ Conectando con fuentes (ElToque, CADECA & BCC)...", user_id))
@@ -70,13 +70,13 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not tasas_data:
         try:
             tasas_data = await loop.run_in_executor(None, obtener_tasas_eltoque)
-        except: pass
+        except Exception: pass
     
     # Si ElToque falla definitivamente, error
     if not tasas_data:
         try:
             await msg_estado.edit_text(_("⚠️ *Error de Conexión*.\nNo se pudieron obtener datos de El Toque.", user_id), parse_mode=ParseMode.MARKDOWN)
-        except: 
+        except Exception:
             # Fallback por si el mensaje fue borrado
             await context.bot.send_message(user_id, _("⚠️ *Error de Conexión*.", user_id))
         return 
@@ -260,7 +260,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if image_bio:
                 # Intentamos borrar el mensaje de "Conectando..." antes de enviar la foto
                 try: await msg_estado.delete()
-                except: pass
+                except Exception: pass
                 
                 # Enviar con reintentos
                 await enviar_foto_con_reintento(image_bio, mensaje_texto_final)
@@ -284,7 +284,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         add_log_line(f"Error fatal en /tasa: {e}.")
         try:
             await msg_estado.edit_text(_("❌ Ocurrió un error inesperado.", user_id), parse_mode=ParseMode.MARKDOWN)
-        except: pass
+        except Exception: pass
 
 async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -377,7 +377,7 @@ async def eltoque_provincias_callback(update: Update, context: ContextTypes.DEFA
                 text=_("❌ Error processing provinces. Please check the logs.", user_id),
                 reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Volver", callback_data="eltoque_refresh")]])
             )
-        except:
+        except Exception:
             pass
 
 

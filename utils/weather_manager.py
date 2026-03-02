@@ -587,7 +587,7 @@ def should_send_alert(user_id, alert_type, cooldown_hours=4):
                 try:
                     last_time = datetime.fromisoformat(ts_str)
                     break
-                except:
+                except Exception:
                     continue
     
     if not last_time:
@@ -632,7 +632,7 @@ def buffer_global_event(event_data: dict):
         try:
             with open(GLOBAL_EVENTS_BUFFER_PATH, 'r', encoding='utf-8') as f:
                 events = json.load(f)
-        except:
+        except Exception:
             pass
 
     if any(e['id'] == event_data['id'] for e in events):
@@ -667,5 +667,5 @@ def get_recent_global_events(hours=24):
         
         cutoff = datetime.now() - timedelta(hours=hours)
         return [e for e in events if datetime.fromisoformat(e['timestamp']) > cutoff]
-    except:
+    except Exception:
         return []

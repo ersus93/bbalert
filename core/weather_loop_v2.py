@@ -164,7 +164,7 @@ async def weather_alerts_loop(bot: Bot):
                 alert_time_conf = sub.get('alert_time', '07:00')
                 try:
                     target_hour = int(alert_time_conf.split(':')[0])
-                except:
+                except (ValueError, IndexError):
                     target_hour = 7
                 
                 # Usamos local_now que calculamos al principio del bucle

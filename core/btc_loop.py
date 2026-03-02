@@ -33,7 +33,7 @@ def get_btc_klines(interval="1d", limit=1000):
     
     try:
         safe_limit = int(limit)
-    except:
+    except Exception:
         safe_limit = 1000
 
     params = {"symbol": "BTCUSDT", "interval": interval, "limit": safe_limit}

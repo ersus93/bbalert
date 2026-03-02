@@ -131,7 +131,7 @@ def load_btc_state():
                 data[tf] = default_structure[tf]
                 
         return data
-    except:
+    except Exception:
         return default_structure
 
 def save_btc_state(data):

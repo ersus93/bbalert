@@ -143,7 +143,7 @@ async def responder_clima_actual(update: Update, context: ContextTypes.DEFAULT_T
     # Si tienes la funcion get_emoji definida en este archivo o importada, úsala:
     try:
         weather_emoji = WEATHER_EMOJIS.get(current['weather'][0]['main'].lower(), "🌤️")
-    except:
+    except (KeyError, IndexError, AttributeError):
         weather_emoji = "🌤️"
 
     city_name = ciudad_guardada if ciudad_guardada else current.get('name', 'Ubicación')
@@ -548,7 +548,7 @@ async def weather_time_callback(update: Update, context: ContextTypes.DEFAULT_TY
     
     try:
         await query.message.delete()
-    except:
+    except Exception:
         pass
 
 

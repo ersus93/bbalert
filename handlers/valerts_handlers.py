@@ -45,7 +45,7 @@ def get_kline_data(symbol, interval="4h", limit=200):
                     # Importante: Convertir tiempo para el Analyzer
                     df['time'] = pd.to_datetime(df['open_time'], unit='ms')
                     return df
-        except:
+        except Exception:
             continue
     return None
 
@@ -347,7 +347,7 @@ async def valerts_show_analysis(update: Update, context: ContextTypes.DEFAULT_TY
     if update.callback_query:
         # Truco: Responder para quitar el relojito
         try: await update.callback_query.answer()
-        except: pass
+        except Exception: pass
         
         try:
             await update.callback_query.edit_message_text(msg, reply_markup=kb, parse_mode=ParseMode.MARKDOWN)
@@ -382,7 +382,7 @@ async def valerts_toggle_callback(update: Update, context: ContextTypes.DEFAULT_
                     # Si el botón dice "Ir a TV", estamos en BINANCE
                     if "TV" in btn.text: current_source = "BINANCE"
                     else: current_source = "TV"
-    except: pass
+    except Exception: pass
 
     kb = _get_valerts_keyboard(query.from_user.id, sym, current_source, tf) # Recargamos el teclado con el TF actual
     
@@ -390,7 +390,7 @@ async def valerts_toggle_callback(update: Update, context: ContextTypes.DEFAULT_
     await query.answer(txt)
     try:
         await query.edit_message_reply_markup(kb)
-    except: pass
+    except Exception: pass
 
 async def valerts_list_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await valerts_show_list(update, context)

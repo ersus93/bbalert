@@ -100,7 +100,7 @@ class BTCAdvancedAnalyzer:
         for k, v in last_row.items():
             try:
                 clean_dict[k] = float(v)
-            except:
+            except Exception:
                 clean_dict[k] = 0.0
         return clean_dict
 

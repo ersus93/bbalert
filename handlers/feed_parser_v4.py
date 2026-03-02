@@ -456,7 +456,7 @@ class FeedParserV4:
         try:
             text = content.decode('utf-8', errors='ignore')[:2000].lower()
             return any(tag in text for tag in ['<rss', '<feed', '<atom', '<channel', '<entry', '<item'])
-        except:
+        except Exception:
             return False
     
     # ========================================

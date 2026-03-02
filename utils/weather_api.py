@@ -210,7 +210,7 @@ class WeatherAPI:
             if data and 'list' in data:
                 self.cache.set(lat, lon, 'air_pollution', data)
                 return data['list'][0]['main']['aqi']
-        except:
+        except Exception:
             pass
         
         return 0
@@ -280,7 +280,7 @@ def geocode_location(query_text):
                 "name": data[0]["name"],
                 "country": data[0].get("country", "")
             }
-    except:
+    except Exception:
         pass
     
     return None

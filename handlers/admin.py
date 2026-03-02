@@ -410,7 +410,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     try:
                         if datetime.strptime(exp, '%Y-%m-%d %H:%M:%S') > now:
                             active_subs.append(f"• {map_names.get(key, key)} (Vence: {exp.split()[0]})")
-                    except: pass
+                    except Exception: pass
             # Tipo B: Por cantidad (qty > 0)
             elif isinstance(val, dict) and val.get('qty', 0) > 0:
                 active_subs.append(f"• {map_names.get(key, key)} (+{val['qty']})")
@@ -498,7 +498,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     active_7d += 1
                 if delta.total_seconds() < 86400 * 30:
                     active_30d += 1
-            except: pass
+            except Exception: pass
             
         # 2. Nuevos usuarios (basado en registered_at)
         reg_str = u.get('registered_at')
@@ -511,7 +511,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     new_7d += 1
                 if reg_dt >= cutoff_30d:
                     new_30d += 1
-            except: pass
+            except Exception: pass
             
         # 3. Idioma
         if u.get('language') == 'en': lang_en += 1
@@ -530,7 +530,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         # Verificar si vence en los próximos 7 días
                         if exp_dt <= expiry_window:
                             subs_expiring_soon += 1
-                except: pass
+                except Exception: pass
         # Check cantidad
         if subs.get('coins_extra', {}).get('qty', 0) > 0: vip_stats['coins_extra_users'] += 1
         if subs.get('alerts_extra', {}).get('qty', 0) > 0: vip_stats['alerts_extra_users'] += 1
