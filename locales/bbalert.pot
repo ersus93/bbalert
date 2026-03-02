@@ -1359,3 +1359,8 @@ msgstr ""
 msgid "Frase Del Día"
 msgstr ""
 
+
+#: handlers/trading.py:232
+msgid "📊 Ver Análisis Técnico (4H)"
+msgstr ""
+

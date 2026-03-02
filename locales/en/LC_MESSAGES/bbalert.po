@@ -1795,3 +1795,8 @@ msgstr "🔄 Reloading national rates..."
 #~ "—————————————————\n"
 #~ "🧴 Use sunscreen if you're heading out."
 
+
+#: handlers/trading.py:232
+msgid "📊 Ver Análisis Técnico (4H)"
+msgstr "📊 View Technical Analysis (4H)"
+

@@ -1528,3 +1528,8 @@ msgstr ""
 #~ "Ejemplo: `/p BTC`"
 #~ msgstr ""
 
+
+#: handlers/trading.py:232
+msgid "📊 Ver Análisis Técnico (4H)"
+msgstr "📊 Ver Análisis Técnico (4H)"
+
