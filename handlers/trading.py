@@ -272,6 +272,7 @@ async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Callback para el botón "Ver Análisis Técnico" en el comando /p.
     Llama al comando /ta con la moneda y timeframe 4h.
+    Usa override_args para evitar el check early de Binance y permitir fallback a TV.
     """
     query = update.callback_query
     await query.answer()
@@ -280,11 +281,13 @@ async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     parts = query.data.split("|")
     if len(parts) >= 2:
         moneda = parts[1].upper()
-        context.args = [moneda, "4h"]
+        pair = "USDT"  # Par por defecto
+        timeframe = "4h"
 
-        # Importar y llamar al comando ta
+        # Importar y llamar al comando ta con override_args
+        # Esto evita el check early de Binance y permite el flujo normal con fallback
         from handlers.ta import ta_command
-        await ta_command(update, context)
+        await ta_command(update, context, override_source="BINANCE", override_args=[moneda, pair, timeframe])
 
 
 # === NUEVA LÓGICA PARA /MK ===
