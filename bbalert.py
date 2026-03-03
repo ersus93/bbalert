@@ -19,7 +19,7 @@ from core.loops import (
     get_logs_data, 
     set_enviar_mensaje_telegram_async,
 )
-from core.weather_loop_v2 import weather_alerts_loop
+from core.weather_loop_v2 import weather_alerts_loop, weather_daily_summary_loop
 from core.global_disasters_loop import global_disasters_loop
 from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
@@ -77,9 +77,13 @@ async def post_init(app: Application):
     asyncio.create_task(reminders_monitor_loop(app.bot))
     logger.info("✅ Bucle de recordatorios iniciado.")
 
-    # Iniciar bucle de clima
+    # Iniciar bucles de clima separados
     asyncio.create_task(weather_alerts_loop(app.bot))
-    logger.info("✅ Bucle de alertas de clima iniciado.")
+    logger.info("✅ Bucle de alertas de emergencia (clima) iniciado.")
+
+    asyncio.create_task(weather_daily_summary_loop(app.bot))
+    logger.info("✅ Bucle de resumen diario (clima) iniciado.")
+
     asyncio.create_task(global_disasters_loop(app.bot))
     logger.info("✅ Bucle de alertas de desastres globales iniciado.")
    
