@@ -1557,3 +1557,19 @@ msgstr ""
 msgid "🎉 ¡Feliz año {year}! 🎆✨ Que este año esté lleno de éxitos y bendiciones. 🥂"
 msgstr ""
 
+
+#: core/weather_loop_v2.py:197
+msgid "Ocurrirá a las"
+msgstr "Ocurrirá a las"
+
+#: core/weather_loop_v2.py:197
+msgid "Tiempo restante"
+msgstr "Tiempo restante"
+
+#: core/weather_loop_v2.py:197
+msgid "¡No olvides el paraguas!"
+msgstr "¡No olvides el paraguas!"
+
+#: core/weather_loop_v2.py:244
+msgid "Toma precauciones."
+msgstr "Toma precauciones."
