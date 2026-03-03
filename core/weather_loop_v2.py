@@ -94,6 +94,25 @@ def _build_daily_context(local_hour: int) -> str:
         return "night"  # exclusivamente mañana siguiente
 
 
+def _format_time_remaining(dt_target: datetime, dt_now: datetime, user_id: int) -> str:
+    """
+    Formatea el tiempo restante hasta un evento.
+    Retorna string tipo: '~2h 15min' o '~45min'
+    """
+    diff = dt_target - dt_now
+    total_minutes = int(diff.total_seconds() / 60)
+
+    if total_minutes < 60:
+        return f"~{total_minutes}min"
+    else:
+        hours = total_minutes // 60
+        minutes = total_minutes % 60
+        if minutes == 0:
+            return f"~{hours}h"
+        else:
+            return f"~{hours}h {minutes}min"
+
+
 # =============================================================================
 # ENVÍO SEGURO
 # =============================================================================
@@ -190,12 +209,16 @@ async def weather_alerts_loop(bot: Bot):
 
                         if should_send:
                             desc = upcoming_rain['weather'][0]['description'].capitalize()
+                            time_str = dt_rain.strftime('%H:%M')
+                            time_remaining = _format_time_remaining(dt_rain, local_now.replace(tzinfo=None), user_id)
+
                             msg = _(
                                 f"🌧️ *Alerta de Lluvia en {city}*\n"
                                 f"—————————————————\n"
                                 f"Se espera: *{desc}*\n"
-                                f"🕐 Hora aprox: {dt_rain.strftime('%H:%M')}\n"
-                                f"☔ ¡No olvides el paraguas!",
+                                f"⏰ { _('Ocurrirá a las', user_id) }: *{time_str}*\n"
+                                f"⏳ { _('Tiempo restante', user_id) }: *{time_remaining}*\n"
+                                f"☔ { _('¡No olvides el paraguas!', user_id) }",
                                 user_id
                             )
                             msg += get_random_ad_text()
@@ -237,12 +260,16 @@ async def weather_alerts_loop(bot: Bot):
 
                         if should_send:
                             desc = upcoming_storm['weather'][0]['description'].capitalize()
+                            time_str = dt_storm.strftime('%H:%M')
+                            time_remaining = _format_time_remaining(dt_storm, local_now.replace(tzinfo=None), user_id)
+
                             msg = _(
                                 f"⛈️ *Alerta de Tormenta en {city}*\n"
                                 f"—————————————————\n"
                                 f"⚠️ Condición: *{desc}*\n"
-                                f"🕐 Hora aprox: {dt_storm.strftime('%H:%M')}\n"
-                                f"⚡ Toma precauciones.",
+                                f"⏰ { _('Ocurrirá a las', user_id) }: *{time_str}*\n"
+                                f"⏳ { _('Tiempo restante', user_id) }: *{time_remaining}*\n"
+                                f"⚡ { _('Toma precauciones.', user_id) }",
                                 user_id
                             )
                             msg += get_random_ad_text()

@@ -1824,3 +1824,19 @@ msgstr "❌ Error saving the phrase."
 msgid "🎉 ¡Feliz año {year}! 🎆✨ Que este año esté lleno de éxitos y bendiciones. 🥂"
 msgstr "🎉 Happy {year}! 🎆✨ May this year be full of success and blessings. 🥂"
 
+
+#: core/weather_loop_v2.py:197
+msgid "Ocurrirá a las"
+msgstr "Will occur at"
+
+#: core/weather_loop_v2.py:197
+msgid "Tiempo restante"
+msgstr "Time remaining"
+
+#: core/weather_loop_v2.py:197
+msgid "¡No olvides el paraguas!"
+msgstr "Don't forget your umbrella!"
+
+#: core/weather_loop_v2.py:244
+msgid "Toma precauciones."
+msgstr "Take precautions."
