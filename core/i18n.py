@@ -23,9 +23,11 @@ def get_translator(lang_code: str):
     try:
         # Intenta cargar el traductor para el idioma
         translator = gettext.translation(
-            DOMAIN, 
-            localedir=LOCALE_DIR, 
-            languages=[lang_code]
+            DOMAIN,
+            localedir=LOCALE_DIR,
+            languages=[lang_code],
+            fallback=False,
+            codeset='utf-8'  # Forzar codificación UTF-8 para soportar emojis
         )
         _translators[lang_code] = translator
         return translator
