@@ -1,509 +1,408 @@
-# 🤖 BitBread Alert - Bot de Telegram Multifuncional
+# 🤖 BitBread Alert (BBAlert)
 
-## 📋 Descripción General
-BitBread Alert es un bot de Telegram multifuncional que combina monitoreo de criptomonedas, alertas de clima y herramientas de trading en una sola plataforma. Diseñado con una arquitectura asíncrona robusta, ofrece notificaciones en tiempo real, análisis técnico avanzado y gestión automatizada.
+<div align="center">
 
-## ✨ Características Principales
+[![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://python.org)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-1.1.7-orange.svg)](version.txt)
+[![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4.svg)](https://t.me/bbalertchannel)
 
-### 🔔 **Sistema de Alertas Multiplataforma**
-- **Alertas BTC**: Monitoreo de niveles clave (pivot, soportes/resistencias) con notificaciones automáticas
-- **Alertas de Clima**: Pronóstico diario y alertas específicas (lluvia, UV, tormenta, nieve)
+**Bot de Telegram Multifuncional para Criptomonedas, Clima y Trading**
+
+[📖 Documentación Completa](./docs/PROYECTO_DETALLADO.md) • [🚀 Instalación Rápida](#-instalación-rápida) • [📋 Comandos](#-comandos-principales) • [🔧 Configuración](#-configuración)
+
+</div>
+
+---
+
+## 📋 Tabla de Contenidos
+
+- [✨ Características](#-características)
+- [🚀 Instalación Rápida](#-instalación-rápida)
+- [🔧 Configuración](#-configuración)
+- [📋 Comandos Principales](#-comandos-principales)
+- [🏗️ Arquitectura](#️-arquitectura)
+- [📁 Estructura del Proyecto](#-estructura-del-proyecto)
+- [🛡️ Seguridad](#️-seguridad)
+- [🤝 Contribución](#-contribución)
+- [📄 Licencia](#-licencia)
+- [📞 Soporte](#-soporte)
+
+---
+
+## ✨ Características
+
+### 🔔 Sistema de Alertas Multiplataforma
+- **Alertas BTC**: Monitoreo de niveles clave (pivot, soportes/resistencias) con análisis técnico avanzado
+- **Alertas HBD**: Umbrales dinámicos de precio para HIVE Dollar
 - **Alertas Personalizadas**: Configuración de límites de precio para cualquier criptomoneda
+- **Alertas Clima**: Notificaciones de lluvia, tormenta, UV alto, calor/frío extremo
 
-### 📊 **Herramientas de Trading**
-- Análisis técnico avanzado (`/ta`) con indicadores múltiples
-- Gráficos automáticos (`/graf`) desde TradingView
+### 📊 Herramientas de Trading
+- Análisis técnico avanzado (`/ta`) con indicadores múltiples (RSI, MACD, Bollinger Bands)
+- Gráficos automáticos desde TradingView (`/graf`)
 - Monitoreo de mercados globales (`/mk`)
-- Tasas de cambio informal (`/tasa`) para Cuba
+- Tasas de cambio informal para Cuba (`/tasa`)
 
-### 🌦️ **Sistema de Clima Inteligente**
-- Pronóstico detallado por ciudad
-- Alertas automáticas para condiciones climáticas adversas
-- Configuración personalizada de notificaciones
-- Resumen diario automatizado
-
-### 📰 **Gestión de Feeds RSS/Atom**
-- Configuración de múltiples fuentes RSS por usuario.
-- Personalización de plantillas de notificación con formato HTML.
-- Filtros por palabra clave para bloquear noticias.
-- Monitoreo en tiempo real.
-
-### ⚙️ **Gestión Avanzada**
-- Multi-idioma (ES/EN)
-- Sistema de anuncios rotativos
-- Gestión de usuarios y logs
-- Panel de administración completo
+### 🌐 Características Adicionales
+- **Multi-idioma**: Español e Inglés (i18n con gettext/Babel)
+- **Sistema de Pagos**: Integración con Telegram Stars
+- **Feeds RSS/Atom**: Monitoreo de noticias personalizado
+- **Recordatorios**: Sistema de recordatorios programados
+- **Progreso Anual**: Seguimiento del avance del año
 
 ---
 
 ## 🚀 Instalación Rápida
 
 ### Prerrequisitos
-- Servidor VPS con Ubuntu/Debian
-- Acceso SSH con permisos sudo
+- Servidor VPS con Ubuntu/Debian (recomendado)
 - Python 3.12 o superior
+- Git
 
-### 1. Clonar Repositorio
+### Instalación Automatizada (Recomendada)
+
 ```bash
-cd /home/$USER
+# 1. Clonar repositorio
 git clone https://github.com/ersus93/bbalert.git
 cd bbalert
+
+# 2. Configurar permisos
+chmod +x mbot.sh
+
+# 3. Ejecutar instalador
+./mbot.sh
+
+# 4. Seleccionar opción 1 (Instalación Completa)
 ```
 
-### 2. Configurar Permisos
-```bash
-chmod +x bbalert.sh
-```
+### Instalación Manual
 
-### 3. Configurar Variables de Entorno
 ```bash
-cp .env.example .env
-nano .env
-```
-**Contenido del archivo .env:** (ver apit.env.example)
-```env
-TOKEN_TELEGRAM=tu_token_aqui
-ADMIN_CHAT_IDS=tu_id_telegram,otro_id
-OPENWEATHER_API_KEY=tu_clave_openweather
-STATE=production
-```
+# 1. Clonar y entrar al directorio
+git clone https://github.com/ersus93/bbalert.git
+cd bbalert
 
-### 4. Ejecutar Instalador
-```bash
-./bbalert.sh
+# 2. Crear entorno virtual
+python3.12 -m venv venv
+source venv/bin/activate
+
+# 3. Instalar dependencias
+pip install -r requirements.txt
+
+# 4. Configurar variables de entorno
+cp apit.env.example apit.env
+nano apit.env  # Editar con tus credenciales
+
+# 5. Iniciar bot
+python bbalert.py
 ```
-Selecciona la opción **1** para instalación completa.
 
 ---
 
-## 🤖 Configuración del Bot de Telegram
+## 🔧 Configuración
 
-### Paso 1: Crear el Bot con BotFather
-1. Abre Telegram y busca **@BotFather**
-2. Envía `/newbot`
-3. Sigue las instrucciones:
-   - **Nombre del bot**: `BitBread Alert`
-   - **Username**: `tu_bot_bot` (debe terminar en 'bot')
+### Variables de Entorno
 
-### Paso 2: Obtener el Token
-4. BotFather te proporcionará un token como:
-   ```
-   1234567890:ABCdefGHIjklMNOpqrsTUVwxyz123456
-   ```
-   **¡Guárdalo en un lugar seguro!**
+Crear archivo `apit.env`:
 
-### Paso 3: Configurar el Bot
-5. Configura los comandos recomendados en BotFather:
+```env
+# Credenciales Telegram (obligatorio)
+TOKEN_TELEGRAM="TU_TOKEN_DE_BOTFATHER"
+ADMIN_CHAT_IDS="123456789,987654321"
+
+# APIs Externas
+CMC_API_KEY_ALERTA="TU_CMC_API_KEY"
+CMC_API_KEY_CONTROL="TU_CMC_API_KEY"
+OPENWEATHER_API_KEY="TU_OPENWEATHER_KEY"
+GROQ_API_KEY="TU_GROQ_KEY"
+ELTOQUE_API_KEY="TU_ELTOQUE_KEY"
+SCREENSHOT_API_KEY="TU_SCREENSHOT_KEY"
+```
+
+### Configuración del Bot en Telegram
+
+1. Buscar **@BotFather** en Telegram
+2. Enviar `/newbot`
+3. Seguir instrucciones para nombre y username
+4. Guardar el token proporcionado
+5. Configurar comandos del bot:
    ```
    start - Iniciar bot
-   help - Ayuda
+   help - Ayuda general
    btcalerts - Alertas BTC
-   w - Clima
-   ta - Análisis técnico
+   hbdalerts - Alertas HBD
    alerta - Crear alerta personalizada
-   weather_sub - Suscribirse a clima
-   lang - Cambiar idioma
-   rss - Gestión de Feeds RSS
+   w - Consultar clima
+   ta - Análisis técnico
+   p - Precio de cripto
+   mk - Mercados globales
+   shop - Tienda
    ```
-
-### Paso 4: Obtener Tu Chat ID
-6. Inicia conversación con tu bot y envía `/start`
-7. Envía `/myid` para obtener tu Chat ID
-8. Añade tu Chat ID a `ADMIN_CHAT_IDS` en el archivo `.env`
 
 ---
 
-## ⚙️ Configuración de APIs Externas
+## 📋 Comandos Principales
 
-### OpenWeather API (Para Clima)
-1. Regístrate en [OpenWeather](https://openweathermap.org/api)
-2. Obtén tu API Key gratuita
-3. Añádela al archivo `.env`:
-   ```
-   OPENWEATHER_API_KEY=tu_clave_aqui
-   ```
+### 👤 Usuario
+
+| Comando | Descripción |
+|---------|-------------|
+| `/start` | Iniciar bot y detectar idioma |
+| `/help` | Mostrar ayuda general |
+| `/myid` | Obtener tu ID de Telegram |
+| `/lang` | Cambiar idioma (ES/EN) |
+| `/ver` | Ver versión del bot |
+
+### 💰 Criptomonedas
+
+| Comando | Descripción | Ejemplo |
+|---------|-------------|---------|
+| `/p [moneda]` | Precio actual | `/p BTC` |
+| `/ta [par]` | Análisis técnico | `/ta BTCUSDT` |
+| `/graf [par] [tf]` | Gráfico TradingView | `/graf BTCUSDT 1h` |
+| `/mk` | Estado de mercados | - |
+| `/tasa` | Tasas de cambio Cuba | - |
+| `/btcalerts` | Gestionar alertas BTC | - |
+| `/hbdalerts` | Gestionar alertas HBD | - |
+| `/alerta [moneda] [precio]` | Crear alerta | `/alerta BTC 50000` |
+| `/misalertas` | Ver alertas activas | - |
+| `/monedas [lista]` | Configurar monedas | `/monedas BTC,ETH,HIVE` |
+| `/parar` | Detener alertas | - |
+| `/temp [horas]` | Intervalo alertas | `/temp 2.5` |
+
+### 🌤️ Clima
+
+| Comando | Descripción | Ejemplo |
+|---------|-------------|---------|
+| `/w [ciudad]` | Clima actual | `/w Havana` |
+| `/weather_sub` | Suscribirse a alertas | - |
+| `/weather_settings` | Configurar alertas | - |
+
+### 🛠️ Administración (Solo Admins)
+
+| Comando | Descripción |
+|---------|-------------|
+| `/users` | Estadísticas de usuarios |
+| `/logs` | Ver logs del sistema |
+| `/ad [add/del/list]` | Gestionar anuncios |
+| `/ms` | Envío masivo de mensajes |
+
+---
+
+## 🏗️ Arquitectura
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Telegram Bot API                     │
+└───────────────────────────┬─────────────────────────────┘
+                            │
+              ┌─────────────▼────────────────┐
+              │      bbalert.py (Entry)      │
+              └─────────────┬────────────────┘
+                            │
+        ┌───────────────────┼───────────────────┐
+        │                   │                   │
+   ┌────▼─────┐      ┌──────▼──────┐      ┌────▼─────┐
+   │ Handlers │      │ Core Loops  │      │  Utils   │
+   └────┬─────┘      └──────┬──────┘      └────┬─────┘
+        │                   │                   │
+        └───────────────────┼───────────────────┘
+                            │
+                   ┌────────▼─────────┐
+                   │  JSON Storage    │
+                   └──────────────────┘
+```
+
+### Tecnologías Principales
+
+- **Python 3.12+** con Async/Await
+- **python-telegram-bot v20.x** para API de Telegram
+- **Pandas** para análisis de datos
+- **Babel** para internacionalización
+- **Systemd** para gestión de servicios
 
 ---
 
 ## 📁 Estructura del Proyecto
+
 ```
-bbbalert/
-├── bbalert.py                       # Punto de entrada principal
-├── bbalert.sh                       # Script de gestión
-├── .env                             # Variables de entorno
-├── requirements.txt                 # Dependencias Python
-├── babel.cfg                        # Configuracion de idioma
+bbalert/
+├── bbalert.py              # Punto de entrada
+├── mbot.sh                 # Script de gestión
+├── apit.env                # Variables de entorno
+├── requirements.txt        # Dependencias
 │
-├── core/                            # Núcleo del sistema
-│   ├── btc_loop.py                  # Monitor BTC
-│   ├── loops.py                     # Bucles de fondo
-│   ├── api_client.py                # Gestion de api para alertas
-│   ├── i18n.py                      # Gestion de traduccion
-│   ├── rss_loop.py                  # Monitor RSS/Atom (¡NUEVO\!)
-│   └── config.py                    # Configuración
+├── core/                   # Núcleo del sistema
+│   ├── btc_loop.py         # Monitor BTC
+│   ├── weather_loop_v2.py  # Alertas clima
+│   ├── loops.py            # Bucles generales
+│   ├── valerts_loop.py     # Multi-moneda PRO
+│   ├── i18n.py             # Internacionalización
+│   ├── config.py           # Configuración
+│   └── api_client.py       # Clientes API
 │
-├── handlers/                        # Manejadores de comandos
-│   ├── btc_handlers.py              # Comandos BTC
-│   ├── weather.py                   # Comandos clima
-│   ├── alerts.py                    # Alertas personalizadas
-│   ├── general.py                   # Comandos de uso general
-│   ├── pay.py                       # Gestion de pagos
-│   ├── user_settings                # Comandos de ajustes
-│   ├── admin.py                     # Comandos de administración
-│   ├── trading.py                   # Herramientas trading
-│   └── rss.py                       # Gestión de Feeds RSS 
+├── handlers/               # Comandos
+│   ├── btc_handlers.py
+│   ├── weather.py
+│   ├── trading.py
+│   ├── admin.py
+│   └── alerts.py
 │
-├── utils/                           # Utilidades
-│   ├── btc_manager.py               # Gestión BTC
-│   ├── weather_manager.py           # Gestión clima
-│   ├── ads_manager.py               # Gestion de ads
-│   ├── image_generator.py           # Gestion de generacion de imagen
-│   ├── file_manager.py              # Gestión archivos
-│   └── rss_manager.py               # Gestión de datos RSS 
+├── utils/                  # Utilidades
+│   ├── btc_manager.py
+│   ├── weather_manager.py
+│   ├── file_manager.py
+│   └── logger.py
 │
-└── data/                            # Datos persistentes
-    ├── users.json                   # Usuarios
-    ├── weather_subs.json            # Suscriptores clima
-    ├── btc_subs.json                # Suscriptores BTC
-    ├── ads.json                     # Anuncios
-    ├── btc_alert_state.json         # Status de la slertas BTC
-    ├── custom_alert_history.json    # Historial de alertas
-    ├── eltoque_history.json         # Historial de elToque
-    ├── hbd_thresholds.json          # Humbrales de HBD
-    ├── hbd_price_history.json       # Historial de hbd
-    ├── last_price.json              # Último precio de lista de monedas
-    ├── img.png                      # Plantilla para imagen de tasas
-    ├── weather_last_alerts.json     # Alertas de clima
-    ├── weather_subs.json            # Suscriptores clima
-    └── rss_data.json                # Datos de Feeds RSS 
+├── data/                   # Datos persistentes
+│   ├── users.json
+│   ├── price_alerts.json
+│   └── weather_subs.json
+│
+├── locales/                # Traducciones
+│   ├── es/
+│   └── en/
+│
+└── docs/                   # Documentación
+    └── PROYECTO_DETALLADO.md
 ```
 
 ---
 
-## 🎯 Comandos Principales
+## 🛡️ Seguridad
 
-### 👤 **Comandos de Usuario**
-| Comando | Descripción |
-|---------|-------------|
-| `/start` | Inicia el bot y detecta idioma |
-| `/lang` | Cambia idioma (ES/EN) |
-| `/myid` | Muestra tu ID de Telegram |
-| `/help` | Muestra ayuda general |
-| `/rss` | Gestión y configuración de tus Feeds RSS |
+### Checklist de Seguridad
 
-### 💰 **Criptomonedas y Trading**
-| Comando | Descripción |
-|---------|-------------|
-| `/btcalerts` | Gestión de alertas BTC |
-| `/ta [par]` | Análisis técnico avanzado |
-| `/graf [par] [tf]` | Gráfico de TradingView |
-| `/p [moneda]` | Precio detallado |
-| `/mk` | Estado de mercados globales |
-| `/tasa` | Tasas de cambio Cuba |
+- ✅ **Nunca** hardcodear credenciales
+- ✅ Usar `apit.env` para variables sensibles
+- ✅ Incluir `apit.env` en `.gitignore`
+- ✅ Validar todas las entradas de usuario
+- ✅ Manejar errores adecuadamente
+- ✅ Usar HTTPS para todas las conexiones
 
-### 🌤️ **Clima**
-| Comando | Descripción |
-|---------|-------------|
-| `/w [ciudad]` | Clima actual de una ciudad |
-| `/weather_sub` | Suscripción a alertas clima |
-| `/weather_settings` | Configurar alertas clima |
+### Buenas Prácticas
 
-### ⏰ **Alertas Personalizadas**
-| Comando | Descripción |
-|---------|-------------|
-| `/alerta BTC 50000` | Crear alerta de precio |
-| `/misalertas` | Ver alertas activas |
-| `/monedas BTC,ETH` | Configurar monedas a monitorear |
-| `/temp 2.5` | Intervalo de alertas (horas) |
-
----
-
-## 🔧 Gestión del Sistema
-
-### Script de Gestión (`bbalert.sh`)
 ```bash
-# Menú de opciones:
-# 1. 🛠  Instalar Todo (Desde 0)
-# 2. ▶️ Iniciar Bot
-# 3. ⏹️ Detener Bot
-# 4. 🔄 Reiniciar Bot
-# 5. 📊 Ver Estado
-# 6. 📜 Ver Logs en tiempo real
-# 7. 📥 Verificar/Instalar Dependencias
-# 8. 🗑️ Eliminar Dependencias
-# 9. ❌ Salir
-```
+# Configurar firewall
+sudo ufw allow OpenSSH
+sudo ufw enable
 
-### Comandos Systemd
-```bash
-# Ver estado del servicio
-sudo systemctl status bbalert
+# Desactivar acceso root
+sudo nano /etc/ssh/sshd_config
+# PermitRootLogin no
 
-# Ver logs en tiempo real
-sudo journalctl -u bbalert -f
-
-# Reiniciar servicio
-sudo systemctl restart bbalert
-
-# Detener servicio
-sudo systemctl stop bbalert
-```
-
-### Comandos de Administración
-| Comando | Descripción (Solo Admins) |
-|---------|-------------------|
-| `/users` | Estadísticas de usuarios |
-| `/logs` | Ver logs del sistema |
-| `/ad add [texto]` | Añadir anuncio |
-| `/ms` | Envío masivo a usuarios |
-
----
-
-## 🌐 Sistema Multi-idioma
-El bot detecta automáticamente el idioma del usuario basado en:
-- Configuración regional de Telegram
-- Idioma del dispositivo
-- Preferencia manual (`/lang`)
-
-**Idiomas soportados:**
-- 🇪🇸 Español
-- 🇺🇸 English
-
----
-
-## ⚡ Sistema de Alertas BTC
-
-### Niveles Calculados Automáticamente
-- **Pivot Point**: Punto de equilibrio
-- **Soportes (S1, S2, S3)**: Niveles de compra
-- **Resistencias (R1, R2, R3)**: Niveles de venta
-
-### Condiciones de Alerta
-- Ruptura de niveles clave
-- Cambio de tendencia
-- Volatilidad alta detectada
-
-### Configuración de Suscripción
-Los usuarios pueden activar/desactivar alertas BTC desde:
-- Comando `/btcalerts`
-- Menú interactivo
-- Callback buttons
-
----
-
-## 🌦️ Sistema de Clima Inteligente
-
-### Datos Incluidos
-- Temperatura actual y sensación térmica
-- Humedad y velocidad del viento
-- Índice UV y calidad del aire
-- Pronóstico de 24 horas
-- Hora de salida y puesta del sol
-
-### Tipos de Alertas Clima
-- 🌧️ **Lluvia**: Precipitaciones detectadas
-- ⛈️ **Tormenta**: Condiciones eléctricas
-- ☀️ **UV Alto**: Índice UV > 6
-- ❄️ **Nieve/Escarcha**: Temperaturas bajo cero
-- 🌫️ **Niebla**: Visibilidad reducida
-- 🔥 **Calor Intenso**: Temperatura > 35°C
-- ❄️ **Frío Intenso**: Temperatura < 5°C
-
-### Resumen Diario Automático
-- Enviado a hora configurada (por defecto 07:00)
-- Incluye pronóstico del día
-- Recomendaciones personalizadas
-
----
-
-## 🛠️ Solución de Problemas
-
-### Error: "ModuleNotFoundError"
-```bash
-# Desde el script de gestión
-./bbalert.sh
-# Seleccionar opción 7 (Verificar/Instalar Dependencias)
-```
-
-### Error: "Token inválido"
-1. Verificar token en `apit.env`
-2. Confirmar que el bot esté activo en BotFather
-3. Reiniciar servicio
-
-### Error: "API rate limit exceeded"
-1. Reducir frecuencia de consultas
-2. Usar API Keys alternativas
-3. Implementar caché local
-
-### Logs de Depuración
-```bash
-# Ver logs completos
-sudo journalctl -u bbalert -n 100
-
-# Seguir logs en tiempo real
-sudo journalctl -u bbalert -f
+# Actualizar sistema regularmente
+sudo apt update && sudo apt upgrade -y
 ```
 
 ---
 
-## 🔄 Actualización del Bot
+## 🤝 Contr
 
-### Método 1: Git Pull
-```bash
-cd /home/$USER/bbalert
-git pull
-./bbalert.sh
-# Seleccionar opción 4 (Reiniciar Bot)
-```
+## 🤝 Contribución
 
-### Método 2: Reinstalación Limpia
-```bash
-cd /home/$USER
-rm -rf bbalert
-git clone https://github.com/tu_usuario/bbalert.git
-cd bbalert
-chmod +x bbalert.sh
-./bbalert.sh
-```
+### Flujo de Trabajo (6 Fases)
 
----
-
-## 📈 Estadísticas y Monitoreo
-
-### Archivos de Datos
-- `data/users.json`: Usuarios registrados y preferencias
-- `data/btc_subs.json`: Suscriptores alertas BTC
-- `data/btc_alerts_state`: Registro de velas
-- `data/weather_subs.json`: Suscriptores clima
-- `data/price_alerts.json`: Alertas personalizadas
-- `data/ads.json`: Anuncios
-- `data/custom_alert_history.json`: Registro de alertas
-- `data/eltoque_history.json`: Registro de tasas
-- `data/hbd_thresholds.json`: Humbrales HBD
-- `data/img.png`: Plantilla para Tasas elToque
-- `data/last_prices.json`: Últimos precios de lista de monedas
-- `data/weather_subs.json`: Suscriptores alertas de clima
-
-### Métricas Clave
-- Usuarios activos (últimos 30 días)
-- Alertas enviadas (24h)
-- Tasa de entrega de mensajes
-- Uptime del servicio
-
----
-
-## 🔒 Seguridad y Mejores Prácticas
-
-### Recomendaciones
-1. **Nunca compartas** tu token de bot públicamente
-2. Usa variables de entorno para datos sensibles
-3. Limita acceso SSH al servidor
-4. Mantén actualizadas las dependencias
-5. Realiza backups regulares de datos
-
-### Backup de Datos
-```bash
-# Backup manual
-cd /home/$USER/bbalert
-tar -czf backup_$(date +%Y%m%d).tar.gz data/ logs/
-```
-
-### Restauración
-```bash
-# Descomprimir backup
-tar -xzf backup_20231201.tar.gz
-
-# Restaurar datos
-cp -r data/ /home/$USER/bbalert/
-```
-
----
-
-## 🤝 Contribuir al Proyecto
-
-### Cómo Contribuir
-1. Haz fork del repositorio
-2. Crea una rama para tu feature
-3. Realiza tus cambios
-4. Envía un Pull Request
+1. **Investigación**: Analizar requisitos y archivos afectados
+2. **Planificación**: Crear Issue en GitHub con plan detallado
+3. **Implementación**: Desarrollar en rama `feature/nombre`
+4. **i18n**: Actualizar traducciones si hay texto visible
+5. **Pruebas**: Tests unitarios y QA manual
+6. **Despliegue**: Merge, versión y reinicio en VPS
 
 ### Estándares de Código
-- Usar snake_case para variables y funciones
-- Comentar funciones complejas
-- Mantener compatibilidad con Python 3.12+
-- Sigue la estructura de archivos existente
+
+- **Variables/Funciones**: `snake_case`
+- **Clases**: `CamelCase`
+- **Comentarios**: Docstrings obligatorios
+- **Tests**: Obligatorios para nuevas funcionalidades
+
+```bash
+# Crear rama feature
+git checkout -b feature/nueva-funcionalidad dev
+
+# Commits convencionales
+# tipo(ámbito): descripción (#IssueID)
+git commit -m "feat(btc): agregar indicador MACD (#23)"
+```
 
 ---
 
 ## 📄 Licencia
-Este proyecto está bajo la licencia MIT. Ver archivo `LICENSE` para más detalles.
+
+Este proyecto está bajo la licencia **MIT**.
+
+```
+MIT License
+
+Copyright (c) 2025 Ersus
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+```
 
 ---
 
-## 👨‍💻 Autor y Contacto
-- **Autor**: [ersus]
-- **GitHub**: [@ersus93](https://github.com/ersus93)
-- **Telegram**: [@iamersus](https://t.me/iamersus)
+## 📞 Soporte
 
-### Agradecimientos
-- Comunidad de Telegram
-- Usuarios beta testers
+### Canales Oficiales
 
----
+- 📱 **Canal Telegram**: [@bbalertchannel](https://t.me/bbalertchannel)
+- 💬 **Grupo Soporte**: [@bbalertsupport](https://t.me/bbalertsupport)
+- 🐙 **GitHub Issues**: [github.com/ersus93/bbalert/issues](https://github.com/ersus93/bbalert/issues)
+- 📧 **Email**: soporte@bbalert.com
 
-## 🔮 Roadmap Futuro
+### Reportar Problemas
 
-### Próximas Características
-- ✅ **Completado**: Alertas sobre la variacion de HBD (HIVE Dollar)
-- ✅ **Completado**: Alertas de lita de moneda personalizada
-- ✅ **Completado**: Consulta de precios de criptos listadas en CMC (CoinMarketCap)
-- ✅ **Completado**: Alertad de precio de cualquier cripto 
-- ✅ **Completado**: Sistema de anuncios aleatoeios en los mensajes de alertas
-- ✅ **Completado**: Sistema de análisis de trading
-- ✅ **Completado**: Implementacion de sistemas de pago con Telegram Stars
-- ✅ **Completado**: Sistema de clima
-- ✅ **Completado**: Alertas BTC avanzadas
-- ⏳ **Planeado**: Sistema de activación o desactivación de metodos de pago
-- ⏳ **Planeado**: Integración con más exchanges
-- ⏳ **Planeado**: Sistema de pagos con HIVE Blockchain
-- ⏳ **Planeado**: Sistemas RSS para notas o noticias de interes (aún en análisis si por usuario o dirigido a todos)
-- ⏳ **Planeado**: Panel de gestion telegram web para el bot
-
-
-### Mejoras Técnicas
-- Migración a PostgreSQL
-- Sistema de caché distribuido
-- Microservicios independientes
-- Dockerización completa
+Al reportar un issue, incluir:
+- Versión del bot (`/ver`)
+- Sistema operativo (`lsb_release -a`)
+- Versión Python (`python3 --version`)
+- Logs relevantes (`journalctl -u bbalert -n 50`)
+- Pasos para reproducir el problema
 
 ---
 
-## ❓ Preguntas Frecuentes
+## 🔮 Roadmap
 
-### ¿Necesito un servidor dedicado?
-No necesariamente, pero recomendamos un VPS con al menos:
-- 1 GB RAM
-- 20 GB SSD
-- Ubuntu 20.04+
+### ✅ Completado (v1.1.7)
+- Alertas BTC avanzadas
+- Sistema de clima inteligente
+- Alertas HBD dinámicas
+- Pagos con Telegram Stars
+- Feeds RSS/Atom
+- Análisis técnico (/ta)
 
-### ¿Es gratuito el bot?
-Sí, el bot es de código abierto y gratuito. Solo necesitas pagar por:
-- Servidor VPS (~$5-10/mes)
-- APIs premium (opcional)
+### ⏳ En Desarrollo (v2.x)
+- Integración con más exchanges
+- Panel web de administración
+- API REST
+- Soporte para más idiomas
 
-### ¿Cómo reporto un error?
-1. Revisa los logs primero
-2. Abre un issue en GitHub
-3. Proporciona información detallada
+### 🔮 Futuro (v3.x)
+- Microservicios
+- Docker completo
+- PostgreSQL
+- Redis caché
 
-### ¿Puedo usar el bot comercialmente?
-Sí, bajo los términos de la licencia MIT.
+---
+
+<div align="center">
+
+**⭐ Si te gusta este proyecto, dale una estrella en GitHub!**
+
+[📖 Documentación Completa](./docs/PROYECTO_DETALLADO.md) • [🐛 Reportar Issue](https://github.com/ersus93/bbalert/issues) • [💡 Sugerencias](https://github.com/ersus93/bbalert/discussions)
 
 ---
 
-**⭐ Si te gusta este proyecto, considera darle una estrella en GitHub!**
+**Desarrollado con ❤️ por [Ersus](https://github.com/ersus93)**
 
-**📢 Únete a nuestro canal de Telegram para actualizaciones: [@bbalertchannel](https://t.me/bbalertchannel)**
-
----
-*Última actualización: 2025-12-10 21:16*
+</div>
