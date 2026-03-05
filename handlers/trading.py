@@ -3,7 +3,7 @@
 import asyncio
 import requests
 import json
-import pytz 
+import pytz
 import pandas as pd
 import pandas_ta as ta
 from io import BytesIO
@@ -13,144 +13,299 @@ from telegram.constants import ParseMode
 from tradingview_ta import TA_Handler, Interval, Exchange
 from datetime import timedelta, datetime
 from core.ai_logic import get_groq_crypto_analysis
-# Importamos configuraciones y utilidades existentes
-from core.config import SCREENSHOT_API_KEY, ADMIN_CHAT_IDS
+from core.config import ADMIN_CHAT_IDS
 from core.api_client import obtener_datos_moneda
 from utils.file_manager import (
     add_log_line, check_feature_access, registrar_uso_comando
 )
 from utils.ads_manager import get_random_ad_text
+from utils.chart_generator import generate_ohlcv_chart
 from core.i18n import _
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 
-def _take_screenshot_sync(url: str) -> BytesIO | None:
-    """
-    Captura de pantalla usando ScreenshotOne.
-    """
-    if not SCREENSHOT_API_KEY:
-        print("❌ Error: La SCREENSHOT_API_KEY no está configurada en config.py.")
-        return None
-    # nueva integracion con ScreenshotOne
-    api_url = "https://api.screenshotone.com/take"
-    params = {
-        "access_key": SCREENSHOT_API_KEY,
-        "url": url,
-        "format": "png",  # Puedes usar 'png' si prefieres
-        "block_ads": "true",
-        "block_cookie_banners": "true",
-        "block_banners_by_heuristics": "false",
-        "block_trackers": "true",
-        "delay": "0",
-        "timeout": "60",
-        "response_type": "by_format",
-        "image_quality": "100"
-    }
 
+# ─── CONSTANTES ──────────────────────────────────────────────────────────────
+
+_TF_BINANCE = {
+    "1m": "1m",  "3m": "3m",  "5m": "5m",  "15m": "15m", "30m": "30m",
+    "1h": "1h",  "2h": "2h",  "4h": "4h",  "6h": "6h",
+    "1d": "1d",  "1w": "1w",  "1M": "1M",
+}
+
+_TF_TV_URL = {
+    "1m": "1",  "3m": "3",   "5m": "5",  "15m": "15", "30m": "30",
+    "1h": "60", "2h": "120", "4h": "240", "6h": "360",
+    "1d": "D",  "1w": "W",   "1M": "M",
+}
+
+_QUICK_TFS = ["1h", "4h", "1d", "1w"]
+
+_CANDLES_FOR_TF = {
+    "1m": 120, "3m": 100, "5m": 100, "15m": 90, "30m": 80,
+    "1h": 80,  "2h": 70,  "4h": 70,  "6h": 60,
+    "1d": 60,  "1w": 52,  "1M": 24,
+}
+
+
+# ─── HELPERS DE DATOS ────────────────────────────────────────────────────────
+
+def _get_binance_klines_for_chart(symbol: str, interval: str, limit: int = 120) -> pd.DataFrame | None:
+    """Obtiene velas OHLCV de Binance para generar el gráfico."""
+    endpoints = [
+        "https://api.binance.com/api/v3/klines",
+        "https://api.binance.us/api/v3/klines",
+    ]
+    for url in endpoints:
+        try:
+            resp = requests.get(url, params={"symbol": symbol, "interval": interval, "limit": limit}, timeout=5)
+            if resp.status_code != 200:
+                continue
+            data = resp.json()
+            if not data or not isinstance(data, list):
+                continue
+            df = pd.DataFrame(data, columns=[
+                "open_time", "open", "high", "low", "close", "volume",
+                "close_time", "quote_vol", "trades", "taker_base", "taker_quote", "ignore"
+            ])
+            for col in ["open", "high", "low", "close", "volume"]:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            df['time'] = pd.to_datetime(df['open_time'], unit='ms')
+            df.set_index('time', inplace=True)
+            return df
+        except Exception:
+            continue
+    return None
+
+
+def _get_tv_signal(symbol: str, interval_str: str) -> dict:
+    """Obtiene señal rápida de TradingView (BUY/SELL/NEUTRAL + pivotes)."""
+    from handlers.ta import get_tradingview_analysis_enhanced
     try:
-        response = requests.get(api_url, params=params, timeout=30)
-        response.raise_for_status()
-        return BytesIO(response.content)
+        data = get_tradingview_analysis_enhanced(symbol, interval_str)
+        return data or {}
+    except Exception:
+        return {}
 
-    except requests.exceptions.RequestException as e:
-        print(f"❌ Error al llamar a ScreenshotOne: {e}")
-        return None
-    
 
-async def take_chart_screenshot(url: str) -> BytesIO | None:
-    """Ejecuta la función de captura de pantalla en un executor para no bloquear el bucle de asyncio."""
-    loop = asyncio.get_running_loop()
+def _fmt_price(val: float) -> str:
+    if val >= 1000:
+        return f"{val:,.2f}"
+    if val >= 1:
+        return f"{val:.4f}"
+    return f"{val:.6f}".rstrip('0')
+
+
+# ─── CALLBACK DE TEMPORALIDAD ─────────────────────────────────────────────────
+
+async def graf_timeframe_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback para los botones de cambio de temporalidad del /graf.
+    Formato: graf_tf|BASE|QUOTE|TIMEFRAME
+    """
+    query = update.callback_query
+    await query.answer("⏳ Cargando...")
     try:
-        # Usamos asyncio.to_thread para ejecutar la función síncrona en un hilo separado
-        return await asyncio.to_thread(_take_screenshot_sync, url)
+        _, base, quote, tf = query.data.split("|")
+        context.args = [base, quote, tf]
+        await _do_graf(update, context, base=base, quote=quote, timeframe=tf, is_callback=True)
     except Exception as e:
-        print(f"Error al ejecutar el hilo de la captura de pantalla: {e}")
-        return None
+        print(f"Error en graf_timeframe_callback: {e}")
+        await query.answer("❌ Error al cambiar temporalidad", show_alert=True)
+
+
+# ─── COMANDO PRINCIPAL ────────────────────────────────────────────────────────
 
 async def graf_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Genera una captura de pantalla de un gráfico de TradingView.
-    Uso: /graf <MONEDA> [MONEDA_PAR] <TEMPORALIDAD>
+    /graf <MONEDA> [PAR] <TEMPORALIDAD>
+
+    Genera un gráfico OHLCV profesional con velas japonesas, EMAs,
+    RSI, volumen y niveles S/R. Sin dependencias externas de captura.
     """
     user_id = update.effective_user.id
 
-    if len(context.args) not in [2, 3]:
-        mensaje_error_formato = _(
-            "⚠️ *Formato incorrecto*.\n\nUso: `/graf <MONEDA> [MONEDA_PAR] <TEMPORALIDAD>`\n"
-            "Ejemplos:\n`/graf BTC 15m`\n`/graf BTC USDT 1h`",
-            user_id
-        )
+    if not context.args or len(context.args) not in [2, 3]:
         await update.message.reply_text(
-            mensaje_error_formato,
+            _(
+                "⚠️ *Formato incorrecto*\n\n"
+                "Uso: `/graf <MONEDA> [PAR] <TEMPORALIDAD>`\n\n"
+                "Ejemplos:\n"
+                "`/graf BTC 4h`\n"
+                "`/graf BTC USDT 1h`\n"
+                "`/graf ETH USDT 1d`\n\n"
+                "Temporalidades: `1m 5m 15m 30m 1h 2h 4h 1d 1w`",
+                user_id
+            ),
             parse_mode=ParseMode.MARKDOWN
         )
         return
 
     if len(context.args) == 2:
-        base = context.args[0].upper()
-        quote = "USD"
-        temporalidad = context.args[1].lower()
+        base, timeframe = context.args[0].upper(), context.args[1].lower()
+        quote = "USDT"
     else:
-        base = context.args[0].upper()
-        quote = context.args[1].upper()
-        temporalidad = context.args[2].lower()
-
-    map_temporalidad = {
-        "1m": "1", "3m": "3", "5m": "5", "15m": "15", "30m": "30",
-        "1h": "60", "2h": "120", "4h": "240",
-        "1d": "D", "1w": "W", "1M": "M"
-    }
-
-    intervalo = map_temporalidad.get(temporalidad)
-    if not intervalo:
-        mensaje_error_tiempo = _(
-            "⚠️ *Temporalidad no válida*.\n\n"
-            "Usa: 1m, 5m, 15m, 1h, 4h, 1d, 1w, 1M.",
-            user_id
+        base, quote, timeframe = (
+            context.args[0].upper(),
+            context.args[1].upper(),
+            context.args[2].lower(),
         )
+
+    if timeframe not in _TF_BINANCE:
         await update.message.reply_text(
-            mensaje_error_tiempo,
+            _("⚠️ *Temporalidad no válida*\n\nUsa: `1m 5m 15m 30m 1h 2h 4h 1d 1w 1M`", user_id),
             parse_mode=ParseMode.MARKDOWN
         )
         return
 
-    registrar_uso_comando(user_id, 'graf')
+    await _do_graf(update, context, base=base, quote=quote, timeframe=timeframe, is_callback=False)
 
-    par = f"{base}{quote}"
-    url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{par}&interval={intervalo}"
 
-    mensaje_proceso_base = _(
-        "⏳ Generando gráfico para *{base}/{quote}* ({temporalidad})...",
-        user_id
-    )
-    await update.message.reply_text(
-        mensaje_proceso_base.format(base=base, quote=quote, temporalidad=temporalidad),
-        parse_mode=ParseMode.MARKDOWN
-    )
+async def _do_graf(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    base: str,
+    quote: str,
+    timeframe: str,
+    is_callback: bool = False,
+):
+    """Lógica central del comando /graf. Reutilizable desde callbacks."""
+    user_id = update.effective_user.id
+    symbol  = f"{base}{quote}"
 
-    screenshot_bytes = await take_chart_screenshot(url)
-
-    if screenshot_bytes:
-        mensaje_base = _(
-            "📈 *Gráfico de {base}/{quote} ({temporalidad})*\n\n[Ver en TradingView]({url})",
-            user_id
-        )
-        mensaje = mensaje_base.format(base=base, quote=quote, temporalidad=temporalidad, url=url)
-
-        await update.message.reply_photo(
-            photo=screenshot_bytes,
-            caption=mensaje,
+    # Mensaje de espera
+    msg_wait = None
+    if not is_callback:
+        msg_wait = await update.message.reply_text(
+            _(f"📊 _Generando gráfico de *{symbol}* ({timeframe})..._", user_id),
             parse_mode=ParseMode.MARKDOWN
+        )
+
+    loop = asyncio.get_running_loop()
+    binance_interval = _TF_BINANCE[timeframe]
+    candles_needed   = _CANDLES_FOR_TF.get(timeframe, 80) + 210
+
+    # Obtener velas
+    df = await loop.run_in_executor(
+        None, _get_binance_klines_for_chart, symbol, binance_interval, candles_needed
+    )
+
+    if df is None or df.empty:
+        err_msg = _(f"❌ No se encontraron datos para *{symbol}* en Binance.\nVerifica que el par existe.", user_id)
+        if msg_wait:
+            await msg_wait.edit_text(err_msg, parse_mode=ParseMode.MARKDOWN)
+        elif update.callback_query:
+            await update.callback_query.answer("❌ Par no encontrado en Binance", show_alert=True)
+        return
+
+    # Obtener señal TV (en paralelo no bloqueante)
+    tv_data = await loop.run_in_executor(None, _get_tv_signal, symbol, timeframe)
+
+    # Interpretar señal
+    rec = tv_data.get('RECOMMENDATION', 'NEUTRAL') if tv_data else 'NEUTRAL'
+    if   'STRONG_BUY'  in rec: signal, sig_emoji = 'COMPRA FUERTE',  '🚀'
+    elif 'BUY'         in rec: signal, sig_emoji = 'COMPRA',         '🐂'
+    elif 'STRONG_SELL' in rec: signal, sig_emoji = 'VENTA FUERTE',   '🐻'
+    elif 'SELL'        in rec: signal, sig_emoji = 'VENTA',          '📉'
+    else:                       signal, sig_emoji = 'NEUTRAL',        '⚖️'
+
+    pivot = tv_data.get('Pivot', 0) if tv_data else 0
+    r1    = tv_data.get('R1',    0) if tv_data else 0
+    s1    = tv_data.get('S1',    0) if tv_data else 0
+
+    # Calcular niveles locales si TV no los provee
+    if pivot == 0 and not df.empty:
+        last10 = df.tail(10)
+        h, l, c = last10['high'].max(), last10['low'].min(), df['close'].iloc[-1]
+        pivot  = (h + l + c) / 3
+        rng    = h - l
+        r1     = pivot + rng * 0.382
+        s1     = pivot - rng * 0.382
+
+    # Generar gráfico
+    candles_display = _CANDLES_FOR_TF.get(timeframe, 80)
+    show_bb = timeframe in ('1h', '4h', '1d', '1w')
+
+    chart_bytes = await loop.run_in_executor(
+        None,
+        generate_ohlcv_chart,
+        df, symbol, timeframe,
+        True,        # show_ema
+        show_bb,     # show_bb
+        True,        # show_rsi
+        candles_display,
+        signal, sig_emoji,
+        pivot, r1, s1,
+    )
+
+    if chart_bytes is None:
+        err_msg = _("❌ Error interno al generar el gráfico. Intenta de nuevo.", user_id)
+        if msg_wait:
+            await msg_wait.edit_text(err_msg, parse_mode=ParseMode.MARKDOWN)
+        elif update.callback_query:
+            await update.callback_query.answer("❌ Error al generar gráfico", show_alert=True)
+        return
+
+    # Construir caption
+    last_price = df['close'].iloc[-1]
+    prev_price = df['close'].iloc[-2] if len(df) > 1 else last_price
+    pct_change = ((last_price - prev_price) / prev_price * 100) if prev_price else 0
+    pct_icon   = '📈' if pct_change >= 0 else '📉'
+    pct_sign   = '+' if pct_change >= 0 else ''
+    buy_score  = tv_data.get('BUY_SCORE',  0) if tv_data else 0
+    sell_score = tv_data.get('SELL_SCORE', 0) if tv_data else 0
+
+    caption = (
+        f"📊 *{symbol}* · `{timeframe.upper()}`\n"
+        f"——————————————————\n"
+        f"💰 *Precio:* `${_fmt_price(last_price)}`  "
+        f"{pct_icon} `{pct_sign}{pct_change:.2f}%`\n"
+        f"{sig_emoji} *Señal:* `{signal}`\n"
+        f"⚖️ *Score:* {buy_score} 🐂 · {sell_score} 🐻\n"
+        f"——————————————————\n"
+        f"🎯 *Pivot:* `${_fmt_price(pivot)}`\n"
+        f"🔴 *R1:* `${_fmt_price(r1)}`  |  🟢 *S1:* `${_fmt_price(s1)}`\n"
+        f"——————————————————\n"
+        f"📌 _EMA20 · EMA50 · EMA200 · RSI · Vol_"
+    )
+    caption += get_random_ad_text()
+
+    # Botones inline
+    tf_row = []
+    for tf_opt in _QUICK_TFS:
+        label = f"▶ {tf_opt}" if tf_opt == timeframe else tf_opt
+        tf_row.append(InlineKeyboardButton(label, callback_data=f"graf_tf|{base}|{quote}|{tf_opt}"))
+
+    tv_url = (
+        f"https://www.tradingview.com/chart/"
+        f"?symbol=BINANCE:{symbol}&interval={_TF_TV_URL.get(timeframe, '60')}"
+    )
+    action_row = [
+        InlineKeyboardButton("📊 TradingView ↗", url=tv_url),
+        InlineKeyboardButton("📈 Análisis /ta",  callback_data=f"ta_quick|{base}|{timeframe}"),
+    ]
+
+    keyboard = InlineKeyboardMarkup([tf_row, action_row])
+
+    # Enviar
+    if is_callback:
+        await update.callback_query.message.reply_photo(
+            photo=chart_bytes,
+            caption=caption,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboard,
         )
     else:
-        mensaje_error_grafico = _(
-            "❌ Lo siento, no pude generar la captura del gráfico en este momento. Inténtalo de nuevo más tarde.",
-            user_id
+        if msg_wait:
+            try:
+                await msg_wait.delete()
+            except Exception:
+                pass
+        await update.message.reply_photo(
+            photo=chart_bytes,
+            caption=caption,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboard,
         )
-        await update.message.reply_text(
-            mensaje_error_grafico,
-            parse_mode=ParseMode.MARKDOWN
-        )
-
 
 async def p_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """

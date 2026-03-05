@@ -18,3 +18,5 @@ lxml
 brotli
 psutil
 loguru
+mplfinance>=0.12.10b0
+matplotlib>=3.7.0
