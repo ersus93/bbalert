@@ -38,3 +38,9 @@ version.txt
 nul
 Thumbs.db
 desktop.ini
+
+# Tests (solo para entorno local de desarrollo)
+tests/
+
+# Skills privados (docs/sk_*.md)
+docs/sk_*.md
