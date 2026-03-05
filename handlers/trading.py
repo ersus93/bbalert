@@ -425,24 +425,41 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
 
 async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Callback para el botón "Ver Análisis Técnico" en el comando /p.
-    Llama al comando /ta con la moneda y timeframe 4h.
-    Fuerza el uso de TradingView para evitar el check early de Binance.
+    Callback para el botón 'Ver Análisis Técnico'.
+    Usado tanto desde /p como desde /graf.
+
+    Formatos soportados:
+      /p    -> ta_quick|BTCUSDT|4h   (símbolo completo)
+      /graf -> ta_quick|BTC|4h       (solo base, sin par)
     """
     query = update.callback_query
-    await query.answer()
+    await query.answer("📊 Cargando análisis...")
 
-    # Parsear callback_data: ta_quick|SYMBOL|4h
     parts = query.data.split("|")
-    if len(parts) >= 2:
-        moneda = parts[1].upper()
-        pair = "USDT"
-        timeframe = "4h"
+    if len(parts) < 2:
+        await query.answer("❌ Datos inválidos", show_alert=True)
+        return
 
-        # Importar y llamar al comando ta con override_args
-        # Esto permite el flujo completo: intenta Binance, si falla hace fallback a TV
-        from handlers.ta import ta_command
-        await ta_command(update, context, override_source="BINANCE", override_args=[moneda, pair, timeframe], skip_binance_check=True)
+    raw_symbol = parts[1].upper()
+    timeframe  = parts[2].lower() if len(parts) >= 3 else "4h"
+
+    # Detectar si viene símbolo completo (BTCUSDT) o solo base (BTC)
+    known_quotes = ("USDT", "BUSD", "BTC", "ETH", "BNB", "USD")
+    pair = "USDT"
+    base = raw_symbol
+    for q in known_quotes:
+        if raw_symbol.endswith(q) and len(raw_symbol) > len(q):
+            pair = q
+            base = raw_symbol[: len(raw_symbol) - len(pair)]
+            break
+
+    from handlers.ta import ta_command
+    await ta_command(
+        update, context,
+        override_source="BINANCE",
+        override_args=[base, pair, timeframe],
+        skip_binance_check=True
+    )
 
 
 # === NUEVA LÓGICA PARA /MK ===
