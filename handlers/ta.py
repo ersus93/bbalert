@@ -246,7 +246,9 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
         registrar_uso_comando(user_id, 'ta')
 
     # === ARGUMENT PARSING ===
-    if is_callback and override_args:
+    # override_args se verifica independientemente de is_callback porque
+    # force_new_message pone is_callback=False pero igual pasa override_args
+    if override_args:
         # Formato args: [SYMBOL, PAIR, TIME]
         symbol_base, pair, timeframe = override_args
         full_symbol = f"{symbol_base}{pair}"
