@@ -500,8 +500,15 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
         btn_data = f"ta_switch|TV|{symbol_base}|{pair}|{timeframe}"
         kb.append([InlineKeyboardButton("📊 Ver en TradingView", callback_data=btn_data)])
 
-    # 3. Botón de Análisis IA (FUERA DEL IF para que salga SIEMPRE)
-    # Lo ponemos en una fila nueva
+    # 3. Botón de Gráfico (genera el chart de /graf en el mismo timeframe)
+    kb.append([
+        InlineKeyboardButton(
+            "📊 Ver Gráfico",
+            callback_data=f"graf_from_ta|{symbol_base}|{pair}|{timeframe}"
+        )
+    ])
+
+    # 4. Botón de Análisis IA (FUERA DEL IF para que salga SIEMPRE)
     kb.append([
         InlineKeyboardButton(
             "🤖 Análisis IA Profesional", 
@@ -597,6 +604,38 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 # === HANDLER DEL BOTÓN ===
+
+async def graf_from_ta_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback del botón "📊 Ver Gráfico" en /ta.
+    Genera el gráfico OHLCV para el par y timeframe que está viendo el usuario.
+    Formato: graf_from_ta|BASE|PAIR|TIMEFRAME
+    """
+    query = update.callback_query
+    await query.answer("📊 Generando gráfico...")
+
+    try:
+        parts = query.data.split("|")
+        if len(parts) < 4:
+            await query.answer("❌ Datos inválidos", show_alert=True)
+            return
+
+        _, base, pair, timeframe = parts[0], parts[1], parts[2], parts[3]
+        context.args = [base, pair, timeframe]
+
+        # Reutilizamos _do_graf de trading.py directamente
+        from handlers.trading import _do_graf
+        await _do_graf(
+            update, context,
+            base=base.upper(),
+            quote=pair.upper(),
+            timeframe=timeframe.lower(),
+            is_callback=True
+        )
+    except Exception as e:
+        print(f"Error en graf_from_ta_callback: {e}")
+        await query.answer("❌ Error al generar el gráfico", show_alert=True)
+
 
 async def ta_switch_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """

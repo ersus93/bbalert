@@ -365,9 +365,13 @@ def generate_ohlcv_chart(
         )
 
         # ── 12. WATERMARK ─────────────────────────────────────
-        fig.text(0.97, 0.06, 'BitBread Bot',
-                 color=TV_THEME['text_dim'], fontsize=8,
-                 ha='right', alpha=0.4)
+        # Marca de agua abajo-izquierda, visible pero sin molestar
+        fig.text(0.03, 0.015, 'BitBreadAlert',
+                 color='#4A90D9', fontsize=9, fontweight='bold',
+                 ha='left', va='bottom', alpha=0.55,
+                 bbox=dict(boxstyle='round,pad=0.3',
+                           facecolor='#131722', alpha=0.0,
+                           edgecolor='none'))
 
         # ── 13. EXPORTAR ──────────────────────────────────────
         buf = io.BytesIO()

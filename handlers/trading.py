@@ -49,13 +49,26 @@ _CANDLES_FOR_TF = {
 
 # ─── HELPERS DE DATOS ────────────────────────────────────────────────────────
 
-def _get_binance_klines_for_chart(symbol: str, interval: str, limit: int = 120) -> pd.DataFrame | None:
-    """Obtiene velas OHLCV de Binance para generar el gráfico."""
-    endpoints = [
-        "https://api.binance.com/api/v3/klines",
-        "https://api.binance.us/api/v3/klines",
-    ]
-    for url in endpoints:
+# Mapeo de intervalos Binance → KuCoin (KuCoin usa formato diferente)
+_TF_KUCOIN = {
+    "1m": "1min", "3m": "3min", "5m": "5min", "15m": "15min", "30m": "30min",
+    "1h": "1hour", "2h": "2hour", "4h": "4hour", "6h": "6hour",
+    "1d": "1day", "1w": "1week",
+}
+
+def _df_from_rows(rows: list) -> pd.DataFrame:
+    """Convierte lista OHLCV normalizada a DataFrame con índice datetime."""
+    df = pd.DataFrame(rows, columns=["time", "open", "high", "low", "close", "volume"])
+    for col in ["open", "high", "low", "close", "volume"]:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    df['time'] = pd.to_datetime(df['time'], unit='ms')
+    df.set_index('time', inplace=True)
+    return df
+
+
+def _get_klines_binance(symbol: str, interval: str, limit: int) -> pd.DataFrame | None:
+    """Intenta obtener velas de Binance Global y Binance US."""
+    for url in ["https://api.binance.com/api/v3/klines", "https://api.binance.us/api/v3/klines"]:
         try:
             resp = requests.get(url, params={"symbol": symbol, "interval": interval, "limit": limit}, timeout=5)
             if resp.status_code != 200:
@@ -75,6 +88,112 @@ def _get_binance_klines_for_chart(symbol: str, interval: str, limit: int = 120) 
         except Exception:
             continue
     return None
+
+
+def _get_klines_kucoin(symbol: str, interval: str, limit: int) -> pd.DataFrame | None:
+    """Fallback a KuCoin. Formato de símbolo: BTC-USDT."""
+    kucoin_tf = _TF_KUCOIN.get(interval)
+    if not kucoin_tf:
+        return None
+
+    # KuCoin usa guión: BTCUSDT → BTC-USDT
+    # Detectar quote a partir de sufijos comunes
+    known_quotes = ["USDT", "USDC", "BTC", "ETH", "BNB", "BUSD"]
+    base, quote = symbol, "USDT"
+    for q in known_quotes:
+        if symbol.endswith(q) and len(symbol) > len(q):
+            base = symbol[:-len(q)]
+            quote = q
+            break
+    kucoin_symbol = f"{base}-{quote}"
+
+    try:
+        url = "https://api.kucoin.com/api/v1/market/candles"
+        resp = requests.get(url, params={"symbol": kucoin_symbol, "type": kucoin_tf}, timeout=6)
+        if resp.status_code != 200:
+            return None
+        data = resp.json().get("data", [])
+        if not data:
+            return None
+        # KuCoin devuelve: [time_sec, open, close, high, low, volume, turnover] — orden diferente
+        # y en orden DESCENDENTE, hay que invertir
+        rows = []
+        for c in reversed(data[:limit]):
+            rows.append({
+                "time": int(c[0]) * 1000,  # seg → ms
+                "open": float(c[1]),
+                "high": float(c[3]),
+                "low":  float(c[4]),
+                "close": float(c[2]),
+                "volume": float(c[5]),
+            })
+        df = pd.DataFrame(rows)
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        df.set_index('time', inplace=True)
+        return df
+    except Exception:
+        return None
+
+
+def _get_klines_bybit(symbol: str, interval: str, limit: int) -> pd.DataFrame | None:
+    """Segundo fallback: Bybit (también soporta pares spot)."""
+    # Bybit usa intervalos en minutos como string: 1m→1, 1h→60, 1d→D
+    bybit_tf_map = {
+        "1m": "1", "3m": "3", "5m": "5", "15m": "15", "30m": "30",
+        "1h": "60", "2h": "120", "4h": "240", "6h": "360",
+        "1d": "D", "1w": "W",
+    }
+    bybit_tf = bybit_tf_map.get(interval)
+    if not bybit_tf:
+        return None
+    try:
+        url = "https://api.bybit.com/v5/market/kline"
+        resp = requests.get(url, params={
+            "category": "spot", "symbol": symbol,
+            "interval": bybit_tf, "limit": str(limit)
+        }, timeout=6)
+        if resp.status_code != 200:
+            return None
+        items = resp.json().get("result", {}).get("list", [])
+        if not items:
+            return None
+        rows = []
+        for c in reversed(items):
+            rows.append({
+                "time": int(c[0]),
+                "open": float(c[1]),
+                "high": float(c[2]),
+                "low":  float(c[3]),
+                "close": float(c[4]),
+                "volume": float(c[5]),
+            })
+        df = pd.DataFrame(rows)
+        df['time'] = pd.to_datetime(df['time'], unit='ms')
+        df.set_index('time', inplace=True)
+        return df
+    except Exception:
+        return None
+
+
+def _get_binance_klines_for_chart(symbol: str, interval: str, limit: int = 120) -> tuple[pd.DataFrame | None, str]:
+    """
+    Obtiene velas OHLCV con fallback multi-exchange.
+    Intenta en orden: Binance → KuCoin → Bybit.
+    Devuelve (DataFrame | None, nombre_exchange).
+    """
+    df = _get_klines_binance(symbol, interval, limit)
+    if df is not None and not df.empty:
+        return df, "Binance"
+
+    df = _get_klines_kucoin(symbol, interval, limit)
+    if df is not None and not df.empty:
+        return df, "KuCoin"
+
+    df = _get_klines_bybit(symbol, interval, limit)
+    if df is not None and not df.empty:
+        return df, "Bybit"
+
+    return None, ""
 
 
 def _get_tv_signal(symbol: str, interval_str: str) -> dict:
@@ -184,17 +303,22 @@ async def _do_graf(
     binance_interval = _TF_BINANCE[timeframe]
     candles_needed   = _CANDLES_FOR_TF.get(timeframe, 80) + 210
 
-    # Obtener velas
-    df = await loop.run_in_executor(
+    # Obtener velas — con fallback multi-exchange
+    df, exchange_name = await loop.run_in_executor(
         None, _get_binance_klines_for_chart, symbol, binance_interval, candles_needed
     )
 
     if df is None or df.empty:
-        err_msg = _(f"❌ No se encontraron datos para *{symbol}* en Binance.\nVerifica que el par existe.", user_id)
+        err_msg = _(
+            f"❌ No se encontraron datos para *{symbol}*\n"
+            f"No está disponible en Binance, KuCoin ni Bybit.\n\n"
+            f"Verifica que el par sea correcto (ej: `SOLUSDT`, `ETHBTC`).",
+            user_id
+        )
         if msg_wait:
             await msg_wait.edit_text(err_msg, parse_mode=ParseMode.MARKDOWN)
         elif update.callback_query:
-            await update.callback_query.answer("❌ Par no encontrado en Binance", show_alert=True)
+            await update.callback_query.answer("❌ Par no encontrado en ningún exchange", show_alert=True)
         return
 
     # Obtener señal TV (en paralelo no bloqueante)
@@ -254,8 +378,9 @@ async def _do_graf(
     buy_score  = tv_data.get('BUY_SCORE',  0) if tv_data else 0
     sell_score = tv_data.get('SELL_SCORE', 0) if tv_data else 0
 
+    exch_label = f" · _{exchange_name}_" if exchange_name else ""
     caption = (
-        f"📊 *{symbol}* · `{timeframe.upper()}`\n"
+        f"📊 *{symbol}* · `{timeframe.upper()}`{exch_label}\n"
         f"——————————————————\n"
         f"💰 *Precio:* `${_fmt_price(last_price)}`  "
         f"{pct_icon} `{pct_sign}{pct_change:.2f}%`\n"
@@ -426,11 +551,16 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
 async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Callback para el botón 'Ver Análisis Técnico'.
-    Usado tanto desde /p como desde /graf.
+    Usado tanto desde /p (mensaje de texto) como desde /graf (mensaje de foto).
 
     Formatos soportados:
       /p    -> ta_quick|BTCUSDT|4h   (símbolo completo)
       /graf -> ta_quick|BTC|4h       (solo base, sin par)
+
+    BUG FIX: ta_command en modo callback intenta edit_message_text.
+    Si el mensaje origen es una FOTO (caso /graf), Telegram rechaza la edición
+    y el handler falla silenciosamente. Solución: forzamos que ta_command
+    envíe un mensaje nuevo usando un mensaje ficticio como origen.
     """
     query = update.callback_query
     await query.answer("📊 Cargando análisis...")
@@ -453,13 +583,151 @@ async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             base = raw_symbol[: len(raw_symbol) - len(pair)]
             break
 
+    full_symbol = f"{base}{pair}"
+
+    # Detectar si el mensaje origen es una foto (viene de /graf)
+    # En ese caso NO podemos usar el flujo callback normal de ta_command
+    # porque intentaría edit_message_text sobre una foto (Telegram no lo permite)
+    msg = query.message
+    is_photo_message = bool(msg.photo or msg.document)
+
     from handlers.ta import ta_command
-    await ta_command(
-        update, context,
-        override_source="BINANCE",
-        override_args=[base, pair, timeframe],
-        skip_binance_check=True
-    )
+
+    if is_photo_message:
+        # Flujo especial: enviar el análisis como mensaje nuevo debajo de la foto
+        # Simulamos un mensaje de texto falso para que ta_command entre al flujo "no callback"
+        # Usamos reply_text directamente sobre el mensaje de la foto como contexto
+        context.args = [base, pair, timeframe]
+
+        # Mandamos mensaje de espera manualmente
+        wait_msg = await msg.reply_text(
+            f"⏳ _Analizando *{full_symbol}* ({timeframe})..._",
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+        # Obtenemos datos y construimos respuesta usando la lógica de ta_command
+        # pero enviando como reply nuevo, no editando
+        import asyncio
+        from handlers.ta import (
+            get_binance_klines, calculate_table_indicators,
+            get_tradingview_analysis_enhanced
+        )
+        from core.btc_advanced_analysis import BTCAdvancedAnalyzer
+        from core.ai_logic import get_groq_crypto_analysis
+        import pandas as pd
+
+        loop = asyncio.get_running_loop()
+        user_id = update.effective_user.id
+
+        # Intentar Binance primero
+        df_result = await loop.run_in_executor(None, get_binance_klines, full_symbol, timeframe)
+
+        if df_result is not None and not df_result.empty:
+            # Análisis local Binance
+            last_3 = await loop.run_in_executor(None, calculate_table_indicators, df_result.copy())
+            analyzer = BTCAdvancedAnalyzer(df_result)
+            sig, emo, (sb, ss), reasons = analyzer.get_momentum_signal()
+            curr_vals = analyzer.get_current_values()
+            curr, prev, pprev = last_3.iloc[-1], last_3.iloc[-2], last_3.iloc[-3]
+
+            last10 = df_result.tail(10)
+            ph = last10['high'].max(); pl = last10['low'].min(); pc = last10['close'].iloc[-1]
+            pivot_val = (ph + pl + pc) / 3
+            rango_val = ph - pl
+            p = pivot_val; r = rango_val
+
+            price = curr['close']
+            sr = analyzer.get_support_resistance_dynamic()
+            kijun_val = sr.get('KIJUN', 0)
+            fib_val   = sr.get('FIB_618', 0)
+            zone      = sr.get('status_zone', '⚖️ NEUTRAL')
+            kijun_icon, kijun_label = ('🛡️', 'Soporte Dinámico') if price > kijun_val else ('🚧', 'Resistencia Dinámica')
+            fib_label = 'Zona de Rebote (Bullish)' if price > fib_val else 'Techo de Tendencia (Bearish)'
+            macd_s = 'Bullish 🟢' if curr_vals.get('MACD_HIST', 0) > 0 else 'Bearish 🔴'
+            trend_s = 'Alcista' if price > curr_vals.get('EMA_50', 0) else 'Bajista'
+
+            def fmt(v, w=7):
+                if v is None or (isinstance(v, float) and pd.isna(v)) or v == 0:
+                    return '   --  '.center(w)
+                try:
+                    f = float(v)
+                    if abs(f) > 10000: return f'{f/1000:.1f}k'.rjust(w)
+                    elif abs(f) > 999: return f'{f:.0f}'.rjust(w)
+                    else: return f'{f:.2f}'.rjust(w)
+                except: return '   --  '.center(w)
+
+            table = '```text\nIND     ACTUAL   PREVIO     ANT.\n──────  ───────  ───────  ───────\n'
+            for lbl, key in [('RSI','RSI'),('MFI','MFI'),('CCI','CCI'),('WR%','WILLR'),('ADX','ADX'),('OBV','OBV')]:
+                c0 = curr.get(key, 0); c1 = prev.get(key, 0); c2 = pprev.get(key, 0)
+                table += f'{lbl:<6} {fmt(c0)}  {fmt(c1)}  {fmt(c2)}\n'
+            table += '```'
+
+            ta_msg = (
+                f"📊 *Análisis Técnico: {full_symbol}*\n"
+                f"—————————————————\n"
+                f"⏱ *{timeframe}* | 📡 *Binance (Local PRO)*\n\n"
+                f"{emo} *SEÑAL:* `{sig}`\n"
+                f"⚖️ *Score:* {sb} Compra 🆚 {ss} Venta\n\n"
+                f"💰 *Precio:* `${price:,.4f}`\n"
+                f"📉 *ATR:* `{curr_vals.get('ATR', 0) or 0:.4f}`\n"
+                f"•\n{table}•\n"
+                f"🌊 *Tendencia:* {trend_s}\n"
+                f"❌ *MACD:* {macd_s}\n"
+                f"📍 *Zona:* `{zone}`\n"
+                f"☁️ *Ichimoku:* `${kijun_val:,.0f}` ↳ _{kijun_icon} {kijun_label}_\n"
+                f"🟡 *FIB 0.618:* `${fib_val:,.0f}` ↳ _📐 {fib_label}_\n\n"
+            )
+            if reasons: ta_msg += f"💡 *Nota:* _{reasons[0]}_\n"
+            ta_msg += (
+                f"\n🛡 *Niveles*\n"
+                f"R1: `${p + r*0.382:,.4f}` | Pivot: `${pivot_val:,.4f}` | S1: `${p - r*0.382:,.4f}`\n"
+            )
+            ta_msg += f"\n_v2.1 Experimental_"
+
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🤖 Análisis IA", callback_data=f"ai_analyze|BINANCE|{base}|{pair}|{timeframe}")
+            ]])
+            await wait_msg.edit_text(ta_msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        else:
+            # Fallback TV
+            tv = await loop.run_in_executor(None, get_tradingview_analysis_enhanced, full_symbol, timeframe)
+            if tv:
+                rec = tv.get('RECOMMENDATION', 'NEUTRAL')
+                if 'STRONG_BUY' in rec: emo, sig = '🚀', 'COMPRA FUERTE'
+                elif 'BUY' in rec: emo, sig = '🐂', 'COMPRA'
+                elif 'STRONG_SELL' in rec: emo, sig = '🐻', 'VENTA FUERTE'
+                elif 'SELL' in rec: emo, sig = '📉', 'VENTA'
+                else: emo, sig = '⚖️', 'NEUTRAL'
+                price = tv.get('close', 0)
+                ta_msg = (
+                    f"📊 *Análisis Técnico: {full_symbol}*\n"
+                    f"—————————————————\n"
+                    f"⏱ *{timeframe}* | 📡 *TradingView API*\n\n"
+                    f"{emo} *SEÑAL:* `{sig}`\n"
+                    f"⚖️ *Score:* {tv.get('BUY_SCORE',0)} Compra 🆚 {tv.get('SELL_SCORE',0)} Venta\n\n"
+                    f"💰 *Precio:* `${price:,.4f}`\n"
+                    f"🎯 *Pivot:* `${tv.get('Pivot',0):,.4f}`\n"
+                    f"R1: `${tv.get('R1',0):,.4f}` | S1: `${tv.get('S1',0):,.4f}`\n"
+                )
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                kb = InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🤖 Análisis IA", callback_data=f"ai_analyze|TV|{base}|{pair}|{timeframe}")
+                ]])
+                await wait_msg.edit_text(ta_msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+            else:
+                await wait_msg.edit_text(
+                    f"❌ No se pudieron obtener datos para *{full_symbol}*.",
+                    parse_mode=ParseMode.MARKDOWN
+                )
+    else:
+        # Flujo normal: el mensaje origen es texto (viene de /p), ta_command puede editarlo
+        await ta_command(
+            update, context,
+            override_source="BINANCE",
+            override_args=[base, pair, timeframe],
+            skip_binance_check=True
+        )
 
 
 # === NUEVA LÓGICA PARA /MK ===
