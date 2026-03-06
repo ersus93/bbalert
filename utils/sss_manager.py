@@ -595,127 +595,259 @@ def fmt_price(p: float) -> str:
 
 def build_strategy_signal_block(sig_enriched: dict) -> str:
     """
-    Construye el bloque de texto de estrategia para añadir al mensaje de señal.
-    Se añade DEBAJO del bloque estándar del motor SP.
+    Bloque de estrategia SSS para añadir al mensaje de señal.
+    Fix #18: líneas cortas, consistentes con el estilo del bot.
     """
-    name   = sig_enriched.get('strategy_name', 'Estrategia')
-    emoji  = sig_enriched.get('strategy_emoji', '📊')
-    style  = sig_enriched.get('strategy_style', '')
-    lev    = sig_enriched.get('sss_leverage', 1)
+    name  = sig_enriched.get('strategy_name', 'Estrategia')[:22]
+    emoji = sig_enriched.get('strategy_emoji', '📊')
+    lev   = sig_enriched.get('sss_leverage', 1)
 
-    sl     = sig_enriched.get('sss_sl', 0)
-    sl_pct = sig_enriched.get('sss_sl_pct', '')
-    tp1    = sig_enriched.get('sss_tp1', 0)
-    tp1p   = sig_enriched.get('sss_tp1_pct', '')
-    tp1c   = sig_enriched.get('sss_tp1_close', 50)
-    tp2    = sig_enriched.get('sss_tp2', 0)
-    tp2p   = sig_enriched.get('sss_tp2_pct', '')
-    tp2c   = sig_enriched.get('sss_tp2_close', 30)
-    tp3    = sig_enriched.get('sss_tp3', 0)
-    tp3p   = sig_enriched.get('sss_tp3_pct', '')
-    tp3c   = sig_enriched.get('sss_tp3_close', 20)
-
-    rr1    = sig_enriched.get('sss_rr_tp1', 0)
-    rr2    = sig_enriched.get('sss_rr_tp2', 0)
-    small  = sig_enriched.get('sss_small_thr', 22)
-    trail  = sig_enriched.get('sss_trailing', False)
-    tprice = sig_enriched.get('sss_trailing_price')
+    sl    = sig_enriched.get('sss_sl', 0)
+    slp   = sig_enriched.get('sss_sl_pct', '')
+    tp1   = sig_enriched.get('sss_tp1', 0)
+    tp1p  = sig_enriched.get('sss_tp1_pct', '')
+    tp1c  = sig_enriched.get('sss_tp1_close', 50)
+    tp2   = sig_enriched.get('sss_tp2', 0)
+    tp2p  = sig_enriched.get('sss_tp2_pct', '')
+    tp2c  = sig_enriched.get('sss_tp2_close', 30)
+    tp3   = sig_enriched.get('sss_tp3', 0)
+    tp3p  = sig_enriched.get('sss_tp3_pct', '')
+    tp3c  = sig_enriched.get('sss_tp3_close', 20)
+    rr1   = sig_enriched.get('sss_rr_tp1', 0)
+    rr2   = sig_enriched.get('sss_rr_tp2', 0)
+    small = sig_enriched.get('sss_small_thr', 22)
+    trail = sig_enriched.get('sss_trailing', False)
+    tprce = sig_enriched.get('sss_trailing_price')
 
     lines = [
-        f"",
-        f"━━━━━━━━━━━━━━━━━━━━",
-        f"{emoji} *{name}* · `{style}`",
-        f"⚖️ *Apalancamiento sugerido:* `{lev}x`",
-        f"",
-        f"🛡 *SL:* `${fmt_price(sl)}` (-{sl_pct})",
-        f"🎯 *TP1:* `${fmt_price(tp1)}` (+{tp1p}) — cierra `{tp1c}%`",
-        f"🎯 *TP2:* `${fmt_price(tp2)}` (+{tp2p}) — cierra `{tp2c}%`",
-        f"🎯 *TP3:* `${fmt_price(tp3)}` (+{tp3p}) — cierra `{tp3c}%`",
-        f"",
-        f"📐 *R:R* → TP1: `1:{rr1:.1f}` · TP2: `1:{rr2:.1f}`",
+        "────────────────────",
+        f"{emoji} *{name}* · `{lev}x apal.`",
+        "",
+        f"🛡 *SL:* `${fmt_price(sl)}` _{slp}_",
+        f"🎯 *TP1:* `${fmt_price(tp1)}` _{tp1p}_ → `{tp1c}%`",
+        f"🎯 *TP2:* `${fmt_price(tp2)}` _{tp2p}_ → `{tp2c}%`",
+        f"🎯 *TP3:* `${fmt_price(tp3)}` _{tp3p}_ → `{tp3c}%`",
+        f"📐 *R:R* TP1: `1:{rr1:.1f}` · TP2: `1:{rr2:.1f}`",
     ]
 
     if trail:
-        if tprice:
-            lines.append(f"🔄 *Trailing stop:* `${fmt_price(tprice)}` (Supertrend -3)")
+        if tprce:
+            lines.append(f"🔄 *Trail:* `${fmt_price(tprce)}` (ST)")
         else:
-            lines.append(f"🔄 *Trailing stop:* activo tras TP1")
+            lines.append("🔄 *Trailing* activo tras TP1")
 
-    lines.append(f"💡 *Capital <${small}:* salida total en TP1")
-    lines.append(f"━━━━━━━━━━━━━━━━━━━━")
+    lines.append(f"💡 _Capital <${small}: salida total en TP1_")
+    lines.append("────────────────────")
 
     return "\n".join(lines)
 
 
 def format_strategy_list_item(strategy: dict, is_active: bool = False) -> str:
     """Formato compacto para listado de estrategias."""
-    emoji    = strategy.get('emoji', '📊')
-    name     = strategy.get('name', 'Sin nombre')
-    style    = strategy.get('style', '')
-    tier     = strategy.get('tier', 'base')
-    tfs      = ", ".join(strategy.get('timeframes', []))
-    active_m = " ✅" if is_active else ""
-    tier_m   = " 🔒" if tier == 'admin' else (" ⭐" if tier == 'premium' else "")
+    emoji  = strategy.get('emoji', '📊')
+    name   = strategy.get('name', 'Sin nombre')
+    style  = strategy.get('style', '')
+    tier   = strategy.get('tier', 'base')
+    tfs    = ", ".join(strategy.get('timeframes', []))
+    act_m  = " ✅" if is_active else ""
+    tier_m = " 🔒" if tier == 'admin' else (" ⭐" if tier == 'premium' else "")
+    desc   = strategy.get('description', '')[:60]
 
     return (
-        f"{emoji} *{name}*{active_m}{tier_m}\n"
-        f"   `{style}` · TF: `{tfs}`\n"
-        f"   _{strategy.get('description', '')[:80]}..._"
+        f"{emoji} *{name}*{act_m}{tier_m}\n"
+        f"   `{style}` · `{tfs}`\n"
+        f"   _{desc}…_"
     )
 
 
 def format_strategy_detail(strategy: dict) -> str:
-    """Texto detallado de una estrategia para el menú."""
-    emoji   = strategy.get('emoji', '📊')
-    name    = strategy.get('name', '')
-    ver     = strategy.get('version', '1.0')
-    author  = strategy.get('author', '')
-    desc    = strategy.get('description', '')
-    style   = strategy.get('style', '')
-    tfs     = ", ".join(strategy.get('timeframes', []))
-    tier    = strategy.get('tier', 'base').upper()
-    meta    = strategy.get('meta', {})
+    """
+    Texto detallado de una estrategia para el menú.
+    Fix #18: líneas cortas, truncadas, sin desbordamiento.
+    """
+    emoji  = strategy.get('emoji', '📊')
+    name   = strategy.get('name', '')[:24]
+    ver    = strategy.get('version', '1.0')
+    author = strategy.get('author', '')[:16]
+    desc   = strategy.get('description', '')
+    style  = strategy.get('style', '')
+    tfs    = ", ".join(strategy.get('timeframes', []))
+    tier   = strategy.get('tier', 'base').upper()
+    meta   = strategy.get('meta', {})
+    ef     = strategy.get('entry_filter', {})
+    risk   = strategy.get('risk', {})
+    lev    = strategy.get('leverage', {})
 
-    ef      = strategy.get('entry_filter', {})
-    risk    = strategy.get('risk', {})
-    lev_cfg = strategy.get('leverage', {})
+    tier_lbl = {
+        'BASE':    '🆓 Incluida',
+        'PREMIUM': '⭐ Premium',
+        'ADMIN':   '🔒 Admin',
+    }.get(tier, tier)
 
-    tier_label = {'BASE': '🆓 Incluida', 'PREMIUM': '⭐ Premium', 'ADMIN': '🔒 Admin'}.get(tier, tier)
+    # Descripción en máximo 2 líneas ≈ 80 chars
+    desc_short = desc[:90] + ("…" if len(desc) > 90 else "")
 
     conditions = []
-    if ef.get('supertrend_align'): conditions.append("Supertrend alineado")
-    if ef.get('ash_signal'):        conditions.append("ASH signal")
-    if ef.get('volume_spike'):      conditions.append(f"Spike vol ×{ef.get('volume_spike_mult',1.5)}")
-    if ef.get('adx_min',0) > 0:     conditions.append(f"ADX >{ef.get('adx_min')}")
-    if ef.get('macd_cross_required'): conditions.append("Cruce MACD")
-    if not conditions:              conditions.append("Score ≥ " + str(ef.get('min_score',4.5)))
+    if ef.get('supertrend_align'):    conditions.append("Supertrend alineado")
+    if ef.get('ash_signal'):           conditions.append("ASH signal")
+    if ef.get('volume_spike'):         conditions.append(f"Vol spike ×{ef.get('volume_spike_mult',1.5)}")
+    if ef.get('adx_min', 0) > 0:       conditions.append(f"ADX >{ef.get('adx_min')}")
+    if ef.get('macd_cross_required'):  conditions.append("Cruce MACD")
+    if not conditions:                 conditions.append(f"Score ≥ {ef.get('min_score',4.5)}")
 
+    slm  = risk.get('sl_atr_mult', 1.5)
     tp1m = risk.get('tp1_atr_mult', 2.0)
     tp2m = risk.get('tp2_atr_mult', 3.5)
     tp3m = risk.get('tp3_atr_mult', 5.5)
-    slm  = risk.get('sl_atr_mult', 1.5)
+
+    best   = meta.get('best_markets', '')[:45]
+    avoid  = meta.get('avoid_markets', '')[:45]
+    trail_txt = (
+        f"  🔄 Trailing: `{risk.get('trailing_type','ema')}` tras TP1\n"
+        if risk.get('trailing_after_tp1') else ""
+    )
 
     return (
         f"{emoji} *{name}* v{ver}\n"
-        f"—————————————————————\n\n"
-        f"👤 Autor: `{author}` · Acceso: {tier_label}\n"
-        f"📐 Estilo: `{style}` · TF recomendados: `{tfs}`\n\n"
-        f"📝 _{desc}_\n\n"
-        f"*Condiciones de entrada:*\n" +
+        f"————————————————————\n\n"
+        f"👤 `{author}` · {tier_lbl}\n"
+        f"📐 `{style}` · TF: `{tfs}`\n\n"
+        f"_{desc_short}_\n\n"
+        f"*Entrada:*\n" +
         "\n".join(f"  • {c}" for c in conditions) +
-        f"\n\n*Gestión de riesgo (ATR):*\n"
-        f"  🛡 Stop Loss: `{slm}× ATR`\n"
-        f"  🎯 TP1: `{tp1m}× ATR` → cierra `{risk.get('tp1_close_pct',50)}%`\n"
-        f"  🎯 TP2: `{tp2m}× ATR` → cierra `{risk.get('tp2_close_pct',30)}%`\n"
-        f"  🎯 TP3: `{tp3m}× ATR` → cierra `{risk.get('tp3_close_pct',20)}%`\n"
-        + (f"  🔄 Trailing: `{risk.get('trailing_type','ema')}` tras TP1\n" if risk.get('trailing_after_tp1') else "") +
-        f"\n*Apalancamiento:* `{lev_cfg.get('default',1)}x` — max `{lev_cfg.get('max',10)}x`\n\n"
-        f"*Estadísticas estimadas:*\n"
+        f"\n\n*Riesgo (ATR):*\n"
+        f"  🛡 SL: `{slm}×`\n"
+        f"  🎯 TP1: `{tp1m}×` → `{risk.get('tp1_close_pct',50)}%`\n"
+        f"  🎯 TP2: `{tp2m}×` → `{risk.get('tp2_close_pct',30)}%`\n"
+        f"  🎯 TP3: `{tp3m}×` → `{risk.get('tp3_close_pct',20)}%`\n"
+        + trail_txt +
+        f"\n*Apalancamiento:* `{lev.get('default',1)}x` / max `{lev.get('max',10)}x`\n\n"
+        f"*Stats estimadas:*\n"
         f"  📊 Win rate: `{meta.get('win_rate_est','N/A')}`\n"
         f"  📐 R:R: `{meta.get('rr_ratio','N/A')}`\n"
-        f"  ✅ Ideal para: _{meta.get('best_markets','')}_\n"
-        f"  ⚠️ Evitar: _{meta.get('avoid_markets','')}_"
+        f"  ✅ _{best}_\n"
+        f"  ⚠️ _{avoid}_"
     )
+
+
+# ─── UPLOAD Y VALIDACIÓN DE ESTRATEGIAS DE USUARIO ───────────────────────────
+
+# Campos obligatorios y sus tipos esperados
+_REQUIRED_FIELDS = {
+    'id':           str,
+    'name':         str,
+    'timeframes':   list,
+    'entry_filter': dict,
+    'risk':         dict,
+    'leverage':     dict,
+}
+
+_VALID_TIMEFRAMES = {'1m', '5m', '15m', '1h', '4h'}
+
+_RISK_REQUIRED = ['sl_atr_mult', 'tp1_atr_mult', 'tp2_atr_mult']
+_LEV_REQUIRED  = ['default', 'max']
+
+
+def validate_strategy_json(data: dict) -> tuple[bool, str]:
+    """
+    Valida el esquema de una estrategia JSON subida por usuario.
+    Devuelve (ok: bool, error_message: str).
+    """
+    if not isinstance(data, dict):
+        return False, "El archivo debe ser un objeto JSON."
+
+    # Campos obligatorios
+    for field, expected_type in _REQUIRED_FIELDS.items():
+        if field not in data:
+            return False, f"Campo obligatorio ausente: '{field}'"
+        if not isinstance(data[field], expected_type):
+            return False, f"'{field}' debe ser {expected_type.__name__}"
+
+    # ID sin espacios ni caracteres problemáticos
+    sid = data['id']
+    if not sid or len(sid) > 60:
+        return False, "'id' debe tener entre 1 y 60 caracteres"
+    if any(c in sid for c in ' /\\:*?"<>|'):
+        return False, f"'id' contiene caracteres no permitidos"
+
+    # Name
+    if not data['name'] or len(data['name']) > 40:
+        return False, "'name' debe tener entre 1 y 40 caracteres"
+
+    # Timeframes válidos
+    tfs = data['timeframes']
+    if not tfs:
+        return False, "'timeframes' no puede estar vacío"
+    for tf in tfs:
+        if tf not in _VALID_TIMEFRAMES:
+            return False, f"Temporalidad inválida: '{tf}'. Válidas: {', '.join(sorted(_VALID_TIMEFRAMES))}"
+
+    # Risk: campos numéricos requeridos
+    risk = data['risk']
+    for field in _RISK_REQUIRED:
+        if field not in risk:
+            return False, f"'risk.{field}' es obligatorio"
+        try:
+            val = float(risk[field])
+            if val <= 0 or val > 20:
+                return False, f"'risk.{field}' debe estar entre 0.1 y 20 (actual: {val})"
+        except (TypeError, ValueError):
+            return False, f"'risk.{field}' debe ser un número"
+
+    # Leverage
+    lev = data['leverage']
+    for field in _LEV_REQUIRED:
+        if field not in lev:
+            return False, f"'leverage.{field}' es obligatorio"
+        try:
+            val = int(lev[field])
+            if val < 1 or val > 125:
+                return False, f"'leverage.{field}' debe estar entre 1 y 125"
+        except (TypeError, ValueError):
+            return False, f"'leverage.{field}' debe ser un número entero"
+
+    # Apalancamiento default <= max
+    if int(lev.get('default', 1)) > int(lev.get('max', 1)):
+        return False, "'leverage.default' no puede ser mayor que 'leverage.max'"
+
+    # Tier: solo base o premium (usuarios no pueden crear admin)
+    tier = data.get('tier', 'base')
+    if tier not in ('base', 'premium'):
+        data['tier'] = 'base'   # Forzar a base por seguridad
+
+    return True, ""
+
+
+def save_user_strategy_file(user_id: int, data: dict) -> str | None:
+    """
+    Guarda la estrategia de usuario en data/sss/strategies/.
+    El nombre del archivo es user_{uid}_{id}.json.
+    Devuelve la ruta guardada o None si falla.
+    """
+    os.makedirs(SSS_STRAT_DIR, exist_ok=True)
+
+    # Forzar tier a base (nunca admin)
+    data['tier']   = data.get('tier', 'base')
+    data['author'] = data.get('author', f'user_{user_id}')[:32]
+
+    # Sanitizar id para usar en nombre de archivo
+    safe_id = "".join(c if c.isalnum() or c in '-_' else '_' for c in data['id'])
+    fname   = f"user_{user_id}_{safe_id}.json"
+    fpath   = os.path.join(SSS_STRAT_DIR, fname)
+
+    try:
+        tmp = fpath + '.tmp'
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, fpath)
+        # Invalidar caché para que se cargue en el próximo ciclo
+        global _cache_loaded_at
+        _cache_loaded_at = 0.0
+        logger.info(f"[SSS Upload] Estrategia guardada: {fpath}")
+        return fpath
+    except Exception as e:
+        logger.error(f"[SSS Upload] Error guardando estrategia de {user_id}: {e}")
+        return None
 
 
 # ─── INICIALIZACIÓN ───────────────────────────────────────────────────────────

@@ -2,29 +2,36 @@
 # Handlers del módulo SmartSignals (/sp).
 # Comando /sp, menús interactivos, suscripciones y callbacks.
 #
-# BUGS CORREGIDOS (11 total):
-#  1. [CRÍTICO] /sp BTC 4h siempre mostraba 5m — args no normalizados a lowercase
-#  2. [CRÍTICO] sp_main_callback — query.answer() doble (antes de check acceso)
-#  3. [CRÍTICO] sp_my_subs_callback — mismo doble answer que bug #2
-#  4. [CRÍTICO] sp_goto_shop_callback — crash: update.message=None en callbacks
-#  5. [MAYOR]   Botón 👁 4h ausente en _get_coin_keyboard
-#  6. [MAYOR]   sp_refresh_callback duplicaba mensajes (foto sin borrar la anterior)
-#  7. [MAYOR]   Última señal en menú moneda hardcodeada a "5m"
-#  8. [MAYOR]   Botón Refrescar del menú moneda siempre iba a 5m
-#  9. [MAYOR]   NEUTRAL se mostraba como SELL (en sp_loop.py/build_signal_message)
-# 10. [MENOR]   Caption foto puede superar 1024 chars (límite Telegram)
-# 11. [MENOR]   score_label NameError potencial si direction=NEUTRAL
-#
-# SSS v2 — SmartSignals Strategy:
-# 12. [NUEVO]   Submenú de estrategias de trading (/sp estrategias)
-# 13. [NUEVO]   Selección de estrategia por usuario (hot-reload, sin reinicio)
-# 14. [NUEVO]   Quick-notify: señal inmediata al activar suscripción
-# 15. [NUEVO]   Vista de señal enriquecida con TP/SL/leverage de la estrategia
+# BUGS CORREGIDOS (11 originales + 4 SSS v2 + 3 v2.1):
+#  1.  [CRÍTICO] /sp BTC 4h siempre mostraba 5m — args no normalizados a lowercase
+#  2.  [CRÍTICO] sp_main_callback — query.answer() doble (antes de check acceso)
+#  3.  [CRÍTICO] sp_my_subs_callback — mismo doble answer que bug #2
+#  4.  [CRÍTICO] sp_goto_shop_callback — crash: update.message=None en callbacks
+#  5.  [MAYOR]   Botón 👁 4h ausente en _get_coin_keyboard
+#  6.  [MAYOR]   sp_refresh_callback duplicaba mensajes (foto sin borrar la anterior)
+#  7.  [MAYOR]   Última señal en menú moneda hardcodeada a "5m"
+#  8.  [MAYOR]   Botón Refrescar del menú moneda siempre iba a 5m
+#  9.  [MAYOR]   NEUTRAL se mostraba como SELL (en sp_loop.py/build_signal_message)
+#  10. [MENOR]   Caption foto puede superar 1024 chars (límite Telegram)
+#  11. [MENOR]   score_label NameError potencial si direction=NEUTRAL
+#  12. [NUEVO]   Submenú de estrategias de trading SSS
+#  13. [NUEVO]   Selección de estrategia por usuario (hot-reload)
+#  14. [NUEVO]   Quick-notify: señal inmediata al activar suscripción
+#  15. [NUEVO]   Vista de señal enriquecida con TP/SL/leverage
+#  — v2.1 fixes —
+#  16. [CRÍTICO] Botón 🔙 Monedas falla en mensajes con foto → _safe_nav()
+#  17. [CRÍTICO] Botón 🔙 Lista falla en mensajes con foto → _safe_nav()
+#  18. [MENOR]   Líneas de texto demasiado largas en bloques SSS
+#  19. [NUEVO]   Submenú de subida de estrategias de usuario
 
 import asyncio
+import json
+import os
 import pandas as pd
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Document
+from telegram.ext import (
+    ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+)
 from telegram.constants import ParseMode
 
 from core.config import ADMIN_CHAT_IDS
@@ -59,11 +66,13 @@ try:
         set_user_strategy,
         get_strategy_by_id,
         format_strategy_detail,
-        format_strategy_list_item,
         apply_strategy_filter,
         enrich_signal,
         compute_extended_indicators,
         build_strategy_signal_block,
+        save_user_strategy_file,
+        validate_strategy_json,
+        SSS_STRAT_DIR,
     )
     _SSS_OK = True
 except ImportError:
@@ -83,15 +92,42 @@ def _best_display_tf(user_id: int, symbol: str) -> str:
     """
     Devuelve el TF más relevante para mostrar en el menú de moneda.
     Prioriza el primer TF activo del usuario (en orden 1m→4h).
-    FIX #7 y #8: evita hardcodear '5m' en el menú de moneda.
     """
     user_subs  = get_user_sp_subscriptions(user_id)
     active_tfs = user_subs.get(symbol, [])
     if active_tfs:
-        for tf in SP_TIMEFRAMES:   # Orden natural: 1m, 5m, 15m, 1h, 4h
+        for tf in SP_TIMEFRAMES:
             if tf in active_tfs:
                 return tf
     return "5m"
+
+
+async def _safe_nav(query, text: str, reply_markup: InlineKeyboardMarkup) -> None:
+    """
+    FIX #16/#17: Navega de forma segura entre menús aunque el mensaje actual
+    sea una foto (send_photo). Intenta edit_message_text primero; si falla
+    (BadRequest en mensajes con media), borra el mensaje y envía uno nuevo.
+    """
+    try:
+        await query.edit_message_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=reply_markup,
+        )
+    except Exception:
+        # El mensaje es una foto u otro tipo de media que no se puede editar
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+        try:
+            await query.message.chat.send_message(
+                text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=reply_markup,
+            )
+        except Exception:
+            pass
 
 
 # ─── TECLADOS ─────────────────────────────────────────────────────────────────
@@ -102,11 +138,11 @@ def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     row      = []
 
     for coin in SP_SUPPORTED_COINS:
-        sym     = coin['symbol']
-        key     = coin['key']
-        emoji   = coin['emoji']
-        subs    = get_user_sp_subscriptions(user_id)
-        icon    = "🔔" if subs.get(sym) else "○"
+        sym   = coin['symbol']
+        key   = coin['key']
+        emoji = coin['emoji']
+        subs  = get_user_sp_subscriptions(user_id)
+        icon  = "🔔" if subs.get(sym) else "○"
 
         row.append(InlineKeyboardButton(
             f"{icon} {emoji}{key}",
@@ -119,16 +155,14 @@ def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     if row:
         keyboard.append(row)
 
-    # ── Fila de acciones ──────────────────────────────────────────────────────
     keyboard.append([
-        InlineKeyboardButton("📋 Mis señales activas", callback_data="sp_my_subs"),
-        InlineKeyboardButton("❓ Ayuda",               callback_data="sp_help"),
+        InlineKeyboardButton("📋 Mis alertas", callback_data="sp_my_subs"),
+        InlineKeyboardButton("❓ Ayuda",        callback_data="sp_help"),
     ])
 
-    # ── Fila SSS ──────────────────────────────────────────────────────────────
     if _SSS_OK:
         active_strat = get_user_strategy(user_id)
-        strat_label  = f"🧠 {active_strat['name'][:16]}" if active_strat else "🧠 Estrategias"
+        strat_label  = f"🧠 {active_strat['name'][:18]}" if active_strat else "🧠 Estrategias"
         keyboard.append([
             InlineKeyboardButton(strat_label, callback_data="sp_strategies"),
         ])
@@ -139,12 +173,13 @@ def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
 def _get_coin_keyboard(user_id: int, symbol: str, current_tf: str = "5m") -> InlineKeyboardMarkup:
     """
     Teclado del menú de moneda.
-    FIX #5: botones 👁 TF se generan dinámicamente desde SP_TIMEFRAMES (incluye 4h).
-    FIX #8: current_tf llega desde el contexto real, no hardcodeado.
+    Fila 1-2: toggle de suscripción por TF.
+    Fila 3:   botones 👁 VER (incluye 4h — fix #5).
+    Fila 4:   Refrescar + 🔙 Lista.
     """
     keyboard = []
 
-    # ── Fila 1-2: botones toggle de suscripción por TF ────────────────────────
+    # Fila(s) toggle TF
     tf_row = []
     for tf, tf_info in SP_TIMEFRAMES.items():
         icon = "🔔" if is_sp_subscribed(user_id, symbol, tf) else "○"
@@ -158,19 +193,13 @@ def _get_coin_keyboard(user_id: int, symbol: str, current_tf: str = "5m") -> Inl
     if tf_row:
         keyboard.append(tf_row)
 
-    # ── Fila siguiente: botones 👁 VER para TODOS los TF ──────────────────────
-    # FIX #5: generados dinámicamente, incluye 4h
-    view_row = []
-    for tf in SP_TIMEFRAMES:
-        view_row.append(InlineKeyboardButton(
-            f"👁 {tf}",
-            callback_data=f"sp_view|{symbol}|{tf}"
-        ))
-    # 5 TF caben en una sola fila
-    keyboard.append(view_row)
+    # Fila ver TF (fix #5: generados dinámicamente, incluye 4h)
+    keyboard.append([
+        InlineKeyboardButton(f"👁 {tf}", callback_data=f"sp_view|{symbol}|{tf}")
+        for tf in SP_TIMEFRAMES
+    ])
 
-    # ── Navegación ────────────────────────────────────────────────────────────
-    # FIX #8: Refrescar usa current_tf real
+    # Navegación (fix #8: Refrescar usa current_tf real)
     keyboard.append([
         InlineKeyboardButton("🔄 Refrescar", callback_data=f"sp_view|{symbol}|{current_tf}"),
         InlineKeyboardButton("🔙 Lista",      callback_data="sp_main"),
@@ -179,19 +208,19 @@ def _get_coin_keyboard(user_id: int, symbol: str, current_tf: str = "5m") -> Inl
 
 
 def _get_view_keyboard(user_id: int, symbol: str, tf: str) -> InlineKeyboardMarkup:
-    """Teclado adjunto a la vista de señal."""
+    """Teclado adjunto a la vista de señal (caption de foto)."""
     is_sub    = is_sp_subscribed(user_id, symbol, tf)
     sub_label = "🔕 Desactivar" if is_sub else "🔔 Activar alertas"
     coin      = symbol.replace('USDT', '')
 
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(sub_label,        callback_data=f"sp_toggle|{symbol}|{tf}"),
-            InlineKeyboardButton("🔄 Refrescar",   callback_data=f"sp_refresh|{symbol}|{tf}"),
+            InlineKeyboardButton(sub_label,       callback_data=f"sp_toggle|{symbol}|{tf}"),
+            InlineKeyboardButton("🔄 Refrescar",  callback_data=f"sp_refresh|{symbol}|{tf}"),
         ],
         [
-            InlineKeyboardButton("📊 Ver en TA",   callback_data=f"ta_switch|BINANCE|{coin}|USDT|{tf}"),
-            InlineKeyboardButton("🔙 Monedas",     callback_data=f"sp_coin|{symbol}"),
+            InlineKeyboardButton("📊 Ver en TA",  callback_data=f"ta_switch|BINANCE|{coin}|USDT|{tf}"),
+            InlineKeyboardButton("🔙 Monedas",    callback_data=f"sp_coin|{symbol}"),
         ],
     ])
 
@@ -200,18 +229,18 @@ def _get_view_keyboard(user_id: int, symbol: str, tf: str) -> InlineKeyboardMark
 
 def _build_main_menu_text(user_id: int) -> str:
     n    = count_user_sp_subs(user_id)
-    info = f"📊 Tienes *{n}* alerta(s) activa(s)." if n else "Aún no tienes alertas activas."
+    info = f"📊 Tienes *{n}* alerta(s) activa(s)." if n else "Sin alertas activas."
     return (
         "📡 *SmartSignals Pro*\n"
         "————————————————————\n\n"
-        "Señales de trading en tiempo real con análisis predictivo.\n"
-        "Recibirás alertas *antes de que la señal se confirme*.\n\n"
+        "Señales de trading en tiempo real con análisis\n"
+        "predictivo. Alertas *antes de que se confirmen*.\n\n"
         "🔹 Ciclo de análisis: cada *45 segundos*\n"
-        "🔹 Pre-aviso: *10–30s antes* del cierre de vela\n"
+        "🔹 Pre-aviso: *10–30s* antes del cierre de vela\n"
         "🔹 Gráfico predictivo con zonas de entrada\n"
-        "🔹 BTC + 12 altcoins disponibles\n\n"
+        "🔹 BTC + 12 altcoins · 5 temporalidades\n\n"
         f"{info}\n\n"
-        "📌 Selecciona una moneda para ver su señal actual\n"
+        "📌 Selecciona una moneda para ver su señal\n"
         "o activa/desactiva alertas automáticas:\n"
         "────────────────────"
     )
@@ -221,25 +250,23 @@ def _build_preview_text() -> str:
     return (
         "📡 *SmartSignals Pro*\n"
         "————————————————————\n\n"
-        "Detecta señales de compra y venta con *análisis multi-indicador*\n"
-        "y recibe alertas *10–30 segundos antes* de que se confirmen.\n\n"
+        "Detecta señales BUY/SELL con análisis\n"
+        "multi-indicador y recibe alertas *10–30s*\n"
+        "antes de que se confirmen.\n\n"
         "✨ *Incluye:*\n"
-        "  • Señales BUY/SELL con gráfico predictivo\n"
+        "  • Señales con gráfico predictivo\n"
         "  • Pre-aviso antes del cierre de vela\n"
-        "  • Targets y Stop-Loss calculados con ATR\n"
+        "  • Targets y Stop-Loss con ATR\n"
         "  • 13 monedas · 5 temporalidades\n"
-        "  • Ciclo de 45 segundos\n\n"
+        "  • Estrategias SSS personalizadas\n\n"
         "💰 *Precio: 200 ⭐ (30 días)*\n\n"
         "————————————————————\n"
-        "_Activa SmartSignals en la tienda para empezar._"
+        "_Activa SmartSignals en la tienda._"
     )
 
 
 def _build_coin_menu_text(user_id: int, symbol: str, display_tf: str) -> str:
-    """
-    Texto del menú de moneda.
-    FIX #7: usa display_tf (primer TF activo) para mostrar la última señal correcta.
-    """
+    """Texto del menú de moneda."""
     coin_info  = get_coin_info(symbol) or {"label": symbol, "emoji": "📡"}
     label      = coin_info.get('label', symbol)
     emoji      = coin_info.get('emoji', '📡')
@@ -247,21 +274,20 @@ def _build_coin_menu_text(user_id: int, symbol: str, display_tf: str) -> str:
     active_tfs = user_subs.get(symbol, [])
 
     sub_status = (
-        f"🔔 Alertas activas en: *{', '.join(sorted(active_tfs))}*"
+        f"🔔 Activa en: *{', '.join(sorted(active_tfs))}*"
         if active_tfs else
-        "Sin alertas activas — toca un botón para activar"
+        "Sin alertas — toca un TF para activar"
     )
 
-    # Última señal del TF relevante (FIX #7)
     state    = get_sp_state(symbol, display_tf)
     last_sig = ""
     if state:
-        dir_text   = state.get('last_signal', '')
-        dir_emoji  = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
+        dir_text  = state.get('last_signal', '')
+        dir_emoji = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
         last_price = state.get('last_price', 0)
         if dir_text and last_price:
             last_sig = (
-                f"\n📌 Última señal ({display_tf}): "
+                f"\n📌 Última ({display_tf}): "
                 f"{dir_emoji} `{dir_text}` @ `${_fmt_price(last_price)}`"
             )
 
@@ -269,8 +295,8 @@ def _build_coin_menu_text(user_id: int, symbol: str, display_tf: str) -> str:
         f"📡 *SmartSignals — {emoji} {label}*\n"
         f"────────────────────\n\n"
         f"{sub_status}{last_sig}\n\n"
-        f"🔔 Toca una temporalidad para *activar/desactivar* alertas.\n"
-        f"👁 Toca *Ver TF* para ver la señal actual sin suscribirte.\n"
+        f"🔔 Toca un TF para activar/desactivar alertas.\n"
+        f"👁 Toca *Ver TF* para ver señal sin suscribirte.\n"
         f"────────────────────"
     )
 
@@ -282,7 +308,7 @@ async def sp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     /sp           → Menú principal
     /sp BTC       → Señal BTC 5m
     /sp BTC 4h    → Señal BTC 4h
-    FIX #1: args[1] normalizado a lowercase → '4H' → '4h' coincide con SP_TIMEFRAMES.
+    Fix #1: args[1] normalizado a lowercase.
     """
     user_id = update.effective_user.id
     registrar_uso_comando(user_id, 'sp')
@@ -309,10 +335,8 @@ async def sp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
         return
 
-    # ── Con argumentos ────────────────────────────────────────────────────────
     coin_key = args[0].upper()
-    # FIX #1: normalizar a lowercase; sin esto "4H" nunca está en SP_TIMEFRAMES
-    tf = args[1].lower() if len(args) > 1 else "5m"
+    tf       = args[1].lower() if len(args) > 1 else "5m"
     if tf not in SP_TIMEFRAMES:
         tf = "5m"
 
@@ -336,7 +360,7 @@ async def sp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
-# ─── VISTA DE SEÑAL (REUTILIZABLE) ────────────────────────────────────────────
+# ─── VISTA DE SEÑAL ───────────────────────────────────────────────────────────
 
 async def _show_signal_view(
     update: Update,
@@ -347,16 +371,16 @@ async def _show_signal_view(
     edit_msg=None,
 ) -> None:
     """
-    Descarga → analiza → genera gráfico → envía.
-    FIX #10: caption truncado a 1024 chars (límite de Telegram para fotos).
-    SSS v2: enriquece con estrategia activa del usuario si está disponible.
+    Descarga → analiza → genera gráfico → envía señal.
+    Fix #10: caption truncado a 1024 chars.
+    SSS: enriquece con estrategia activa del usuario.
     """
     try:
         loop = asyncio.get_running_loop()
 
         df = await loop.run_in_executor(None, _get_klines, symbol, tf, 120)
         if df is None or len(df) < 30:
-            err = f"❌ No se obtuvieron datos para *{symbol}* ({tf})."
+            err = f"❌ Sin datos para *{symbol}* ({tf})."
             if edit_msg:
                 await edit_msg.edit_text(err, parse_mode=ParseMode.MARKDOWN)
             return
@@ -371,7 +395,7 @@ async def _show_signal_view(
         except Exception:
             sig['time_to_close'] = 0
 
-        # ── SSS: enriquecimiento con estrategia activa ────────────────────────
+        # SSS: bloque de estrategia activa ─────────────────────────────────────
         strat_block = ""
         if _SSS_OK:
             strat = get_user_strategy(user_id)
@@ -384,13 +408,14 @@ async def _show_signal_view(
                     sig_e       = enrich_signal(strat, sig, df_ext)
                     strat_block = "\n" + build_strategy_signal_block(sig_e)
                 elif not passes and sig['direction'] != 'NEUTRAL':
+                    name = strat.get('name', '')[:20]
                     strat_block = (
-                        f"\n\n━━━━━━━━━━━━━━━━━━━━\n"
-                        f"🧠 *{strat.get('name')}*\n"
-                        f"⚠️ _Filtro de entrada: {reason}_\n"
-                        f"━━━━━━━━━━━━━━━━━━━━"
+                        f"\n\n────────────────────\n"
+                        f"🧠 *{name}* — filtro activo\n"
+                        f"⚠️ _{reason}_\n"
+                        f"────────────────────"
                     )
-        # ─────────────────────────────────────────────────────────────────────
+        # ──────────────────────────────────────────────────────────────────────
 
         chart_buf = await loop.run_in_executor(
             None, generate_sp_chart, df, symbol, tf, sig, 60
@@ -399,7 +424,7 @@ async def _show_signal_view(
         msg_text = build_signal_message(symbol, tf, sig) + strat_block
         keyboard = _get_view_keyboard(user_id, symbol, tf)
 
-        # FIX #10: Telegram limita captions a 1024 chars
+        # Fix #10: límite de caption Telegram
         if chart_buf and len(msg_text) > 1024:
             msg_text = msg_text[:1020] + "…`"
 
@@ -418,7 +443,6 @@ async def _show_signal_view(
                 reply_markup=keyboard,
             )
         else:
-            # Sin gráfico — editar o enviar texto
             if edit_msg:
                 await edit_msg.edit_text(
                     msg_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
@@ -443,40 +467,38 @@ async def _show_signal_view(
 async def sp_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Volver al menú principal.
-    FIX #2: acceso verificado ANTES del query.answer() para que show_alert funcione.
+    Fix #2: acceso verificado ANTES de query.answer().
+    Fix #16: usa _safe_nav para manejar mensajes con foto.
     """
     query   = update.callback_query
     user_id = query.from_user.id
 
-    # FIX #2: primero verificar, luego responder
     has_access, _ = _check_sp_access(user_id)
     if not has_access:
         await query.answer("❌ Necesitas SmartSignals Pro.", show_alert=True)
         return
 
     await query.answer()
-    try:
-        await query.edit_message_text(
-            _build_main_menu_text(user_id),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=_get_main_menu_keyboard(user_id)
-        )
-    except Exception:
-        pass
+    await _safe_nav(
+        query,
+        _build_main_menu_text(user_id),
+        _get_main_menu_keyboard(user_id),
+    )
 
 
 async def sp_coin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Menú de temporalidades de una moneda.
     Callback: sp_coin|SYMBOL
-    FIX #7 y #8: usa _best_display_tf() para señal y botón Refrescar.
+    Fix #7/#8: usa _best_display_tf().
+    Fix #16: usa _safe_nav para manejar regreso desde foto.
     """
     query   = update.callback_query
     user_id = query.from_user.id
 
     has_access, _ = _check_sp_access(user_id)
     if not has_access:
-        await query.answer("❌ Necesitas SmartSignals Pro. Usa /shop.", show_alert=True)
+        await query.answer("❌ Necesitas SmartSignals Pro.", show_alert=True)
         return
 
     try:
@@ -487,30 +509,28 @@ async def sp_coin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     await query.answer()
 
-    display_tf = _best_display_tf(user_id, symbol)   # FIX #7 y #8
-    try:
-        await query.edit_message_text(
-            _build_coin_menu_text(user_id, symbol, display_tf),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=_get_coin_keyboard(user_id, symbol, current_tf=display_tf)
-        )
-    except Exception:
-        pass
+    display_tf = _best_display_tf(user_id, symbol)
+    await _safe_nav(
+        query,
+        _build_coin_menu_text(user_id, symbol, display_tf),
+        _get_coin_keyboard(user_id, symbol, current_tf=display_tf),
+    )
 
 
 async def sp_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Activa/desactiva alerta para symbol+tf.
     Callback: sp_toggle|SYMBOL|TF
-    FIX #7 y #8: recalcula display_tf tras el toggle.
-    NUEVO: queue_quick_notify al activar → señal inmediata en el próximo ciclo.
+    Fix #7/#8: recalcula display_tf tras toggle.
+    Nuevo: queue_quick_notify al activar.
+    Fix #16: _safe_nav para mensajes con foto.
     """
     query   = update.callback_query
     user_id = query.from_user.id
 
     has_access, _ = _check_sp_access(user_id)
     if not has_access:
-        await query.answer("❌ Necesitas SmartSignals Pro. Usa /shop.", show_alert=True)
+        await query.answer("❌ Necesitas SmartSignals Pro.", show_alert=True)
         return
 
     try:
@@ -521,27 +541,22 @@ async def sp_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     new_state = toggle_sp_subscription(user_id, symbol, tf)
     coin_info = get_coin_info(symbol) or {"label": symbol}
-    label     = coin_info.get('label', symbol)
+    label     = coin_info.get('label', symbol).split(' ', 1)[-1]
 
     if new_state:
-        await query.answer(f"🔔 Alertas {label} ({tf}) activadas.")
+        await query.answer(f"🔔 {label} ({tf}) activada.")
         add_log_line(f"📡 SP: user {user_id} activó {symbol}/{tf}")
-        # NUEVO: señal inmediata en el próximo ciclo del loop
         queue_quick_notify(user_id, symbol, tf)
     else:
-        await query.answer(f"🔕 Alertas {label} ({tf}) desactivadas.")
+        await query.answer(f"🔕 {label} ({tf}) desactivada.")
         add_log_line(f"📡 SP: user {user_id} desactivó {symbol}/{tf}")
 
-    # FIX #7 y #8: recalcular después del cambio
     display_tf = _best_display_tf(user_id, symbol)
-    try:
-        await query.edit_message_text(
-            _build_coin_menu_text(user_id, symbol, display_tf),
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=_get_coin_keyboard(user_id, symbol, current_tf=display_tf)
-        )
-    except Exception:
-        pass
+    await _safe_nav(
+        query,
+        _build_coin_menu_text(user_id, symbol, display_tf),
+        _get_coin_keyboard(user_id, symbol, current_tf=display_tf),
+    )
 
 
 async def sp_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -554,7 +569,7 @@ async def sp_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     has_access, _ = _check_sp_access(user_id)
     if not has_access:
-        await query.answer("❌ Necesitas SmartSignals Pro. Usa /shop.", show_alert=True)
+        await query.answer("❌ Necesitas SmartSignals Pro.", show_alert=True)
         return
 
     try:
@@ -587,10 +602,9 @@ async def sp_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def sp_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Refresca la señal desde el botón de un mensaje con foto.
+    Refresca la señal desde botón de mensaje con foto.
     Callback: sp_refresh|SYMBOL|TF
-    FIX #6: borra el mensaje con foto anterior para evitar duplicados.
-    Las fotos de Telegram no se pueden editar, hay que borrar y reenviar.
+    Fix #6: borra foto anterior.
     """
     query   = update.callback_query
     user_id = query.from_user.id
@@ -606,9 +620,8 @@ async def sp_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer("❌ Error de datos.", show_alert=True)
         return
 
-    await query.answer("⏳ Actualizando señal...")
+    await query.answer("⏳ Actualizando...")
 
-    # FIX #6: borrar foto anterior para no generar duplicados
     try:
         await query.message.delete()
     except Exception:
@@ -622,14 +635,13 @@ async def sp_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Muestra las suscripciones activas del usuario.
+    Suscripciones activas del usuario.
     Callback: sp_my_subs
-    FIX #3: acceso verificado ANTES del primer query.answer().
+    Fix #3: acceso verificado ANTES de query.answer().
     """
     query   = update.callback_query
     user_id = query.from_user.id
 
-    # FIX #3: primero verificar acceso
     has_access, _ = _check_sp_access(user_id)
     if not has_access:
         await query.answer("❌ Sin acceso.", show_alert=True)
@@ -641,9 +653,9 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     if not user_subs:
         text = (
-            "📋 *Mis señales SmartSignals*\n"
+            "📋 *Mis alertas SmartSignals*\n"
             "────────────────────\n\n"
-            "Aún no tienes ninguna señal activa.\n\n"
+            "Sin alertas activas.\n\n"
             "_Selecciona una moneda y temporalidad\n"
             "para empezar a recibir alertas._"
         )
@@ -655,7 +667,6 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             coin_info  = get_coin_info(sym) or {"label": sym, "emoji": "📡"}
             emoji      = coin_info.get('emoji', '📡')
             label_full = coin_info.get('label', sym)
-            # Quitar el prefijo de símbolo (ej "₿ Bitcoin" → "Bitcoin")
             label      = label_full.split(' ', 1)[-1] if ' ' in label_full else label_full
             tfs_str    = " · ".join(sorted(tfs))
 
@@ -664,29 +675,25 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             if state:
                 dir_text  = state.get('last_signal', '')
                 dir_emoji = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
-                last_info = f" — última: {dir_emoji}"
+                last_info = f" — {dir_emoji}"
 
             lines.append(f"{emoji} *{label}* · `{tfs_str}`{last_info}")
 
         total = count_user_sp_subs(user_id)
         text  = (
-            f"📋 *Mis señales SmartSignals*\n"
+            f"📋 *Mis alertas SmartSignals*\n"
             f"────────────────────\n\n"
-            f"Tienes *{total}* alerta(s) activa(s):\n\n"
+            f"*{total}* alerta(s) activa(s):\n\n"
             + "\n".join(lines) +
-            "\n\n_Toca 🔙 para volver a la lista de monedas._"
+            "\n\n_Toca 🔙 para volver._"
         )
 
-    try:
-        await query.edit_message_text(
-            text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 Lista de monedas", callback_data="sp_main"),
-            ]])
-        )
-    except Exception:
-        pass
+    await _safe_nav(
+        query, text,
+        InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Lista de monedas", callback_data="sp_main"),
+        ]])
+    )
 
 
 async def sp_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -698,45 +705,35 @@ async def sp_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "📡 *SmartSignals — Ayuda*\n"
         "————————————————————\n\n"
         "*¿Qué es SmartSignals?*\n"
-        "Un radar de trading que analiza el mercado cada 45 segundos "
-        "y te avisa cuando detecta señales de compra o venta.\n\n"
+        "Radar de trading que analiza el mercado\n"
+        "cada 45s y avisa al detectar señales.\n\n"
         "*¿Cómo funciona?*\n"
         "  • Descarga velas de Binance en tiempo real\n"
-        "  • Aplica 7 indicadores (RSI, MACD, Stoch, CCI, BB, MFI, EMAs)\n"
-        "  • Si hay confluencia (score ≥4.5), envía alerta con gráfico\n"
-        "  • Si score ≥6.5 y la vela cierra pronto → *pre-aviso*\n\n"
-        "*Comandos:*\n"
+        "  • Aplica 7 indicadores (RSI, MACD, Stoch…)\n"
+        "  • Score ≥4.5 → alerta con gráfico\n"
+        "  • Score ≥6.5 + vela cerrando → pre-aviso\n\n"
+        "*Comandos rápidos:*\n"
         "  `/sp` — Menú principal\n"
         "  `/sp BTC` — Señal BTC en 5m\n"
-        "  `/sp ETH 1h` — Señal ETH en 1h\n"
-        "  `/sp BTC 4h` — Señal BTC en 4h\n\n"
-        "*Gestión de alertas:*\n"
-        "  • Toca una moneda → menú de temporalidades\n"
-        "  • Toca el TF para activar/desactivar (🔔 = activo)\n"
-        "  • Usa los botones *👁 TF* para ver señal sin suscribirte\n\n"
+        "  `/sp ETH 1h` — Señal ETH en 1h\n\n"
         "*Cooldown entre señales:*\n"
-        "  1m → 3 min · 5m → 5 min · 15m → 15 min\n"
-        "  1h → 60 min · 4h → 120 min\n\n"
-        "💡 _Las señales son informativas. Evalúa siempre el contexto._"
+        "  1m → 3min · 5m → 5min · 15m → 15min\n"
+        "  1h → 60min · 4h → 120min\n\n"
+        "💡 _Señales informativas. Evalúa el contexto._"
     )
 
-    try:
-        await query.edit_message_text(
-            text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
-            ]])
-        )
-    except Exception:
-        pass
+    await _safe_nav(
+        query, text,
+        InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
+        ]])
+    )
 
 
 async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Redirige al shop desde el botón de preview.
-    FIX #4: en callbacks update.message.reply_text() crashea (message puede ser None
-    si fue editado). Usamos context.bot.send_message con chat_id explícito.
+    Fix #4: send_message con chat_id explícito.
     """
     query = update.callback_query
     await query.answer()
@@ -751,16 +748,15 @@ async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TY
             f"📡 SmartSignals Pro — {PRICE_SP_SIGNALS} ⭐  ✨",
             callback_data="buy_sp"
         )],
-        [InlineKeyboardButton(f"📦 Pack Total — {PRICE_BUNDLE} ⭐",   callback_data="buy_bundle")],
-        [InlineKeyboardButton(f"📈 TA Pro — {PRICE_TA_VIP} ⭐",       callback_data="buy_ta")],
-        [InlineKeyboardButton(f"💱 Tasa VIP — {PRICE_TASA_VIP} ⭐",   callback_data="buy_tasa")],
+        [InlineKeyboardButton(f"📦 Pack Total — {PRICE_BUNDLE} ⭐",  callback_data="buy_bundle")],
+        [InlineKeyboardButton(f"📈 TA Pro — {PRICE_TA_VIP} ⭐",      callback_data="buy_ta")],
+        [InlineKeyboardButton(f"💱 Tasa VIP — {PRICE_TASA_VIP} ⭐",  callback_data="buy_tasa")],
         [
-            InlineKeyboardButton(f"🪙 +1 Moneda — {PRICE_COIN_SLOT} ⭐",  callback_data="buy_coin"),
+            InlineKeyboardButton(f"🪙 +1 Moneda — {PRICE_COIN_SLOT} ⭐", callback_data="buy_coin"),
             InlineKeyboardButton(f"🔔 +1 Alerta — {PRICE_ALERT_SLOT} ⭐", callback_data="buy_alert"),
         ],
     ])
 
-    # FIX #4: send_message con chat_id explícito, no update.message que puede ser None
     await context.bot.send_message(
         chat_id=query.message.chat_id,
         text=(
@@ -774,13 +770,52 @@ async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
 
-# ─── SSS: CALLBACKS DE ESTRATEGIAS ───────────────────────────────────────────
+# ─── SSS: CALLBACKS DE ESTRATEGIAS ────────────────────────────────────────────
+
+def _build_strategies_text(active_name: str, active_emj: str) -> str:
+    return (
+        "🧠 *SmartSignals Strategy (SSS)*\n"
+        "————————————————————\n\n"
+        "Aplica estrategias de trading sobre tus señales.\n"
+        "Cada estrategia define *entrada, TP, SL\n"
+        "y apalancamiento*. Se actualiza sin reiniciar.\n\n"
+        f"🎯 *Activa:* {active_emj} `{active_name}`\n\n"
+        "Selecciona una estrategia para ver detalles:"
+    )
+
+
+def _build_strategies_keyboard(strategies: list, active_id: str | None) -> InlineKeyboardMarkup:
+    rows = []
+    # Agrupar 2 por fila
+    row = []
+    for s in strategies:
+        is_act  = s['id'] == active_id
+        mark    = " ✅" if is_act else ""
+        btn_lbl = f"{s.get('emoji','📊')} {s.get('name','')}{mark}"
+        row.append(InlineKeyboardButton(btn_lbl, callback_data=f"sp_strat_detail|{s['id']}"))
+        if len(row) == 2:
+            rows.append(row)
+            row = []
+    if row:
+        rows.append(row)
+
+    # Acciones
+    action_row = []
+    if active_id:
+        action_row.append(InlineKeyboardButton(
+            "🚫 Desactivar", callback_data="sp_strat_deactivate"
+        ))
+    action_row.append(InlineKeyboardButton(
+        "📤 Mi Estrategia", callback_data="sp_strat_upload"
+    ))
+    rows.append(action_row)
+
+    rows.append([InlineKeyboardButton("🔙 Volver", callback_data="sp_main")])
+    return InlineKeyboardMarkup(rows)
+
 
 async def sp_strategies_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Menú de estrategias SSS.
-    Callback: sp_strategies
-    """
+    """Menú de estrategias SSS. Callback: sp_strategies"""
     query   = update.callback_query
     user_id = query.from_user.id
 
@@ -792,74 +827,37 @@ async def sp_strategies_callback(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
 
     if not _SSS_OK:
-        await query.edit_message_text(
-            "⚠️ _El módulo de estrategias no está disponible._",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
-            ]])
+        await _safe_nav(query,
+            "⚠️ _Módulo de estrategias no disponible._",
+            InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Volver", callback_data="sp_main")]])
         )
         return
 
-    strategies  = get_available_strategies(user_id)
-    active      = get_user_strategy(user_id)
-    active_id   = active['id'] if active else None
+    strategies = get_available_strategies(user_id)
+    active     = get_user_strategy(user_id)
+    active_id  = active['id'] if active else None
+    active_name = active.get('name', 'Ninguna') if active else 'Ninguna'
+    active_emj  = active.get('emoji', '')       if active else ''
 
     if not strategies:
-        text = (
-            "🧠 *SmartSignals Strategy*\n"
-            "————————————————————\n\n"
-            "_No hay estrategias disponibles en este momento._\n\n"
-            "Las estrategias se cargan automáticamente desde `data/sss/strategies/`.\n"
-            "Contacta al admin para obtener acceso."
-        )
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
-        ]])
-    else:
-        active_name = active.get('name', '') if active else 'Ninguna'
-        active_emj  = active.get('emoji', '') if active else ''
-
-        text = (
+        await _safe_nav(query,
             "🧠 *SmartSignals Strategy (SSS)*\n"
             "————————————————————\n\n"
-            "Aplica estrategias de trading sobre tus señales.\n"
-            "Cada estrategia define *entrada, TP, SL y apalancamiento*.\n"
-            "Se actualiza *sin reiniciar* el bot.\n\n"
-            f"🎯 *Activa:* {active_emj} `{active_name}`\n\n"
-            "Selecciona una estrategia para ver detalles:"
+            "_Sin estrategias disponibles._\n\n"
+            "Contacta al admin para obtener acceso.",
+            InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Volver", callback_data="sp_main")]])
         )
+        return
 
-        keyboard_rows = []
-        for s in strategies:
-            is_act  = s['id'] == active_id
-            mark    = " ✅" if is_act else ""
-            btn_lbl = f"{s.get('emoji','📊')} {s.get('name','')}{mark}"
-            keyboard_rows.append([InlineKeyboardButton(
-                btn_lbl,
-                callback_data=f"sp_strat_detail|{s['id']}"
-            )])
-
-        if active_id:
-            keyboard_rows.append([InlineKeyboardButton(
-                "🚫 Desactivar estrategia",
-                callback_data="sp_strat_deactivate"
-            )])
-
-        keyboard_rows.append([InlineKeyboardButton("🔙 Volver", callback_data="sp_main")])
-        keyboard = InlineKeyboardMarkup(keyboard_rows)
-
-    try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
-    except Exception:
-        pass
+    await _safe_nav(
+        query,
+        _build_strategies_text(active_name, active_emj),
+        _build_strategies_keyboard(strategies, active_id),
+    )
 
 
 async def sp_strat_detail_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Detalle de una estrategia.
-    Callback: sp_strat_detail|STRATEGY_ID
-    """
+    """Detalle de una estrategia. Callback: sp_strat_detail|STRATEGY_ID"""
     query   = update.callback_query
     user_id = query.from_user.id
 
@@ -887,33 +885,26 @@ async def sp_strat_detail_callback(update: Update, context: ContextTypes.DEFAULT
 
     active = get_user_strategy(user_id)
     is_act = active and active['id'] == strat_id
-
-    text = format_strategy_detail(strat)
+    text   = format_strategy_detail(strat)
 
     if is_act:
-        action_btn = InlineKeyboardButton("✅ Activa · Desactivar", callback_data="sp_strat_deactivate")
+        action_btn = InlineKeyboardButton(
+            "✅ Activa · Desactivar", callback_data="sp_strat_deactivate"
+        )
     else:
         action_btn = InlineKeyboardButton(
             f"✅ Activar {strat.get('emoji','')} {strat.get('name','')}",
             callback_data=f"sp_strat_activate|{strat_id}"
         )
 
-    keyboard = InlineKeyboardMarkup([
+    await _safe_nav(query, text, InlineKeyboardMarkup([
         [action_btn],
-        [InlineKeyboardButton("🔙 Lista", callback_data="sp_strategies")],
-    ])
-
-    try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
-    except Exception:
-        pass
+        [InlineKeyboardButton("🔙 Estrategias", callback_data="sp_strategies")],
+    ]))
 
 
 async def sp_strat_activate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Activa una estrategia para el usuario.
-    Callback: sp_strat_activate|STRATEGY_ID
-    """
+    """Activa una estrategia. Callback: sp_strat_activate|STRATEGY_ID"""
     query   = update.callback_query
     user_id = query.from_user.id
 
@@ -934,32 +925,24 @@ async def sp_strat_activate_callback(update: Update, context: ContextTypes.DEFAU
 
     ok = set_user_strategy(user_id, strat_id)
     if not ok:
-        await query.answer("❌ No se pudo activar la estrategia.", show_alert=True)
+        await query.answer("❌ No se pudo activar.", show_alert=True)
         return
 
     strat = get_strategy_by_id(strat_id)
     name  = strat.get('name', strat_id) if strat else strat_id
-    await query.answer(f"✅ Estrategia '{name}' activada.", show_alert=True)
+    await query.answer(f"✅ '{name}' activada.", show_alert=True)
     add_log_line(f"[SSS] user {user_id} activó estrategia {strat_id}")
 
-    # Refrescar la vista de detalle
     if strat:
-        text     = format_strategy_detail(strat)
-        keyboard = InlineKeyboardMarkup([
+        text = format_strategy_detail(strat)
+        await _safe_nav(query, text, InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Activa · Desactivar", callback_data="sp_strat_deactivate")],
-            [InlineKeyboardButton("🔙 Lista", callback_data="sp_strategies")],
-        ])
-        try:
-            await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
-        except Exception:
-            pass
+            [InlineKeyboardButton("🔙 Estrategias", callback_data="sp_strategies")],
+        ]))
 
 
 async def sp_strat_deactivate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Desactiva la estrategia del usuario.
-    Callback: sp_strat_deactivate
-    """
+    """Desactiva la estrategia activa. Callback: sp_strat_deactivate"""
     query   = update.callback_query
     user_id = query.from_user.id
 
@@ -974,39 +957,230 @@ async def sp_strat_deactivate_callback(update: Update, context: ContextTypes.DEF
 
     await query.answer("🚫 Estrategia desactivada.", show_alert=True)
 
-    # Volver al menú de estrategias
-    strategies  = get_available_strategies(user_id) if _SSS_OK else []
-    text = (
-        "🧠 *SmartSignals Strategy (SSS)*\n"
-        "————————————————————\n\n"
-        "Aplica estrategias de trading sobre tus señales.\n"
-        "Cada estrategia define *entrada, TP, SL y apalancamiento*.\n"
-        "Se actualiza *sin reiniciar* el bot.\n\n"
-        "🎯 *Activa:* `Ninguna`\n\n"
-        "Selecciona una estrategia para ver detalles:"
+    strategies = get_available_strategies(user_id) if _SSS_OK else []
+    await _safe_nav(
+        query,
+        _build_strategies_text("Ninguna", ""),
+        _build_strategies_keyboard(strategies, None),
     )
-    keyboard_rows = [
-        [InlineKeyboardButton(
-            f"{s.get('emoji','📊')} {s.get('name','')}",
-            callback_data=f"sp_strat_detail|{s['id']}"
-        )]
-        for s in strategies
-    ]
-    keyboard_rows.append([InlineKeyboardButton("🔙 Volver", callback_data="sp_main")])
-    try:
-        await query.edit_message_text(
-            text, parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup(keyboard_rows)
+
+
+# ─── SSS: SUBIDA DE ESTRATEGIAS DE USUARIO ────────────────────────────────────
+
+_SSS_JSON_TEMPLATE = """{
+  "id": "mi_estrategia_unica",
+  "name": "Nombre visible",
+  "version": "1.0.0",
+  "author": "TuNombre",
+  "tier": "base",
+  "style": "swing",
+  "emoji": "⚡",
+  "description": "Descripción breve de la estrategia.",
+  "timeframes": ["5m", "15m", "1h"],
+  "entry_filter": {
+    "min_score": 5.0,
+    "supertrend_align": false,
+    "ash_signal": false,
+    "volume_spike": false,
+    "adx_min": 0,
+    "adx_di_confirm": false,
+    "macd_cross_required": false
+  },
+  "risk": {
+    "sl_type": "atr",
+    "sl_atr_mult": 1.5,
+    "tp1_atr_mult": 2.0,  "tp1_close_pct": 50,
+    "tp2_atr_mult": 3.5,  "tp2_close_pct": 30,
+    "tp3_atr_mult": 5.5,  "tp3_close_pct": 20,
+    "trailing_after_tp1": false,
+    "trailing_type": null
+  },
+  "leverage": {
+    "default": 5,
+    "max": 20,
+    "volatile_reduce": true,
+    "volatile_threshold": 0.03,
+    "volatile_max": 10
+  },
+  "capital": {
+    "small_threshold": 22,
+    "small_exit": "full_tp1",
+    "large_exit": "partial_trail"
+  },
+  "meta": {
+    "win_rate_est": "N/A",
+    "rr_ratio": "1:2 / 1:3.5",
+    "best_markets": "Describe cuando usar esta estrategia",
+    "avoid_markets": "Describe cuando NO usarla"
+  }
+}"""
+
+
+def _build_upload_text() -> str:
+    return (
+        "📤 *Subir mi Estrategia SSS*\n"
+        "————————————————————\n\n"
+        "Puedes crear y subir tu propia estrategia\n"
+        "en formato JSON. Se carga automáticamente\n"
+        "*sin reiniciar el bot*.\n\n"
+        "📋 *Campos obligatorios:*\n"
+        "  • `id` — identificador único (sin espacios)\n"
+        "  • `name` — nombre visible en el menú\n"
+        "  • `timeframes` — TFs válidos: 1m 5m 15m 1h 4h\n"
+        "  • `entry_filter` → `min_score` (ej. 4.5–7.0)\n"
+        "  • `risk` → multiplicadores de ATR para SL/TP\n"
+        "  • `leverage` → `default` y `max`\n\n"
+        "🔒 *Filtros de entrada disponibles:*\n"
+        "  • `supertrend_align` — true/false\n"
+        "  • `ash_signal` — true/false\n"
+        "  • `volume_spike` — true/false\n"
+        "  • `adx_min` — número (0 = desactivado)\n"
+        "  • `macd_cross_required` — true/false\n\n"
+        "📐 *Referencia de R:R típicos:*\n"
+        "  SL ×1.5 · TP1 ×2.0 → R:R 1:1.3\n"
+        "  SL ×1.5 · TP2 ×3.5 → R:R 1:2.3\n\n"
+        "────────────────────\n"
+        "⬇️ Envía el archivo `.json` directamente\n"
+        "en este chat para subirlo."
+    )
+
+
+async def sp_strat_upload_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Submenú de instrucciones para subir estrategia propia.
+    Callback: sp_strat_upload
+    """
+    query   = update.callback_query
+    user_id = query.from_user.id
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("❌ Necesitas SmartSignals Pro.", show_alert=True)
+        return
+
+    await query.answer()
+
+    # Guardar en contexto que el usuario está esperando un JSON
+    context.user_data['sss_awaiting_upload'] = True
+
+    await _safe_nav(
+        query,
+        _build_upload_text(),
+        InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Estrategias", callback_data="sp_strategies")],
+        ])
+    )
+
+
+async def sp_strategy_document_handler(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """
+    MessageHandler: recibe documentos .json y los guarda como estrategias SSS.
+    Solo actúa si el usuario tiene acceso SP y estaba esperando un upload.
+    """
+    user_id = update.effective_user.id
+
+    # Solo procesar si el usuario inició el flujo de upload
+    if not context.user_data.get('sss_awaiting_upload'):
+        return
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        return
+
+    doc: Document = update.message.document
+    if not doc or not doc.file_name.endswith('.json'):
+        await update.message.reply_text(
+            "⚠️ Solo se aceptan archivos `.json`.\n"
+            "Envía el archivo de estrategia en formato JSON.",
+            parse_mode=ParseMode.MARKDOWN
         )
-    except Exception:
-        pass
+        return
+
+    if doc.file_size > 50_000:  # 50KB máximo
+        await update.message.reply_text(
+            "❌ El archivo es demasiado grande (máx. 50KB)."
+        )
+        return
+
+    # Descargar y parsear
+    try:
+        file = await context.bot.get_file(doc.file_id)
+        raw_bytes = await file.download_as_bytearray()
+        raw_str   = raw_bytes.decode('utf-8')
+        data      = json.loads(raw_str)
+    except json.JSONDecodeError as e:
+        await update.message.reply_text(
+            f"❌ *JSON inválido:* `{e}`\n\n"
+            f"Revisa la sintaxis del archivo e intenta de nuevo.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    except Exception as e:
+        add_log_line(f"[SSS Upload] Error descargando archivo de {user_id}: {e}")
+        await update.message.reply_text("❌ Error al descargar el archivo. Intenta de nuevo.")
+        return
+
+    # Validar y guardar
+    if not _SSS_OK:
+        await update.message.reply_text("⚠️ Módulo SSS no disponible.")
+        return
+
+    ok, error_msg = validate_strategy_json(data)
+    if not ok:
+        await update.message.reply_text(
+            f"❌ *Estrategia inválida:*\n`{error_msg}`\n\n"
+            f"Corrige el campo indicado e intenta de nuevo.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    saved_path = save_user_strategy_file(user_id, data)
+    if not saved_path:
+        await update.message.reply_text("❌ Error al guardar. Contacta al admin.")
+        return
+
+    context.user_data.pop('sss_awaiting_upload', None)
+
+    name  = data.get('name', data.get('id', '?'))
+    emoji = data.get('emoji', '📊')
+    tfs   = ", ".join(data.get('timeframes', []))
+
+    add_log_line(f"[SSS Upload] user {user_id} subió estrategia '{data.get('id')}'")
+
+    await update.message.reply_text(
+        f"✅ *Estrategia guardada*\n"
+        f"────────────────────\n\n"
+        f"{emoji} *{name}*\n"
+        f"TF: `{tfs}`\n\n"
+        f"Disponible en *SmartSignals → Estrategias*.\n"
+        f"Usa `/sp` → 🧠 para activarla.",
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+    # Notificar a admins sobre nueva estrategia de usuario
+    strat_id = data.get('id', '?')
+    for admin_id in ADMIN_CHAT_IDS:
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id,
+                text=(
+                    f"📤 *Nueva estrategia SSS subida*\n"
+                    f"Usuario: `{user_id}`\n"
+                    f"ID: `{strat_id}` · Nombre: *{name}*"
+                ),
+                parse_mode=ParseMode.MARKDOWN
+            )
+        except Exception:
+            pass
 
 
 # ─── REGISTRO DE HANDLERS ─────────────────────────────────────────────────────
 
 sp_handlers_list = [
-    CommandHandler("sp",    sp_command),
-    # Menú principal y navegación
+    CommandHandler("sp", sp_command),
+    # Navegación principal
     CallbackQueryHandler(sp_main_callback,      pattern=r"^sp_main$"),
     CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),
     CallbackQueryHandler(sp_toggle_callback,    pattern=r"^sp_toggle\|"),
@@ -1015,9 +1189,15 @@ sp_handlers_list = [
     CallbackQueryHandler(sp_my_subs_callback,   pattern=r"^sp_my_subs$"),
     CallbackQueryHandler(sp_help_callback,      pattern=r"^sp_help$"),
     CallbackQueryHandler(sp_goto_shop_callback, pattern=r"^sp_goto_shop$"),
-    # SSS: estrategias de trading
-    CallbackQueryHandler(sp_strategies_callback,      pattern=r"^sp_strategies$"),
-    CallbackQueryHandler(sp_strat_detail_callback,    pattern=r"^sp_strat_detail\|"),
-    CallbackQueryHandler(sp_strat_activate_callback,  pattern=r"^sp_strat_activate\|"),
-    CallbackQueryHandler(sp_strat_deactivate_callback,pattern=r"^sp_strat_deactivate$"),
+    # SSS — Estrategias
+    CallbackQueryHandler(sp_strategies_callback,       pattern=r"^sp_strategies$"),
+    CallbackQueryHandler(sp_strat_detail_callback,     pattern=r"^sp_strat_detail\|"),
+    CallbackQueryHandler(sp_strat_activate_callback,   pattern=r"^sp_strat_activate\|"),
+    CallbackQueryHandler(sp_strat_deactivate_callback, pattern=r"^sp_strat_deactivate$"),
+    CallbackQueryHandler(sp_strat_upload_callback,     pattern=r"^sp_strat_upload$"),
+    # SSS — Subida de estrategias de usuario (documentos JSON)
+    MessageHandler(
+        filters.Document.MimeType("application/json") | filters.Document.FileExtension("json"),
+        sp_strategy_document_handler
+    ),
 ]
