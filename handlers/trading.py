@@ -28,21 +28,21 @@ from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 
 _TF_BINANCE = {
     "1m": "1m",  "3m": "3m",  "5m": "5m",  "15m": "15m", "30m": "30m",
-    "1h": "1h",  "2h": "2h",  "4h": "4h",  "6h": "6h",
+    "1h": "1h",  "2h": "2h",  "4h": "4h",  "6h": "6h",  "12h": "12h",
     "1d": "1d",  "1w": "1w",  "1M": "1M",
 }
 
 _TF_TV_URL = {
-    "1m": "1",  "3m": "3",   "5m": "5",  "15m": "15", "30m": "30",
-    "1h": "60", "2h": "120", "4h": "240", "6h": "360",
-    "1d": "D",  "1w": "W",   "1M": "M",
+    "1m": "1",   "3m": "3",   "5m": "5",   "15m": "15",  "30m": "30",
+    "1h": "60",  "2h": "120", "4h": "240", "6h": "360",  "12h": "720",
+    "1d": "D",   "1w": "W",   "1M": "M",
 }
 
-_QUICK_TFS = ["1h", "4h", "1d", "1w"]
+_QUICK_TFS = ["4h", "12h", "1d", "1w"]
 
 _CANDLES_FOR_TF = {
     "1m": 120, "3m": 100, "5m": 100, "15m": 90, "30m": 80,
-    "1h": 80,  "2h": 70,  "4h": 70,  "6h": 60,
+    "1h": 80,  "2h": 70,  "4h": 70,  "6h": 60,  "12h": 60,
     "1d": 60,  "1w": 52,  "1M": 24,
 }
 
@@ -551,16 +551,14 @@ async def refresh_command_callback(update: Update, context: ContextTypes.DEFAULT
 async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Callback para el botón 'Ver Análisis Técnico'.
-    Usado tanto desde /p (mensaje de texto) como desde /graf (mensaje de foto).
+    Usado desde /p (mensaje texto) y /graf (mensaje foto).
 
-    Formatos soportados:
+    Formatos:
       /p    -> ta_quick|BTCUSDT|4h   (símbolo completo)
-      /graf -> ta_quick|BTC|4h       (solo base, sin par)
+      /graf -> ta_quick|BTC|4h       (solo base)
 
-    BUG FIX: ta_command en modo callback intenta edit_message_text.
-    Si el mensaje origen es una FOTO (caso /graf), Telegram rechaza la edición
-    y el handler falla silenciosamente. Solución: forzamos que ta_command
-    envíe un mensaje nuevo usando un mensaje ficticio como origen.
+    Llama al ta_command REAL usando force_new_message=True cuando el mensaje
+    origen es una foto (caso /graf), evitando el edit_message_text sobre foto.
     """
     query = update.callback_query
     await query.answer("📊 Cargando análisis...")
@@ -583,152 +581,18 @@ async def ta_quick_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
             base = raw_symbol[: len(raw_symbol) - len(pair)]
             break
 
-    full_symbol = f"{base}{pair}"
-
     # Detectar si el mensaje origen es una foto (viene de /graf)
-    # En ese caso NO podemos usar el flujo callback normal de ta_command
-    # porque intentaría edit_message_text sobre una foto (Telegram no lo permite)
     msg = query.message
     is_photo_message = bool(msg.photo or msg.document)
 
     from handlers.ta import ta_command
-
-    if is_photo_message:
-        # Flujo especial: enviar el análisis como mensaje nuevo debajo de la foto
-        # Simulamos un mensaje de texto falso para que ta_command entre al flujo "no callback"
-        # Usamos reply_text directamente sobre el mensaje de la foto como contexto
-        context.args = [base, pair, timeframe]
-
-        # Mandamos mensaje de espera manualmente
-        wait_msg = await msg.reply_text(
-            f"⏳ _Analizando *{full_symbol}* ({timeframe})..._",
-            parse_mode=ParseMode.MARKDOWN
-        )
-
-        # Obtenemos datos y construimos respuesta usando la lógica de ta_command
-        # pero enviando como reply nuevo, no editando
-        import asyncio
-        from handlers.ta import (
-            get_binance_klines, calculate_table_indicators,
-            get_tradingview_analysis_enhanced
-        )
-        from core.btc_advanced_analysis import BTCAdvancedAnalyzer
-        from core.ai_logic import get_groq_crypto_analysis
-        import pandas as pd
-
-        loop = asyncio.get_running_loop()
-        user_id = update.effective_user.id
-
-        # Intentar Binance primero
-        df_result = await loop.run_in_executor(None, get_binance_klines, full_symbol, timeframe)
-
-        if df_result is not None and not df_result.empty:
-            # Análisis local Binance
-            last_3 = await loop.run_in_executor(None, calculate_table_indicators, df_result.copy())
-            analyzer = BTCAdvancedAnalyzer(df_result)
-            sig, emo, (sb, ss), reasons = analyzer.get_momentum_signal()
-            curr_vals = analyzer.get_current_values()
-            curr, prev, pprev = last_3.iloc[-1], last_3.iloc[-2], last_3.iloc[-3]
-
-            last10 = df_result.tail(10)
-            ph = last10['high'].max(); pl = last10['low'].min(); pc = last10['close'].iloc[-1]
-            pivot_val = (ph + pl + pc) / 3
-            rango_val = ph - pl
-            p = pivot_val; r = rango_val
-
-            price = curr['close']
-            sr = analyzer.get_support_resistance_dynamic()
-            kijun_val = sr.get('KIJUN', 0)
-            fib_val   = sr.get('FIB_618', 0)
-            zone      = sr.get('status_zone', '⚖️ NEUTRAL')
-            kijun_icon, kijun_label = ('🛡️', 'Soporte Dinámico') if price > kijun_val else ('🚧', 'Resistencia Dinámica')
-            fib_label = 'Zona de Rebote (Bullish)' if price > fib_val else 'Techo de Tendencia (Bearish)'
-            macd_s = 'Bullish 🟢' if curr_vals.get('MACD_HIST', 0) > 0 else 'Bearish 🔴'
-            trend_s = 'Alcista' if price > curr_vals.get('EMA_50', 0) else 'Bajista'
-
-            def fmt(v, w=7):
-                if v is None or (isinstance(v, float) and pd.isna(v)) or v == 0:
-                    return '   --  '.center(w)
-                try:
-                    f = float(v)
-                    if abs(f) > 10000: return f'{f/1000:.1f}k'.rjust(w)
-                    elif abs(f) > 999: return f'{f:.0f}'.rjust(w)
-                    else: return f'{f:.2f}'.rjust(w)
-                except: return '   --  '.center(w)
-
-            table = '```text\nIND     ACTUAL   PREVIO     ANT.\n──────  ───────  ───────  ───────\n'
-            for lbl, key in [('RSI','RSI'),('MFI','MFI'),('CCI','CCI'),('WR%','WILLR'),('ADX','ADX'),('OBV','OBV')]:
-                c0 = curr.get(key, 0); c1 = prev.get(key, 0); c2 = pprev.get(key, 0)
-                table += f'{lbl:<6} {fmt(c0)}  {fmt(c1)}  {fmt(c2)}\n'
-            table += '```'
-
-            ta_msg = (
-                f"📊 *Análisis Técnico: {full_symbol}*\n"
-                f"—————————————————\n"
-                f"⏱ *{timeframe}* | 📡 *Binance (Local PRO)*\n\n"
-                f"{emo} *SEÑAL:* `{sig}`\n"
-                f"⚖️ *Score:* {sb} Compra 🆚 {ss} Venta\n\n"
-                f"💰 *Precio:* `${price:,.4f}`\n"
-                f"📉 *ATR:* `{curr_vals.get('ATR', 0) or 0:.4f}`\n"
-                f"•\n{table}•\n"
-                f"🌊 *Tendencia:* {trend_s}\n"
-                f"❌ *MACD:* {macd_s}\n"
-                f"📍 *Zona:* `{zone}`\n"
-                f"☁️ *Ichimoku:* `${kijun_val:,.0f}` ↳ _{kijun_icon} {kijun_label}_\n"
-                f"🟡 *FIB 0.618:* `${fib_val:,.0f}` ↳ _📐 {fib_label}_\n\n"
-            )
-            if reasons: ta_msg += f"💡 *Nota:* _{reasons[0]}_\n"
-            ta_msg += (
-                f"\n🛡 *Niveles*\n"
-                f"R1: `${p + r*0.382:,.4f}` | Pivot: `${pivot_val:,.4f}` | S1: `${p - r*0.382:,.4f}`\n"
-            )
-            ta_msg += f"\n_v2.1 Experimental_"
-
-            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🤖 Análisis IA", callback_data=f"ai_analyze|BINANCE|{base}|{pair}|{timeframe}")
-            ]])
-            await wait_msg.edit_text(ta_msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
-        else:
-            # Fallback TV
-            tv = await loop.run_in_executor(None, get_tradingview_analysis_enhanced, full_symbol, timeframe)
-            if tv:
-                rec = tv.get('RECOMMENDATION', 'NEUTRAL')
-                if 'STRONG_BUY' in rec: emo, sig = '🚀', 'COMPRA FUERTE'
-                elif 'BUY' in rec: emo, sig = '🐂', 'COMPRA'
-                elif 'STRONG_SELL' in rec: emo, sig = '🐻', 'VENTA FUERTE'
-                elif 'SELL' in rec: emo, sig = '📉', 'VENTA'
-                else: emo, sig = '⚖️', 'NEUTRAL'
-                price = tv.get('close', 0)
-                ta_msg = (
-                    f"📊 *Análisis Técnico: {full_symbol}*\n"
-                    f"—————————————————\n"
-                    f"⏱ *{timeframe}* | 📡 *TradingView API*\n\n"
-                    f"{emo} *SEÑAL:* `{sig}`\n"
-                    f"⚖️ *Score:* {tv.get('BUY_SCORE',0)} Compra 🆚 {tv.get('SELL_SCORE',0)} Venta\n\n"
-                    f"💰 *Precio:* `${price:,.4f}`\n"
-                    f"🎯 *Pivot:* `${tv.get('Pivot',0):,.4f}`\n"
-                    f"R1: `${tv.get('R1',0):,.4f}` | S1: `${tv.get('S1',0):,.4f}`\n"
-                )
-                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-                kb = InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🤖 Análisis IA", callback_data=f"ai_analyze|TV|{base}|{pair}|{timeframe}")
-                ]])
-                await wait_msg.edit_text(ta_msg, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
-            else:
-                await wait_msg.edit_text(
-                    f"❌ No se pudieron obtener datos para *{full_symbol}*.",
-                    parse_mode=ParseMode.MARKDOWN
-                )
-    else:
-        # Flujo normal: el mensaje origen es texto (viene de /p), ta_command puede editarlo
-        await ta_command(
-            update, context,
-            override_source="BINANCE",
-            override_args=[base, pair, timeframe],
-            skip_binance_check=True
-        )
-
+    await ta_command(
+        update, context,
+        override_source="BINANCE",
+        override_args=[base, pair, timeframe],
+        skip_binance_check=True,
+        force_new_message=is_photo_message,  # ← CLAVE: fuerza reply nuevo si es foto
+    )
 
 # === NUEVA LÓGICA PARA /MK ===
 

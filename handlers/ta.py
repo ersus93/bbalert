@@ -227,13 +227,18 @@ def get_tradingview_analysis_enhanced(symbol_pair, interval_str):
         'ATR': ind.get('ATR', 0)
     }
 
-async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None, skip_binance_check=False):
+async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None, skip_binance_check=False, force_new_message=False):
     """
     Controlador maestro de Análisis Técnico con soporte para Switch de Fuente.
     """
     user_id = update.effective_user.id
-    is_callback = update.callback_query is not None
+    # force_new_message: cuando viene de /graf (foto), forzamos flujo de mensaje nuevo
+    # aunque técnicamente sea un callback, tratamos como si no lo fuera
+    is_callback = (update.callback_query is not None) and not force_new_message
     message = update.effective_message
+    # En force_new_message, usamos el chat del mensaje de la foto para reply
+    if force_new_message and update.callback_query:
+        message = update.callback_query.message
 
     # BUG-4 FIX: Registrar uso del comando /ta para estadísticas del dashboard
     # Solo registramos en invocaciones directas (no en callbacks de switch de fuente)
@@ -531,6 +536,7 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
             # Si el mensaje es idéntico, Telegram lanza error, lo ignoramos
             pass
     else:
+        # Modo normal O force_new_message (foto desde /graf)
         await msg_wait.edit_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=reply_markup)
 
 

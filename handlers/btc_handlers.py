@@ -1,4 +1,3 @@
-
 # handlers/btc_handlers.py
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -48,6 +47,12 @@ def _get_btc_keyboard(user_id, current_source="BINANCE", current_tf="1d"):
         InlineKeyboardButton(
             "✨ Análisis IA", 
             callback_data=f"ai_analyze|{current_source}|BTC|USDT|{current_tf}"
+        )
+    ])
+    keyboard.append([
+        InlineKeyboardButton(
+            "📊 Ver Gráfico",
+            callback_data=f"graf_from_btc|BTC|USDT|{current_tf}"
         )
     ])
     
@@ -451,6 +456,39 @@ async def btc_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await query.answer(status_msg, show_alert=False)
     except Exception as e:
         print(f"Error actualizando teclado BTC: {e}")
+
+# === CALLBACK: VER GRÁFICO DESDE BTCALERTS ===
+
+async def graf_from_btc_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback del botón "📊 Ver Gráfico" en /btcalerts.
+    Genera el gráfico de BTC en la temporalidad que el usuario está viendo.
+    Formato: graf_from_btc|BTC|USDT|TIMEFRAME
+    """
+    query = update.callback_query
+    await query.answer("📊 Generando gráfico...")
+
+    try:
+        parts = query.data.split("|")
+        if len(parts) < 4:
+            await query.answer("❌ Datos inválidos", show_alert=True)
+            return
+
+        _, base, pair, timeframe = parts[0], parts[1].upper(), parts[2].upper(), parts[3].lower()
+
+        from handlers.trading import _do_graf
+        context.args = [base, pair, timeframe]
+        await _do_graf(
+            update, context,
+            base=base,
+            quote=pair,
+            timeframe=timeframe,
+            is_callback=True
+        )
+    except Exception as e:
+        print(f"Error en graf_from_btc_callback: {e}")
+        await query.answer("❌ Error al generar el gráfico", show_alert=True)
+
 
 # === LISTA DE HANDLERS PARA MAIN.PY ===
 

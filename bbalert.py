@@ -10,7 +10,7 @@ from telegram.constants import ParseMode
 from utils.logger import logger
 from utils.file_manager import cargar_usuarios, guardar_usuarios, add_log_line
 from core.btc_loop import btc_monitor_loop, set_btc_sender
-from handlers.btc_handlers import btc_handlers_list
+from handlers.btc_handlers import btc_handlers_list, graf_from_btc_callback
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, VERSION, PID, PYTHON_VERSION, STATE
 from core.loops import (
     alerta_loop, 
@@ -320,6 +320,7 @@ def main():
     app.add_handler(CallbackQueryHandler(ta_switch_callback, pattern="^ta_switch\\|"))
     app.add_handler(CallbackQueryHandler(ai_analysis_callback, pattern="^ai_analyze\\|"))
     app.add_handler(CallbackQueryHandler(graf_from_ta_callback, pattern="^graf_from_ta\\|"))
+    app.add_handler(CallbackQueryHandler(graf_from_btc_callback, pattern="^graf_from_btc\\|"))
     app.add_handler(CallbackQueryHandler(graf_timeframe_callback, pattern="^graf_tf\\|"))
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(CallbackQueryHandler(ta_quick_callback, pattern=r"^ta_quick\|"))
