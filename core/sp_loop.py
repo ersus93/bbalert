@@ -1,6 +1,7 @@
 # core/sp_loop.py
 # Bucle principal del módulo SmartSignals (/sp).
 # Ciclo de 45 segundos. Detecta señales de compra/venta con pre-aviso 10-30s antes.
+# v2 — Integración SSS: estrategias personalizadas por usuario + quick-notify.
 
 import asyncio
 import time
@@ -21,9 +22,30 @@ from utils.sp_manager import (
     record_signal_history,
     estimate_time_to_candle_close,
     SP_TIMEFRAMES,
+    pop_quick_notify,
 )
 from utils.file_manager import add_log_line
 from utils.sp_chart import generate_sp_chart
+
+# SSS: estrategias de trading como skills
+try:
+    from utils.sss_manager import (
+        get_user_strategy,
+        apply_strategy_filter,
+        enrich_signal,
+        compute_extended_indicators,
+        build_strategy_signal_block,
+        init_sss,
+    )
+    _SSS_AVAILABLE = True
+except ImportError:
+    _SSS_AVAILABLE = False
+    def get_user_strategy(user_id): return None
+    def apply_strategy_filter(s, sig, df): return True, "OK"
+    def enrich_signal(s, sig, df): return sig
+    def compute_extended_indicators(df, s): return df
+    def build_strategy_signal_block(sig): return ""
+    def init_sss(): pass
 
 # ─── SENDER ───────────────────────────────────────────────────────────────────
 _sender_func = None
@@ -419,6 +441,7 @@ async def sp_monitor_loop(bot):
     Ciclo: 45 segundos.
     """
     add_log_line("📡 Iniciando SmartSignals Monitor (ciclo 45s)...")
+    init_sss()
     engine = SPSignalEngine()
 
     while True:
@@ -445,7 +468,10 @@ async def sp_monitor_loop(bot):
 
 
 async def _process_pair(bot, engine: SPSignalEngine, symbol: str, tf: str) -> None:
-    """Procesa un par/TF: descarga datos, analiza y envía señal si corresponde."""
+    """
+    Procesa un par/TF: descarga datos, analiza y envía señal si corresponde.
+    v2: aplica estrategia SSS por usuario y soporta quick-notify.
+    """
 
     # 1. Descargar velas
     loop = asyncio.get_running_loop()
@@ -453,19 +479,25 @@ async def _process_pair(bot, engine: SPSignalEngine, symbol: str, tf: str) -> No
     if df is None or len(df) < 30:
         return
 
-    # 2. Analizar señal
+    # 2. Analizar señal base
     sig = engine.analyze(df)
+
+    # 3. Manejar quick-notify (usuarios que acaban de suscribirse)
+    quick_users = pop_quick_notify(symbol, tf)
+    if quick_users:
+        await _send_quick_notify(bot, quick_users, symbol, tf, sig, df, loop)
+
+    # 4. Señal demasiado débil — solo pre-aviso
     if sig['direction'] == 'NEUTRAL' or sig['score_abs'] < MIN_SCORE_SIGNAL:
-        # Señal demasiado débil — verificar pre-aviso de todas formas
         await _check_pre_alert(bot, symbol, tf, sig, df)
         return
 
-    # 3. Verificar cooldown
+    # 5. Verificar cooldown
     if not can_send_signal(symbol, tf):
         await _check_pre_alert(bot, symbol, tf, sig, df)
         return
 
-    # 4. Calcular tiempo hasta cierre de vela
+    # 6. Calcular tiempo hasta cierre de vela
     try:
         open_time_ms = int(df.iloc[-1]['open_time'])
     except Exception:
@@ -473,51 +505,138 @@ async def _process_pair(bot, engine: SPSignalEngine, symbol: str, tf: str) -> No
 
     sig['time_to_close'] = estimate_time_to_candle_close(open_time_ms, tf)
 
-    # 5. Obtener suscriptores
+    # 7. Obtener suscriptores
     subscribers = get_sp_subscribers(symbol, tf)
     if not subscribers:
         return
 
-    # 6. Generar gráfico
+    # 8. Generar gráfico base
     chart_buf = await loop.run_in_executor(None, generate_sp_chart, df, symbol, tf, sig, 60)
 
-    # 7. Construir mensaje
-    msg = build_signal_message(symbol, tf, sig)
+    # 9. Agrupar suscriptores por estrategia (personalización de mensaje)
+    # Cada grupo recibe un mensaje ligeramente diferente
+    groups: dict[str, list] = {}   # strategy_id_or_none -> [uid, ...]
+    for uid in subscribers:
+        strat = get_user_strategy(int(uid)) if _SSS_AVAILABLE else None
+        gkey  = strat['id'] if strat else '__base__'
+        groups.setdefault(gkey, []).append(uid)
+
+    # 10. Enviar a cada grupo
+    sent_count = 0
+    for gkey, uids in groups.items():
+        if gkey == '__base__':
+            # Mensaje estándar sin estrategia
+            msg_text = build_signal_message(symbol, tf, sig)
+            keyboard = _get_signal_keyboard(symbol, tf)
+        else:
+            # Mensaje enriquecido con estrategia SSS
+            strat = get_user_strategy(int(uids[0]))
+            if strat is None:
+                msg_text = build_signal_message(symbol, tf, sig)
+                keyboard = _get_signal_keyboard(symbol, tf)
+            else:
+                df_ext = await loop.run_in_executor(
+                    None, compute_extended_indicators, df, strat
+                )
+                passes, reason = apply_strategy_filter(strat, sig, df_ext)
+                if not passes:
+                    # Estrategia filtra la señal — no enviar a este grupo
+                    continue
+                sig_enriched = enrich_signal(strat, sig, df_ext)
+                base_msg     = build_signal_message(symbol, tf, sig)
+                strat_block  = build_strategy_signal_block(sig_enriched)
+                msg_text     = base_msg + "\n" + strat_block
+                keyboard     = _get_signal_keyboard(symbol, tf)
+
+        # FIX caption: Telegram limita captions a 1024 chars
+        if chart_buf and len(msg_text) > 1024:
+            msg_text = msg_text[:1020] + "…`"
+
+        for uid in uids:
+            try:
+                if chart_buf:
+                    chart_buf.seek(0)
+                    await bot.send_photo(
+                        chat_id=int(uid),
+                        photo=chart_buf,
+                        caption=msg_text,
+                        parse_mode=ParseMode.MARKDOWN,
+                        reply_markup=keyboard,
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=int(uid),
+                        text=msg_text,
+                        parse_mode=ParseMode.MARKDOWN,
+                        reply_markup=keyboard,
+                    )
+                sent_count += 1
+                await asyncio.sleep(0.05)
+            except Exception as e:
+                add_log_line(f"[SP Loop] Error enviando a {uid}: {e}")
+
+    if sent_count > 0:
+        # 11. Registrar señal
+        update_sp_state(symbol, tf, sig)
+        record_signal_history(symbol, tf, sig)
+        coin = symbol.replace('USDT', '')
+        add_log_line(f"📡 SP señal {sig['direction']} {coin}/{tf} — "
+                     f"score {sig['score']:.1f} — enviada a {sent_count} usuarios")
+
+
+async def _send_quick_notify(
+    bot, users: list, symbol: str, tf: str,
+    sig: dict, df: pd.DataFrame, loop
+) -> None:
+    """
+    Envía señal inmediata a usuarios recién suscritos (quick-notify).
+    No respeta cooldown ni score mínimo — solo informa del estado actual.
+    """
+    if not users:
+        return
+
+    try:
+        open_time_ms = int(df.iloc[-1]['open_time'])
+    except Exception:
+        open_time_ms = int(time.time() * 1000)
+
+    sig_copy = dict(sig)
+    sig_copy['time_to_close'] = estimate_time_to_candle_close(open_time_ms, tf)
+
+    chart_buf = await loop.run_in_executor(None, generate_sp_chart, df, symbol, tf, sig_copy, 60)
+    coin      = symbol.replace('USDT', '')
+
+    intro = (
+        f"📡 *SmartSignals activo!* \\— `{coin}` (`{tf}`)\n"
+        f"_Esta es la señal actual en el momento de tu suscripción:_\n\n"
+    )
+    msg_text = intro + build_signal_message(symbol, tf, sig_copy)
     keyboard = _get_signal_keyboard(symbol, tf)
 
-    # 8. Enviar a suscriptores
-    sent_count = 0
-    for uid in subscribers:
+    if chart_buf and len(msg_text) > 1024:
+        msg_text = msg_text[:1020] + "…`"
+
+    for uid in users:
         try:
             if chart_buf:
                 chart_buf.seek(0)
                 await bot.send_photo(
                     chat_id=int(uid),
                     photo=chart_buf,
-                    caption=msg,
+                    caption=msg_text,
                     parse_mode=ParseMode.MARKDOWN,
                     reply_markup=keyboard,
                 )
             else:
-                # Fallback sin gráfico
                 await bot.send_message(
                     chat_id=int(uid),
-                    text=msg,
+                    text=msg_text,
                     parse_mode=ParseMode.MARKDOWN,
                     reply_markup=keyboard,
                 )
-            sent_count += 1
             await asyncio.sleep(0.05)
         except Exception as e:
-            add_log_line(f"[SP Loop] Error enviando a {uid}: {e}")
-
-    if sent_count > 0:
-        # 9. Registrar señal
-        update_sp_state(symbol, tf, sig)
-        record_signal_history(symbol, tf, sig)
-        coin = symbol.replace('USDT', '')
-        add_log_line(f"📡 SP señal {sig['direction']} {coin}/{tf} — "
-                     f"score {sig['score']:.1f} — enviada a {sent_count} usuarios")
+            add_log_line(f"[SP Quick] Error enviando a {uid}: {e}")
 
 
 async def _check_pre_alert(bot, symbol: str, tf: str, sig: dict, df: pd.DataFrame) -> None:

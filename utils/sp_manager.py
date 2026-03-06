@@ -1,5 +1,6 @@
 # utils/sp_manager.py
 # Gestor de suscripciones, estados e historial del módulo SmartSignals (/sp).
+# v2 — Añade SP_QUICK_NOTIFY_PATH para señal inmediata al suscribirse.
 
 import json
 import os
@@ -8,9 +9,10 @@ from datetime import datetime
 from core.config import DATA_DIR
 
 # ─── PATHS ────────────────────────────────────────────────────────────────────
-SP_SUBS_PATH  = os.path.join(DATA_DIR, "sp_subs.json")
-SP_STATE_PATH = os.path.join(DATA_DIR, "sp_state.json")
-SP_HIST_PATH  = os.path.join(DATA_DIR, "sp_history.json")
+SP_SUBS_PATH         = os.path.join(DATA_DIR, "sp_subs.json")
+SP_STATE_PATH        = os.path.join(DATA_DIR, "sp_state.json")
+SP_HIST_PATH         = os.path.join(DATA_DIR, "sp_history.json")
+SP_QUICK_NOTIFY_PATH = os.path.join(DATA_DIR, "sp_quick_notify.json")
 
 # ─── CONFIGURACIÓN DE MONEDAS SOPORTADAS ──────────────────────────────────────
 SP_SUPPORTED_COINS = [
@@ -233,6 +235,36 @@ def get_signal_history(symbol: str, timeframe: str, limit: int = 10) -> list:
     return hist.get(key, [])[:limit]
 
 # ─── UTILIDADES ───────────────────────────────────────────────────────────────
+
+# ─── QUICK-NOTIFY (señal inmediata al suscribirse) ────────────────────────────
+
+def queue_quick_notify(user_id, symbol: str, timeframe: str) -> None:
+    """
+    Marca que el usuario quiere recibir la señal actual de symbol/tf
+    en el próximo ciclo del loop (sin esperar cooldown).
+    """
+    data = _load(SP_QUICK_NOTIFY_PATH)
+    key  = f"{symbol}_{timeframe}"
+    if key not in data:
+        data[key] = []
+    uid = str(user_id)
+    if uid not in data[key]:
+        data[key].append(uid)
+    _save(SP_QUICK_NOTIFY_PATH, data)
+
+
+def pop_quick_notify(symbol: str, timeframe: str) -> list:
+    """
+    Devuelve y vacía la lista de usuarios que esperan señal inmediata
+    para el par/TF indicado.
+    """
+    data = _load(SP_QUICK_NOTIFY_PATH)
+    key  = f"{symbol}_{timeframe}"
+    users = data.pop(key, [])
+    if users:
+        _save(SP_QUICK_NOTIFY_PATH, data)
+    return users
+
 
 def get_coin_info(key_or_symbol: str) -> dict | None:
     """Devuelve la info de una moneda por su key (BTC) o symbol (BTCUSDT)."""

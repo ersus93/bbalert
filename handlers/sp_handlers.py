@@ -14,6 +14,12 @@
 #  9. [MAYOR]   NEUTRAL se mostraba como SELL (en sp_loop.py/build_signal_message)
 # 10. [MENOR]   Caption foto puede superar 1024 chars (límite Telegram)
 # 11. [MENOR]   score_label NameError potencial si direction=NEUTRAL
+#
+# SSS v2 — SmartSignals Strategy:
+# 12. [NUEVO]   Submenú de estrategias de trading (/sp estrategias)
+# 13. [NUEVO]   Selección de estrategia por usuario (hot-reload, sin reinicio)
+# 14. [NUEVO]   Quick-notify: señal inmediata al activar suscripción
+# 15. [NUEVO]   Vista de señal enriquecida con TP/SL/leverage de la estrategia
 
 import asyncio
 import pandas as pd
@@ -40,9 +46,28 @@ from utils.sp_manager import (
     get_time_until_next,
     get_coin_info,
     estimate_time_to_candle_close,
+    queue_quick_notify,
 )
 from utils.sp_chart import generate_sp_chart
 from core.sp_loop import SPSignalEngine, _get_klines, build_signal_message, _fmt_price
+
+# SSS: estrategias como skills
+try:
+    from utils.sss_manager import (
+        get_available_strategies,
+        get_user_strategy,
+        set_user_strategy,
+        get_strategy_by_id,
+        format_strategy_detail,
+        format_strategy_list_item,
+        apply_strategy_filter,
+        enrich_signal,
+        compute_extended_indicators,
+        build_strategy_signal_block,
+    )
+    _SSS_OK = True
+except ImportError:
+    _SSS_OK = False
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -94,10 +119,20 @@ def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
     if row:
         keyboard.append(row)
 
+    # ── Fila de acciones ──────────────────────────────────────────────────────
     keyboard.append([
         InlineKeyboardButton("📋 Mis señales activas", callback_data="sp_my_subs"),
         InlineKeyboardButton("❓ Ayuda",               callback_data="sp_help"),
     ])
+
+    # ── Fila SSS ──────────────────────────────────────────────────────────────
+    if _SSS_OK:
+        active_strat = get_user_strategy(user_id)
+        strat_label  = f"🧠 {active_strat['name'][:16]}" if active_strat else "🧠 Estrategias"
+        keyboard.append([
+            InlineKeyboardButton(strat_label, callback_data="sp_strategies"),
+        ])
+
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -314,6 +349,7 @@ async def _show_signal_view(
     """
     Descarga → analiza → genera gráfico → envía.
     FIX #10: caption truncado a 1024 chars (límite de Telegram para fotos).
+    SSS v2: enriquece con estrategia activa del usuario si está disponible.
     """
     try:
         loop = asyncio.get_running_loop()
@@ -335,11 +371,32 @@ async def _show_signal_view(
         except Exception:
             sig['time_to_close'] = 0
 
+        # ── SSS: enriquecimiento con estrategia activa ────────────────────────
+        strat_block = ""
+        if _SSS_OK:
+            strat = get_user_strategy(user_id)
+            if strat and tf in strat.get('timeframes', []):
+                df_ext = await loop.run_in_executor(
+                    None, compute_extended_indicators, df, strat
+                )
+                passes, reason = apply_strategy_filter(strat, sig, df_ext)
+                if passes and sig['direction'] != 'NEUTRAL':
+                    sig_e       = enrich_signal(strat, sig, df_ext)
+                    strat_block = "\n" + build_strategy_signal_block(sig_e)
+                elif not passes and sig['direction'] != 'NEUTRAL':
+                    strat_block = (
+                        f"\n\n━━━━━━━━━━━━━━━━━━━━\n"
+                        f"🧠 *{strat.get('name')}*\n"
+                        f"⚠️ _Filtro de entrada: {reason}_\n"
+                        f"━━━━━━━━━━━━━━━━━━━━"
+                    )
+        # ─────────────────────────────────────────────────────────────────────
+
         chart_buf = await loop.run_in_executor(
             None, generate_sp_chart, df, symbol, tf, sig, 60
         )
 
-        msg_text = build_signal_message(symbol, tf, sig)
+        msg_text = build_signal_message(symbol, tf, sig) + strat_block
         keyboard = _get_view_keyboard(user_id, symbol, tf)
 
         # FIX #10: Telegram limita captions a 1024 chars
@@ -446,6 +503,7 @@ async def sp_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     Activa/desactiva alerta para symbol+tf.
     Callback: sp_toggle|SYMBOL|TF
     FIX #7 y #8: recalcula display_tf tras el toggle.
+    NUEVO: queue_quick_notify al activar → señal inmediata en el próximo ciclo.
     """
     query   = update.callback_query
     user_id = query.from_user.id
@@ -468,6 +526,8 @@ async def sp_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     if new_state:
         await query.answer(f"🔔 Alertas {label} ({tf}) activadas.")
         add_log_line(f"📡 SP: user {user_id} activó {symbol}/{tf}")
+        # NUEVO: señal inmediata en el próximo ciclo del loop
+        queue_quick_notify(user_id, symbol, tf)
     else:
         await query.answer(f"🔕 Alertas {label} ({tf}) desactivadas.")
         add_log_line(f"📡 SP: user {user_id} desactivó {symbol}/{tf}")
@@ -714,10 +774,239 @@ async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TY
     )
 
 
+# ─── SSS: CALLBACKS DE ESTRATEGIAS ───────────────────────────────────────────
+
+async def sp_strategies_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Menú de estrategias SSS.
+    Callback: sp_strategies
+    """
+    query   = update.callback_query
+    user_id = query.from_user.id
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("❌ Necesitas SmartSignals Pro.", show_alert=True)
+        return
+
+    await query.answer()
+
+    if not _SSS_OK:
+        await query.edit_message_text(
+            "⚠️ _El módulo de estrategias no está disponible._",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
+            ]])
+        )
+        return
+
+    strategies  = get_available_strategies(user_id)
+    active      = get_user_strategy(user_id)
+    active_id   = active['id'] if active else None
+
+    if not strategies:
+        text = (
+            "🧠 *SmartSignals Strategy*\n"
+            "————————————————————\n\n"
+            "_No hay estrategias disponibles en este momento._\n\n"
+            "Las estrategias se cargan automáticamente desde `data/sss/strategies/`.\n"
+            "Contacta al admin para obtener acceso."
+        )
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
+        ]])
+    else:
+        active_name = active.get('name', '') if active else 'Ninguna'
+        active_emj  = active.get('emoji', '') if active else ''
+
+        text = (
+            "🧠 *SmartSignals Strategy (SSS)*\n"
+            "————————————————————\n\n"
+            "Aplica estrategias de trading sobre tus señales.\n"
+            "Cada estrategia define *entrada, TP, SL y apalancamiento*.\n"
+            "Se actualiza *sin reiniciar* el bot.\n\n"
+            f"🎯 *Activa:* {active_emj} `{active_name}`\n\n"
+            "Selecciona una estrategia para ver detalles:"
+        )
+
+        keyboard_rows = []
+        for s in strategies:
+            is_act  = s['id'] == active_id
+            mark    = " ✅" if is_act else ""
+            btn_lbl = f"{s.get('emoji','📊')} {s.get('name','')}{mark}"
+            keyboard_rows.append([InlineKeyboardButton(
+                btn_lbl,
+                callback_data=f"sp_strat_detail|{s['id']}"
+            )])
+
+        if active_id:
+            keyboard_rows.append([InlineKeyboardButton(
+                "🚫 Desactivar estrategia",
+                callback_data="sp_strat_deactivate"
+            )])
+
+        keyboard_rows.append([InlineKeyboardButton("🔙 Volver", callback_data="sp_main")])
+        keyboard = InlineKeyboardMarkup(keyboard_rows)
+
+    try:
+        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    except Exception:
+        pass
+
+
+async def sp_strat_detail_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Detalle de una estrategia.
+    Callback: sp_strat_detail|STRATEGY_ID
+    """
+    query   = update.callback_query
+    user_id = query.from_user.id
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("❌ Sin acceso.", show_alert=True)
+        return
+
+    try:
+        _, strat_id = query.data.split("|", 1)
+    except ValueError:
+        await query.answer("❌ Error de datos.", show_alert=True)
+        return
+
+    await query.answer()
+
+    if not _SSS_OK:
+        await query.answer("⚠️ Módulo SSS no disponible.", show_alert=True)
+        return
+
+    strat = get_strategy_by_id(strat_id)
+    if not strat:
+        await query.answer("❌ Estrategia no encontrada.", show_alert=True)
+        return
+
+    active = get_user_strategy(user_id)
+    is_act = active and active['id'] == strat_id
+
+    text = format_strategy_detail(strat)
+
+    if is_act:
+        action_btn = InlineKeyboardButton("✅ Activa · Desactivar", callback_data="sp_strat_deactivate")
+    else:
+        action_btn = InlineKeyboardButton(
+            f"✅ Activar {strat.get('emoji','')} {strat.get('name','')}",
+            callback_data=f"sp_strat_activate|{strat_id}"
+        )
+
+    keyboard = InlineKeyboardMarkup([
+        [action_btn],
+        [InlineKeyboardButton("🔙 Lista", callback_data="sp_strategies")],
+    ])
+
+    try:
+        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+    except Exception:
+        pass
+
+
+async def sp_strat_activate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Activa una estrategia para el usuario.
+    Callback: sp_strat_activate|STRATEGY_ID
+    """
+    query   = update.callback_query
+    user_id = query.from_user.id
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("❌ Sin acceso.", show_alert=True)
+        return
+
+    try:
+        _, strat_id = query.data.split("|", 1)
+    except ValueError:
+        await query.answer("❌ Error de datos.", show_alert=True)
+        return
+
+    if not _SSS_OK:
+        await query.answer("⚠️ Módulo SSS no disponible.", show_alert=True)
+        return
+
+    ok = set_user_strategy(user_id, strat_id)
+    if not ok:
+        await query.answer("❌ No se pudo activar la estrategia.", show_alert=True)
+        return
+
+    strat = get_strategy_by_id(strat_id)
+    name  = strat.get('name', strat_id) if strat else strat_id
+    await query.answer(f"✅ Estrategia '{name}' activada.", show_alert=True)
+    add_log_line(f"[SSS] user {user_id} activó estrategia {strat_id}")
+
+    # Refrescar la vista de detalle
+    if strat:
+        text     = format_strategy_detail(strat)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Activa · Desactivar", callback_data="sp_strat_deactivate")],
+            [InlineKeyboardButton("🔙 Lista", callback_data="sp_strategies")],
+        ])
+        try:
+            await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+        except Exception:
+            pass
+
+
+async def sp_strat_deactivate_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Desactiva la estrategia del usuario.
+    Callback: sp_strat_deactivate
+    """
+    query   = update.callback_query
+    user_id = query.from_user.id
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("❌ Sin acceso.", show_alert=True)
+        return
+
+    if _SSS_OK:
+        set_user_strategy(user_id, None)
+        add_log_line(f"[SSS] user {user_id} desactivó estrategia")
+
+    await query.answer("🚫 Estrategia desactivada.", show_alert=True)
+
+    # Volver al menú de estrategias
+    strategies  = get_available_strategies(user_id) if _SSS_OK else []
+    text = (
+        "🧠 *SmartSignals Strategy (SSS)*\n"
+        "————————————————————\n\n"
+        "Aplica estrategias de trading sobre tus señales.\n"
+        "Cada estrategia define *entrada, TP, SL y apalancamiento*.\n"
+        "Se actualiza *sin reiniciar* el bot.\n\n"
+        "🎯 *Activa:* `Ninguna`\n\n"
+        "Selecciona una estrategia para ver detalles:"
+    )
+    keyboard_rows = [
+        [InlineKeyboardButton(
+            f"{s.get('emoji','📊')} {s.get('name','')}",
+            callback_data=f"sp_strat_detail|{s['id']}"
+        )]
+        for s in strategies
+    ]
+    keyboard_rows.append([InlineKeyboardButton("🔙 Volver", callback_data="sp_main")])
+    try:
+        await query.edit_message_text(
+            text, parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup(keyboard_rows)
+        )
+    except Exception:
+        pass
+
+
 # ─── REGISTRO DE HANDLERS ─────────────────────────────────────────────────────
 
 sp_handlers_list = [
     CommandHandler("sp",    sp_command),
+    # Menú principal y navegación
     CallbackQueryHandler(sp_main_callback,      pattern=r"^sp_main$"),
     CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),
     CallbackQueryHandler(sp_toggle_callback,    pattern=r"^sp_toggle\|"),
@@ -726,4 +1015,9 @@ sp_handlers_list = [
     CallbackQueryHandler(sp_my_subs_callback,   pattern=r"^sp_my_subs$"),
     CallbackQueryHandler(sp_help_callback,      pattern=r"^sp_help$"),
     CallbackQueryHandler(sp_goto_shop_callback, pattern=r"^sp_goto_shop$"),
+    # SSS: estrategias de trading
+    CallbackQueryHandler(sp_strategies_callback,      pattern=r"^sp_strategies$"),
+    CallbackQueryHandler(sp_strat_detail_callback,    pattern=r"^sp_strat_detail\|"),
+    CallbackQueryHandler(sp_strat_activate_callback,  pattern=r"^sp_strat_activate\|"),
+    CallbackQueryHandler(sp_strat_deactivate_callback,pattern=r"^sp_strat_deactivate$"),
 ]
