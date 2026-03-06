@@ -555,9 +555,9 @@ backup_bot() {
     _spin_start "Comprimiendo (sin venv)"
     tar -czf "$bfile" --exclude="$PROJECT_DIR/venv" --exclude="$PROJECT_DIR/__pycache__" \
         --exclude="$PROJECT_DIR/*.pyc" --exclude="$PROJECT_DIR/.git" \
-        -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null
+        -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null; local tar_rc=$?
     _spin_stop
-    if [[ $? -eq 0 ]]; then
+    if [[ $tar_rc -eq 0 ]]; then
         local sz; sz=$(du -sh "$bfile" | cut -f1)
         _ok "$(basename "$bfile") — $sz"
         local cnt; cnt=$(ls "$bdir"/*.tar.gz 2>/dev/null | wc -l)
@@ -586,9 +586,9 @@ restore_backup() {
     read -rp "  ¿Confirmas? [s/N]: " cn; [[ ! "$cn" =~ ^[sS]$ ]] && { _info "Cancelado."; _pause; return 0; }
     systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null && { _step "Deteniendo bot"; $SUDO systemctl stop "$SERVICE_NAME"; }
     _spin_start "Restaurando"
-    tar -xzf "${bkps[$((sel-1))]}" -C "$(dirname "$PROJECT_DIR")" 2>/dev/null
+    tar -xzf "${bkps[$((sel-1))]}" -C "$(dirname "$PROJECT_DIR")" 2>/dev/null; local tar_rc=$?
     _spin_stop
-    [[ $? -eq 0 ]] && _ok "Restaurado." || _err "Falló la restauración."
+    [[ $tar_rc -eq 0 ]] && _ok "Restaurado." || _err "Falló la restauración."
     read -rp "  ¿Reiniciar bot? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && manage_service "start"
     _pause
 }
@@ -836,7 +836,7 @@ update_version() {
     local vt="${1:-patch}" vs="$PROJECT_DIR/update_version.py"
     [[ -f "$vs" ]] || { _warn "No se encontró update_version.py"; return; }
     _step "Actualizando versión ($vt)"
-    cd "$PROJECT_DIR"
+    cd "$PROJECT_DIR" || { _err "No se pudo acceder a $PROJECT_DIR"; return 1; }
     [[ -f "$PYTHON_BIN" ]] && "$PYTHON_BIN" "$vs" "$vt" || python3 "$vs" "$vt"
 }
 update_dependencies() {
@@ -881,8 +881,8 @@ git_clone_repository() {
     read -rp "  URL [$dflt]: " url; url=${url:-$dflt}
     read -rp "  Destino [~/bbalert]: " dest; dest="${dest:-$HOME/bbalert}"; dest="${dest/#\~/$HOME}"
     [[ -d "$dest" ]] && { read -rp "  Ya existe. ¿Eliminar? [s/N]: " yn; [[ "$yn" =~ ^[sS]$ ]] && rm -rf "$dest" || return 1; }
-    _spin_start "Clonando"; git clone "$url" "$dest"; _spin_stop
-    [[ $? -eq 0 ]] && _ok "Repositorio en $dest" || _err "Error clonando."; _pause
+    _spin_start "Clonando"; git clone "$url" "$dest"; local clone_rc=$?; _spin_stop
+    [[ $clone_rc -eq 0 ]] && _ok "Repositorio en $dest" || _err "Error clonando."; _pause
 }
 force_pull_repository() {
     local branch="$1" remote="${2:-origin}"
