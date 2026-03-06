@@ -66,60 +66,162 @@ _section() {
     printf "  ${DIM}"; printf '%.s─' $(seq 1 $(( $(_w) - 4 )) ); printf "${NC}\n"
 }
 
-# ── HELPERS TUI AVANZADOS ──────────────────────────────────────────────────────
+# ── MOTOR TUI RESPONSIVO ──────────────────────────────────────────────────────
+
+# Imprime N veces un carácter (seguro con n=0)
 _nchar() {
-    local char="$1" n="${2:-0}"
-    [[ "$n" -le 0 ]] 2>/dev/null && return 0
-    printf "%.s${char}" $(seq 1 "$n")
+    local char="${1:- }" n="${2:-0}"
+    local ni=$(( n )) 2>/dev/null; [[ ${ni:-0} -le 0 ]] && return 0
+    printf "%.s${char}" $(seq 1 "$ni")
 }
 
+# Barra de progreso: _pbar valor max ancho
 _pbar() {
-    local val="${1:-0}" max="${2:-100}" width="${3:-14}"
-    local filled=0
-    [[ "${max:-0}" -gt 0 ]] 2>/dev/null && filled=$(( val * width / max ))
-    [[ $filled -gt $width ]] && filled=$width
-    local empty=$(( width - filled ))
-    local col="${GB}"
-    [[ "${val:-0}" -gt 70 ]] 2>/dev/null && col="${YB}"
-    [[ "${val:-0}" -gt 90 ]] 2>/dev/null && col="${RB}"
-    printf "${col}"; _nchar '█' $filled; printf "${DIM}"; _nchar '░' $empty; printf "${NC}"
+    local val="${1:-0}" max="${2:-100}" w="${3:-14}"
+    local f=0; [[ ${max:-0} -gt 0 ]] && f=$(( val * w / max ))
+    [[ $f -gt $w ]] && f=$w; [[ $f -lt 0 ]] && f=0
+    local e=$(( w - f ))
+    local col="${GB}"; [[ ${val:-0} -gt 70 ]] && col="${YB}"; [[ ${val:-0} -gt 90 ]] && col="${RB}"
+    printf "${col}"; _nchar '█' "$f"; printf "${DIM}"; _nchar '░' "$e"; printf "${NC}"
 }
 
+# CPU del sistema (muestra real, 0.2s de muestra)
 _sys_cpu() {
-    local l1 l2
-    l1=$(grep '^cpu ' /proc/stat 2>/dev/null || echo "cpu 0 0 0 100 0 0 0 0")
-    sleep 0.15
-    l2=$(grep '^cpu ' /proc/stat 2>/dev/null || echo "cpu 0 0 0 100 0 0 0 0")
-    local u1 n1 s1 i1 w1 r1 f1 t1 u2 n2 s2 i2 w2 r2 f2 t2
-    read -r _ u1 n1 s1 i1 w1 r1 f1 t1 _ <<< "$l1" 2>/dev/null
-    read -r _ u2 n2 s2 i2 w2 r2 f2 t2 _ <<< "$l2" 2>/dev/null
-    local tot1=$(( u1+n1+s1+i1+w1+r1+f1+t1 ))
-    local tot2=$(( u2+n2+s2+i2+w2+r2+f2+t2 ))
-    local idle1=$(( i1+w1 )) idle2=$(( i2+w2 ))
-    local dt=$(( tot2-tot1 )) di=$(( idle2-idle1 ))
+    local u1 n1 s1 i1 w1 u2 n2 s2 i2 w2
+    read -r _ u1 n1 s1 i1 w1 _ < /proc/stat 2>/dev/null || { echo 0; return; }
+    sleep 0.2
+    read -r _ u2 n2 s2 i2 w2 _ < /proc/stat 2>/dev/null || { echo 0; return; }
+    local dt=$(( (u2+n2+s2+i2+w2) - (u1+n1+s1+i1+w1) ))
+    local di=$(( (i2+w2) - (i1+w1) ))
     [[ $dt -le 0 ]] && echo 0 && return
-    echo $(( (dt-di)*100/dt ))
+    echo $(( (dt - di) * 100 / dt ))
 }
 
-_bot_info_panel() {
-    local W; W=$(_w)
-    local PW=$(( W - 8 )); [[ $PW -gt 90 ]] && PW=90; [[ $PW -lt 50 ]] && PW=50
-    local lpad=$(( (W - PW - 2) / 2 )); [[ $lpad -lt 0 ]] && lpad=0
-    local pad; pad=$(printf '%*s' "$lpad" '')
-    local IW=$PW
+# ── PRIMITIVAS DE CAJA (full-width, alineación exacta) ─────────────────────────
 
-    # Bot status
-    local status_icon="${Y}○${NC}" status_txt="${Y}sin bot${NC}" bot_cpu="—" bot_ram="—"
+# Línea horizontal de una caja: _bline tipo IW [fill]
+# tipo: top | mid | bot | midv (con separador vertical en mitad)
+# IW = ancho interior total (sin los 2 chars de borde)
+_bline() {
+    local t="$1" IW="$2" f="${3:-─}"
+    case "$t" in
+        top)  printf "${BB}╔"; _nchar '═' "$IW"; printf "╗${NC}\n" ;;
+        bot)  printf "${BB}╚"; _nchar '═' "$IW"; printf "╝${NC}\n" ;;
+        mid)  printf "${BB}╠"; _nchar '═' "$IW"; printf "╣${NC}\n" ;;
+        sep)  printf "${BB}╠"; _nchar "$f" "$IW"; printf "╣${NC}\n" ;;
+        top2) # top de 2 columnas: _bline top2 CW RCW
+              local CW="$3" RCW="$4"
+              printf "${BB}╔"; _nchar '═' "$CW"; printf "╦"; _nchar '═' "$RCW"; printf "╗${NC}\n" ;;
+        mid2) local CW="$3" RCW="$4"
+              printf "${BB}╠"; _nchar '═' "$CW"; printf "╬"; _nchar '═' "$RCW"; printf "╣${NC}\n" ;;
+        bot2) local CW="$3" RCW="$4"
+              printf "${BB}╚"; _nchar '═' "$CW"; printf "╩"; _nchar '═' "$RCW"; printf "╝${NC}\n" ;;
+    esac
+}
+
+# Fila de caja con texto centrado: _bcenter "texto_raw" IW
+# El texto_raw puede tener ANSI, se mide quitándolos
+_bcenter() {
+    local raw="$1" IW="$2"
+    local plain; plain=$(printf '%b' "$raw" | sed 's/\x1b\[[0-9;]*m//g')
+    local clen=${#plain}
+    local lp=$(( (IW - clen) / 2 )); [[ $lp -lt 1 ]] && lp=1
+    local rp=$(( IW - clen - lp )); [[ $rp -lt 0 ]] && rp=0
+    printf "${BB}║${NC}%*s%b%*s${BB}║${NC}\n" "$lp" '' "$raw" "$rp" ''
+}
+
+# Divisor con etiqueta centrada: _blabel "LABEL" IW [fill]
+_blabel() {
+    local lbl=" $1 " IW="$2" f="${3:-─}"
+    local ll=${#lbl}
+    local lp=$(( (IW - ll) / 2 )); [[ $lp -lt 0 ]] && lp=0
+    local rp=$(( IW - ll - lp )); [[ $rp -lt 0 ]] && rp=0
+    printf "${BB}╠${NC}${B}${DIM}"; _nchar "$f" "$lp"
+    printf "${NC}${DIM}%s${NC}${B}${DIM}" "$lbl"
+    _nchar "$f" "$rp"; printf "${NC}${BB}╣${NC}\n"
+}
+
+# ── CELDAS DEL MENÚ (ancho exacto, sin emoji en zona de relleno) ────────────────
+
+# Celda de un ítem: _mcell num "Etiqueta" ancho_celda
+# Rellena exactamente ancho_celda caracteres (puro ASCII + ANSI → padding exacto)
+_mcell() {
+    local num="$1" lbl="$2" CW="$3"
+    # Formato: "  NN)  <texto>  " = 2+3+2+texto+1 = texto+8
+    local tw=$(( CW - 8 )); [[ $tw -lt 1 ]] && tw=1
+    local t="${lbl:0:$tw}"   # truncar si muy largo
+    printf "  ${CB}%2d)${NC}  ${WB}%-*s${NC} " "$num" "$tw" "$t"
+}
+
+# Celda vacía de ancho exacto
+_mcell_empty() {
+    local CW="$1"
+    printf '%*s' "$CW" ''
+}
+
+# Divisor de sección 2-col: _msect2 "HDR IZQ" "HDR DER" CW RCW
+# Texto puro ASCII → longitud exacta
+_msect2() {
+    local lh="$1" rh="$2" CW="$3" RCW="$4"
+    # Celda izquierda: " HDR " centrada en ═
+    local lt=" ${lh} " ll=${#lh}; ll=$(( ll + 2 ))
+    local llp=$(( (CW - ll) / 2 )); [[ $llp -lt 0 ]] && llp=0
+    local lrp=$(( CW - ll - llp )); [[ $lrp -lt 0 ]] && lrp=0
+    # Celda derecha
+    local rt=" ${rh} " rl=${#rh}; rl=$(( rl + 2 ))
+    local rlp=$(( (RCW - rl) / 2 )); [[ $rlp -lt 0 ]] && rlp=0
+    local rrp=$(( RCW - rl - rlp )); [[ $rrp -lt 0 ]] && rrp=0
+    printf "${BB}╠${NC}"
+    _nchar '═' "$llp"; printf "${YB} %s ${NC}" "$lh"; _nchar '═' "$lrp"
+    printf "${BB}╬${NC}"
+    _nchar '═' "$rlp"; printf "${YB} %s ${NC}" "$rh"; _nchar '═' "$rrp"
+    printf "${BB}╣${NC}\n"
+}
+
+# Divisor de sección 1-col: _msect1 "HEADER" IW
+_msect1() {
+    local hdr="$1" IW="$2"
+    local hl=$(( ${#hdr} + 2 ))
+    local lp=$(( (IW - hl) / 2 )); [[ $lp -lt 0 ]] && lp=0
+    local rp=$(( IW - hl - lp )); [[ $rp -lt 0 ]] && rp=0
+    printf "${BB}╠${NC}"; _nchar '─' "$lp"
+    printf "${YB} %s ${NC}" "$hdr"
+    _nchar '─' "$rp"; printf "${BB}╣${NC}\n"
+}
+
+# Fila de 2 columnas: _mrow2 n1 lbl1 n2 lbl2 CW RCW
+_mrow2() {
+    local n1="$1" l1="$2" n2="$3" l2="$4" CW="$5" RCW="$6"
+    local c1 c2
+    [[ -n "$l1" ]] && c1=$(_mcell "$n1" "$l1" "$CW") || c1=$(_mcell_empty "$CW")
+    [[ -n "$l2" ]] && c2=$(_mcell "$n2" "$l2" "$RCW") || c2=$(_mcell_empty "$RCW")
+    printf "${BB}║${NC}%b${BB}║${NC}%b${BB}║${NC}\n" "$c1" "$c2"
+}
+
+# Fila de 1 columna: _mrow1 num "lbl" IW
+_mrow1() {
+    local num="$1" lbl="$2" IW="$3"
+    local tw=$(( IW - 8 )); [[ $tw -lt 1 ]] && tw=1
+    local t="${lbl:0:$tw}"
+    printf "${BB}║${NC}  ${CB}%2d)${NC}  ${WB}%-*s${NC} ${BB}║${NC}\n" "$num" "$tw" "$t"
+}
+
+# ── PANEL DE INFO DEL BOT ───────────────────────────────────────────────────────
+_bot_info_panel() {
+    local W; W=$(_w); local IW=$(( W - 2 ))
+
+    # ── Datos del bot ──
+    local sdot="${YB}◌${NC}" slbl="${DIM}sin seleccionar${NC}" bot_cpu="—" bot_ram="—"
     if [[ -n "${SERVICE_NAME:-}" ]]; then
         if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
-            status_icon="${GB}●${NC}"; status_txt="${GB}ACTIVO${NC}"
+            sdot="${GB}●${NC}"; slbl="${GB}ACTIVO${NC}"
             local pid; pid=$(systemctl show "${SERVICE_NAME}" --property=MainPID --value 2>/dev/null || echo "0")
             if [[ "${pid:-0}" != "0" ]] && kill -0 "${pid}" 2>/dev/null; then
                 bot_cpu=$(ps -p "${pid}" -o %cpu= 2>/dev/null | tr -d ' ' || echo "—")
                 bot_ram=$(ps -p "${pid}" -o rss= 2>/dev/null | awk '{printf "%.0fMB",$1/1024}' || echo "—")
             fi
         else
-            status_icon="${RB}○${NC}"; status_txt="${RB}DETENIDO${NC}"
+            sdot="${RB}●${NC}"; slbl="${RB}DETENIDO${NC}"
         fi
     fi
     local git_br="—"
@@ -127,75 +229,50 @@ _bot_info_panel() {
         git_br=$(cd "${PROJECT_DIR}" && git branch --show-current 2>/dev/null || echo "?")
     local now; now=$(date '+%H:%M:%S')
 
-    # System stats
-    local sys_cpu; sys_cpu=$(_sys_cpu 2>/dev/null || echo 0)
-    local sys_ram_used=0 sys_ram_total=1
-    read -r sys_ram_used sys_ram_total < <(free -m 2>/dev/null | awk 'NR==2{print $3,$2}')
-    local sys_ram_pct=0
-    [[ "${sys_ram_total:-1}" -gt 0 ]] && sys_ram_pct=$(( sys_ram_used * 100 / sys_ram_total ))
-    local ram_ug; ram_ug=$(awk "BEGIN{printf \"%.1f\", ${sys_ram_used:-0}/1024}")
-    local ram_tg; ram_tg=$(awk "BEGIN{printf \"%.1f\", ${sys_ram_total:-1}/1024}")
-    local cpu_col="${GB}"; [[ "${sys_cpu:-0}" -gt 70 ]] 2>/dev/null && cpu_col="${YB}"; [[ "${sys_cpu:-0}" -gt 90 ]] 2>/dev/null && cpu_col="${RB}"
-    local ram_col="${GB}"; [[ "${sys_ram_pct:-0}" -gt 70 ]] 2>/dev/null && ram_col="${YB}"; [[ "${sys_ram_pct:-0}" -gt 90 ]] 2>/dev/null && ram_col="${RB}"
-    local cpu_bar; cpu_bar=$(_pbar "$sys_cpu" 100 14)
-    local ram_bar; ram_bar=$(_pbar "$sys_ram_pct" 100 14)
+    # ── Datos del sistema ──
+    local sys_cpu=0 sys_ramu=0 sys_ramt=1 sys_ramp=0
+    sys_cpu=$(_sys_cpu 2>/dev/null || echo 0)
+    read -r sys_ramu sys_ramt < <(free -m 2>/dev/null | awk 'NR==2{print $3,$2}')
+    [[ "${sys_ramt:-1}" -gt 0 ]] && sys_ramp=$(( sys_ramu * 100 / sys_ramt ))
+    local rg_u; rg_u=$(awk "BEGIN{printf \"%.1fG\", ${sys_ramu:-0}/1024}")
+    local rg_t; rg_t=$(awk "BEGIN{printf \"%.1fG\", ${sys_ramt:-1}/1024}")
+    local cpu_col="${GB}"; [[ ${sys_cpu:-0} -gt 70 ]] && cpu_col="${YB}"; [[ ${sys_cpu:-0} -gt 90 ]] && cpu_col="${RB}"
+    local ram_col="${GB}"; [[ ${sys_ramp:-0} -gt 70 ]] && ram_col="${YB}"; [[ ${sys_ramp:-0} -gt 90 ]] && ram_col="${RB}"
+    local bw=16; [[ $W -gt 120 ]] && bw=22; [[ $W -lt 80 ]] && bw=10
+    local cpu_bar; cpu_bar=$(_pbar "$sys_cpu" 100 "$bw")
+    local ram_bar; ram_bar=$(_pbar "$sys_ramp" 100 "$bw")
 
-    # ── Render top border
-    printf "${pad}${B}╭"; _nchar '─' "$IW"; printf "╮${NC}\n"
+    # ── Línea 1: info del bot (medimos texto plano para centrar) ──
+    local bn="${FOLDER_NAME:-sin bot}"
+    # Construimos la parte visible (sin ANSI) para medir
+    local bot_vis="  ${bn}  ${slbl//\\033\[*m/}  bot cpu:${bot_cpu}%  ram:${bot_ram}  git:${git_br}  ${now}  "
+    # Versión con colores para imprimir
+    local bot_raw
+    bot_raw=$(printf "  %b %s  %b  bot cpu:${YB}%s%%${NC}  ram:${YB}%s${NC}  git:${C}%s${NC}  ${DIM}%s${NC}  " \
+        "$sdot" "$bn" "$slbl" "$bot_cpu" "$bot_ram" "$git_br" "$now")
+    local bot_plain; bot_plain=$(printf '%b' "$bot_raw" | sed 's/\x1b\[[0-9;]*m//g')
+    local bl=${#bot_plain}
+    local blp=$(( (IW - bl) / 2 )); [[ $blp -lt 1 ]] && blp=1
+    local brp=$(( IW - bl - blp )); [[ $brp -lt 0 ]] && brp=0
 
-    # ── Bot info line (centered)
-    local bot_r; bot_r=$(printf "%b %s  %b  cpu:${YB}%s%%${NC}  ram:${YB}%s${NC}  git:${C}%s${NC}  ${DIM}%s${NC}" \
-        "$status_icon" "${FOLDER_NAME:-sin bot}" "$status_txt" "$bot_cpu" "$bot_ram" "$git_br" "$now")
-    local bot_v; bot_v=$(printf '%b' "$bot_r" | sed 's/\x1b\[[0-9;]*m//g')
-    local blen=${#bot_v} blp=$(( (IW - blen) / 2 )) brp=$(( IW - blen - blp ))
-    [[ $blp -lt 1 ]] && blp=1; [[ $brp -lt 0 ]] && brp=0
-    printf "${pad}${B}│${NC}%*s%b%*s${B}│${NC}\n" "$blp" '' "$bot_r" "$brp" ''
+    # ── Línea 2: sistema (todo ASCII conocido, centramos fácil) ──
+    # Medimos los chars visibles: "  CPU [barra_N] NN%    RAM [barra_N] X.XG/Y.YG  "
+    # barra_N = bw chars, el resto es ASCII
+    local sys_fixed_vis="  CPU  ${sys_cpu}%    RAM  ${rg_u}/${rg_t}  "
+    local sys_fixed_w=$(( ${#sys_fixed_vis} + bw * 2 ))
+    local slp=$(( (IW - sys_fixed_w) / 2 )); [[ $slp -lt 1 ]] && slp=1
+    local srp=$(( IW - sys_fixed_w - slp )); [[ $srp -lt 0 ]] && srp=0
+    local sys_raw
+    sys_raw=$(printf "  CPU %b  ${cpu_col}%s%%${NC}    RAM %b  ${ram_col}%s/%s${NC}  " \
+        "$cpu_bar" "$sys_cpu" "$ram_bar" "$rg_u" "$rg_t")
 
-    # ── Sistema divider
-    local sh=$(( (IW - 10) / 2 )) sr=$(( IW - sh - 10 ))
-    printf "${pad}${B}├${DIM}"; _nchar '─' "$sh"; printf " SISTEMA "; _nchar '─' "$sr"; printf "${NC}${B}┤${NC}\n"
-
-    # ── System stats line (centered)
-    local sys_r; sys_r=$(printf "  CPU %b  %b%s%%%b   RAM %b  %b%s/%sG%b" \
-        "$cpu_bar" "$cpu_col" "$sys_cpu" "$NC" "$ram_bar" "$ram_col" "$ram_ug" "$ram_tg" "$NC")
-    local sys_v; sys_v=$(printf '%b' "$sys_r" | sed 's/\x1b\[[0-9;]*m//g')
-    local slen=${#sys_v} slp=$(( (IW - slen) / 2 )) srp=$(( IW - slen - slp ))
-    [[ $slp -lt 1 ]] && slp=1; [[ $srp -lt 0 ]] && srp=0
-    printf "${pad}${B}│${NC}%*s%b%*s${B}│${NC}\n" "$slp" '' "$sys_r" "$srp" ''
-
-    printf "${pad}${B}╰"; _nchar '─' "$IW"; printf "╯${NC}\n"
+    # ── Render ──
+    _bline top "$IW"
+    printf "${BB}║${NC}%*s%b%*s${BB}║${NC}\n" "$blp" '' "$bot_raw" "$brp" ''
+    _blabel "SISTEMA VM" "$IW" '─'
+    printf "${BB}║${NC}%*s%b%*s${BB}║${NC}\n" "$slp" '' "$sys_raw" "$srp" ''
+    _bline bot "$IW"
     printf "\n"
-}
-
-# ── MENU 2 COLUMNAS ────────────────────────────────────────────────────────────
-_m2head() {
-    local left="$1" right="$2" CW="$3" RCW="$4"
-    local ll=${#left} rl=${#right}
-    local lp=$(( CW - ll - 2 )); [[ $lp -lt 0 ]] && lp=0
-    local rp=$(( RCW - rl - 2 )); [[ $rp -lt 0 ]] && rp=0
-    printf "  ${B}║${NC} ${YB}%s${NC}%*s${B}║${NC} ${YB}%s${NC}%*s${B}║${NC}\n" \
-        "$left" "$lp" '' "$right" "$rp" ''
-    printf "  ${B}║${DIM} "; _nchar '╌' $(( CW - 2 )); printf " ${NC}${B}║${DIM} "; _nchar '╌' $(( RCW - 2 )); printf " ${NC}${B}║${NC}\n"
-}
-
-_m2row() {
-    local n1="$1" e1="$2" l1="$3" n2="$4" e2="$5" l2="$6" CW="$7" RCW="$8"
-    local ls lv ll lp rs rv rl rp
-    if [[ -n "$l1" ]]; then
-        ls=$(printf " ${CB}%2s)${NC} %s ${WB}%s${NC}" "$n1" "$e1" "$l1")
-        lv=$(printf '%b' "$ls" | sed 's/\x1b\[[0-9;]*m//g')
-        ll=${#lv}; lp=$(( CW - ll )); [[ $lp -lt 1 ]] && lp=1
-    else
-        ls=""; lp=$(( CW ))
-    fi
-    if [[ -n "$l2" ]]; then
-        rs=$(printf " ${CB}%2s)${NC} %s ${WB}%s${NC}" "$n2" "$e2" "$l2")
-        rv=$(printf '%b' "$rs" | sed 's/\x1b\[[0-9;]*m//g')
-        rl=${#rv}; rp=$(( RCW - rl )); [[ $rp -lt 1 ]] && rp=1
-    else
-        rs=""; rp=$(( RCW ))
-    fi
-    printf "  ${B}║${NC}%b%*s${B}║${NC}%b%*s${B}║${NC}\n" "$ls" "$lp" '' "$rs" "$rp" ''
 }
 
 # ── HEADER ─────────────────────────────────────────────────────────────────────
@@ -209,12 +286,10 @@ _header() {
     _center "██╔══██╗██╔══██╗██╔══██║██║     ██╔══╝  ██╔══██╗   ██║   " "${C}"
     _center "██████╔╝██████╔╝██║  ██║███████╗███████╗██║  ██║   ██║   " "${DIM}${C}"
     _center "╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝  " "${DIM}"
-    _center "M U L T I - B O T   M A N A G E R   v5" "${YB}"
+    _center "M U L T I - B O T   M A N A G E R   v6" "${YB}"
     printf "\n"
     _hline '═' "${BB}"
 }
-
-
 
 # ── MENÚ PRINCIPAL ─────────────────────────────────────────────────────────────
 show_menu() {
@@ -222,49 +297,85 @@ show_menu() {
     _bot_info_panel
 
     local W; W=$(_w)
-    local IW=$(( W - 4 ))
-    local CW=$(( (IW - 1) / 2 ))
-    local RCW=$(( IW - CW - 1 ))
+    local IW=$(( W - 2 ))
 
-    # ╔══╦══╗
-    printf "  ${B}╔"; _nchar '═' "$CW"; printf "╦"; _nchar '═' "$RCW"; printf "╗${NC}\n"
+    if [[ $W -ge 84 ]]; then
+        # ╔══════════════ 2 COLUMNAS ══════════════╗
+        local CW=$(( (IW - 1) / 2 ))
+        local RCW=$(( IW - 1 - CW ))
 
-    # ── BLOQUE 1: Instalación + Control del Bot
-    _m2head "⚙  INSTALACIÓN Y CONFIG" "▶  CONTROL DEL BOT" "$CW" "$RCW"
-    _m2row  1 "🚀" "Instalación Completa"    6 "▶ " "Iniciar Bot"       "$CW" "$RCW"
-    _m2row  2 "🔧" "Crear/Recrear venv"      7 "⏹ " "Detener Bot"       "$CW" "$RCW"
-    _m2row  3 "📦" "Instalar Dependencias"   8 "🔄" "Reiniciar Bot"     "$CW" "$RCW"
-    _m2row  4 "🔑" "Configurar .env"         9 "📋" "Estado Servicio"   "$CW" "$RCW"
-    _m2row  5 "⚙ " "Crear Servicio Systemd" 10 "📊" "Estadísticas"      "$CW" "$RCW"
+        _bline top2 _ "$CW" "$RCW"
 
-    # ╠══╬══╣
-    printf "  ${B}╠"; _nchar '═' "$CW"; printf "╬"; _nchar '═' "$RCW"; printf "╣${NC}\n"
+        _msect2 "INSTALACION Y CONFIG" "CONTROL DEL BOT" "$CW" "$RCW"
+        _mrow2  1 "Instalacion Completa"    6 "Iniciar Bot"       "$CW" "$RCW"
+        _mrow2  2 "Crear / Recrear venv"    7 "Detener Bot"       "$CW" "$RCW"
+        _mrow2  3 "Instalar Dependencias"   8 "Reiniciar Bot"     "$CW" "$RCW"
+        _mrow2  4 "Configurar .env"         9 "Estado Servicio"   "$CW" "$RCW"
+        _mrow2  5 "Crear Servicio Systemd" 10 "Estadisticas"      "$CW" "$RCW"
 
-    # ── BLOQUE 2: Git + Logs
-    _m2head "🌿  CONTROL DE GIT" "🔍  LOGS Y MONITOREO" "$CW" "$RCW"
-    _m2row 11 "📥" "Clonar Repositorio"   16 "📋" "Gestión de Logs"     "$CW" "$RCW"
-    _m2row 12 "⬇ " "Actualizar Código"    17 "🌐" "Dashboard Multi-Bot" "$CW" "$RCW"
-    _m2row 13 "🌿" "Cambiar de Rama"       "" ""   ""                   "$CW" "$RCW"
-    _m2row 14 "📊" "Estado del Repo"       "" ""   ""                   "$CW" "$RCW"
-    _m2row 15 "📜" "Historial de Commits"  "" ""   ""                   "$CW" "$RCW"
+        _bline mid2 _ "$CW" "$RCW"
 
-    # ╠══╬══╣
-    printf "  ${B}╠"; _nchar '═' "$CW"; printf "╬"; _nchar '═' "$RCW"; printf "╣${NC}\n"
+        _msect2 "CONTROL DE GIT" "LOGS Y MONITOREO" "$CW" "$RCW"
+        _mrow2 11 "Clonar Repositorio"    16 "Gestion de Logs"      "$CW" "$RCW"
+        _mrow2 12 "Actualizar Codigo"     17 "Dashboard Multi-Bot"  "$CW" "$RCW"
+        _mrow2 13 "Cambiar de Rama"        "" ""                     "$CW" "$RCW"
+        _mrow2 14 "Estado del Repo"        "" ""                     "$CW" "$RCW"
+        _mrow2 15 "Historial de Commits"   "" ""                     "$CW" "$RCW"
 
-    # ── BLOQUE 3: Backup + Otros
-    _m2head "💾  BACKUP Y MANTENIMIENTO" "📁  OTROS" "$CW" "$RCW"
-    _m2row 18 "💾" "Crear Backup"          23 "📂" "Cambiar Bot/Directorio" "$CW" "$RCW"
-    _m2row 19 "♻ " "Restaurar Backup"      "" ""   ""                   "$CW" "$RCW"
-    _m2row 20 "🗺 " "Gestión de Entornos"  "" ""   ""                   "$CW" "$RCW"
-    _m2row 21 "🗑 " "Eliminar Dependencia" "" ""   ""                   "$CW" "$RCW"
-    _m2row 22 "🗑 " "Desinstalar Servicio" "" ""   ""                   "$CW" "$RCW"
+        _bline mid2 _ "$CW" "$RCW"
 
-    # ╚══╩══╝
-    printf "  ${B}╚"; _nchar '═' "$CW"; printf "╩"; _nchar '═' "$RCW"; printf "╝${NC}\n"
+        _msect2 "BACKUP Y MANTENIMIENTO" "OTROS" "$CW" "$RCW"
+        _mrow2 18 "Crear Backup"           23 "Cambiar Bot / Dir"   "$CW" "$RCW"
+        _mrow2 19 "Restaurar Backup"        "" ""                   "$CW" "$RCW"
+        _mrow2 20 "Gestion de Entornos"     "" ""                   "$CW" "$RCW"
+        _mrow2 21 "Eliminar Dependencia"    "" ""                   "$CW" "$RCW"
+        _mrow2 22 "Desinstalar Servicio"    "" ""                   "$CW" "$RCW"
+
+        _bline bot2 _ "$CW" "$RCW"
+
+    else
+        # ╔════ 1 COLUMNA (terminales estrechas) ════╗
+        _bline top "$IW"
+
+        _msect1 "INSTALACION Y CONFIG" "$IW"
+        _mrow1  1 "Instalacion Completa"   "$IW"
+        _mrow1  2 "Crear / Recrear venv"   "$IW"
+        _mrow1  3 "Instalar Dependencias"  "$IW"
+        _mrow1  4 "Configurar .env"        "$IW"
+        _mrow1  5 "Crear Servicio Systemd" "$IW"
+
+        _msect1 "CONTROL DEL BOT" "$IW"
+        _mrow1  6 "Iniciar Bot"    "$IW"
+        _mrow1  7 "Detener Bot"    "$IW"
+        _mrow1  8 "Reiniciar Bot"  "$IW"
+        _mrow1  9 "Estado"         "$IW"
+        _mrow1 10 "Estadisticas"   "$IW"
+
+        _msect1 "CONTROL DE GIT" "$IW"
+        _mrow1 11 "Clonar Repositorio"   "$IW"
+        _mrow1 12 "Actualizar Codigo"    "$IW"
+        _mrow1 13 "Cambiar de Rama"      "$IW"
+        _mrow1 14 "Estado del Repo"      "$IW"
+        _mrow1 15 "Historial de Commits" "$IW"
+
+        _msect1 "LOGS Y MONITOREO" "$IW"
+        _mrow1 16 "Gestion de Logs"     "$IW"
+        _mrow1 17 "Dashboard Multi-Bot" "$IW"
+
+        _msect1 "BACKUP Y MANTENIMIENTO" "$IW"
+        _mrow1 18 "Crear Backup"           "$IW"
+        _mrow1 19 "Restaurar Backup"       "$IW"
+        _mrow1 20 "Gestion de Entornos"    "$IW"
+        _mrow1 21 "Eliminar Dependencia"   "$IW"
+        _mrow1 22 "Desinstalar Servicio"   "$IW"
+        _mrow1 23 "Cambiar Bot / Dir"      "$IW"
+
+        _bline bot "$IW"
+    fi
 
     printf "\n"
-    _center "${RB}[ 0 ]${NC}  ${DIM}✕  Salir${NC}"
-    printf "\n\n  ${CB}›${NC} Selecciona una opción: "
+    _center "${RB}[ 0 ]${NC}  ${DIM}Salir${NC}"
+    printf "\n\n  ${CB}›${NC} Selecciona una opcion: "
 }
 
 # ── UTILIDADES ─────────────────────────────────────────────────────────────────
