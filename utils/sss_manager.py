@@ -850,6 +850,430 @@ def save_user_strategy_file(user_id: int, data: dict) -> str | None:
         return None
 
 
+# ─── BACKTESTING ENGINE ───────────────────────────────────────────────────────
+
+# Importación diferida de SPSignalEngine para evitar importación circular
+def _get_signal_engine():
+    try:
+        from core.sp_loop import SPSignalEngine
+        return SPSignalEngine()
+    except ImportError:
+        return None
+
+
+def _download_candles_for_backtest(symbol: str, interval: str, limit: int = 500):
+    """Descarga velas desde Binance para el backtest."""
+    import requests
+    endpoints = [
+        "https://api.binance.com/api/v3/klines",
+        "https://api.binance.us/api/v3/klines",
+    ]
+    params = {"symbol": symbol, "interval": interval, "limit": limit}
+    for url in endpoints:
+        try:
+            r = requests.get(url, params=params, timeout=8)
+            if r.status_code != 200:
+                continue
+            data = r.json()
+            if not isinstance(data, list) or len(data) < 50:
+                continue
+            df = pd.DataFrame(data, columns=[
+                "open_time", "open", "high", "low", "close", "volume",
+                "close_time", "q_vol", "trades", "tb_base", "tb_quote", "ignore"
+            ])
+            for col in ["open", "high", "low", "close", "volume"]:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            df['time'] = pd.to_datetime(df['open_time'], unit='ms')
+            df.set_index('time', inplace=True)
+            return df
+        except Exception:
+            continue
+    return None
+
+
+def _simulate_trade_forward(
+    df: pd.DataFrame,
+    entry_bar: int,
+    entry_price: float,
+    sl_price: float,
+    tp1_price: float,
+    tp2_price: float,
+    tp3_price: float,
+    direction: str,
+    max_bars: int = 60,
+) -> dict:
+    """
+    Simula una operación abierta en entry_bar avanzando vela a vela.
+    Comprueba si el precio alcanza TP1, TP2, TP3 o SL en velas siguientes.
+    Devuelve un dict con el resultado de la operación.
+    """
+    is_long    = direction == 'BUY'
+    total_bars = len(df)
+    best_tp    = 0          # 0=none, 1=TP1, 2=TP2, 3=TP3
+    sl_hit     = False
+    close_bar  = None
+    close_price = entry_price
+
+    for i in range(entry_bar + 1, min(entry_bar + max_bars + 1, total_bars)):
+        bar_high = float(df.iloc[i]['high'])
+        bar_low  = float(df.iloc[i]['low'])
+
+        if is_long:
+            # SL hit
+            if bar_low <= sl_price:
+                sl_hit      = True
+                close_bar   = i
+                close_price = sl_price
+                break
+            # TP3 hit
+            if bar_high >= tp3_price and best_tp < 3:
+                best_tp    = 3
+                close_bar  = i
+                close_price = tp3_price
+                break
+            # TP2 hit (continua para ver si TP3)
+            if bar_high >= tp2_price and best_tp < 2:
+                best_tp = 2
+            # TP1 hit
+            if bar_high >= tp1_price and best_tp < 1:
+                best_tp = 1
+        else:  # SELL
+            # SL hit
+            if bar_high >= sl_price:
+                sl_hit      = True
+                close_bar   = i
+                close_price = sl_price
+                break
+            # TP3 hit
+            if bar_low <= tp3_price and best_tp < 3:
+                best_tp    = 3
+                close_bar  = i
+                close_price = tp3_price
+                break
+            # TP2 hit
+            if bar_low <= tp2_price and best_tp < 2:
+                best_tp = 2
+            # TP1 hit
+            if bar_low <= tp1_price and best_tp < 1:
+                best_tp = 1
+
+        # Si ya alcanzó TP2, la operación principal está cerrada con ganancia
+        if best_tp >= 2 and close_bar is None:
+            close_bar   = i
+            if is_long:
+                close_price = tp2_price if best_tp == 2 else tp3_price
+            else:
+                close_price = tp2_price if best_tp == 2 else tp3_price
+            break
+
+    # Determinar resultado final
+    if sl_hit:
+        result   = 'SL'
+        pnl_pct  = abs((sl_price - entry_price) / entry_price) * -100
+        if not is_long:
+            pnl_pct = abs((sl_price - entry_price) / entry_price) * -100
+    elif best_tp == 3:
+        result   = 'TP3'
+        pnl_pct  = abs((tp3_price - entry_price) / entry_price) * 100
+    elif best_tp == 2:
+        result   = 'TP2'
+        pnl_pct  = abs((tp2_price - entry_price) / entry_price) * 100
+    elif best_tp == 1:
+        result   = 'TP1'
+        pnl_pct  = abs((tp1_price - entry_price) / entry_price) * 100
+    else:
+        result   = 'OPEN'   # No se resolvió dentro del horizonte
+        pnl_pct  = 0.0
+
+    return {
+        'result':       result,
+        'pnl_pct':      round(pnl_pct, 3),
+        'entry_bar':    entry_bar,
+        'close_bar':    close_bar,
+        'direction':    direction,
+        'entry_price':  entry_price,
+        'close_price':  close_price,
+        'sl':           sl_price,
+        'tp1':          tp1_price,
+        'tp2':          tp2_price,
+        'tp3':          tp3_price,
+    }
+
+
+def run_strategy_backtest(
+    strategy: dict,
+    symbol: str = "BTCUSDT",
+    candle_limit: int = 500,
+) -> dict:
+    """
+    Ejecuta un backtest de la estrategia sobre velas históricas de Binance.
+
+    Algoritmo:
+      1. Descarga `candle_limit` velas del primer TF de la estrategia.
+      2. Hace un barrido barra a barra desde la barra 60 hasta la última-10.
+      3. En cada barra analiza con SPSignalEngine + filtros de estrategia.
+      4. Si hay señal válida, simula la operación hacia adelante.
+      5. No abre nueva operación hasta que la anterior esté cerrada.
+
+    Devuelve:
+      dict con trades (list), stats (dict), symbol, tf, candles_used, error.
+    """
+    engine = _get_signal_engine()
+    if engine is None:
+        return {'error': 'SPSignalEngine no disponible.', 'trades': [], 'stats': {}}
+
+    # Elegir TF: preferir el primero de la lista de la estrategia
+    tfs = strategy.get('timeframes', ['5m'])
+    tf  = tfs[0] if tfs else '5m'
+
+    df = _download_candles_for_backtest(symbol, tf, candle_limit)
+    if df is None or len(df) < 80:
+        return {
+            'error': f'No se pudieron descargar velas de {symbol}/{tf}.',
+            'trades': [], 'stats': {}, 'symbol': symbol, 'tf': tf
+        }
+
+    total_bars = len(df)
+    min_lookback = 60   # Mínimo de velas para que los indicadores sean estables
+    max_fwd      = 80   # Máximo de velas hacia adelante para resolver cada trade
+
+    trades     = []
+    next_bar   = min_lookback   # No abrir trade antes de este índice
+    signals_rejected = 0
+
+    for bar_idx in range(min_lookback, total_bars - 5):
+        # Respetar cooldown: no abrir nueva trade antes de que cierre la anterior
+        if bar_idx < next_bar:
+            continue
+
+        # Slice de velas hasta esta barra (inclusive) como si fuera "ahora"
+        df_slice = df.iloc[:bar_idx + 1].copy()
+
+        # Analizar señal con el motor SP
+        try:
+            sig = engine.analyze(df_slice)
+        except Exception:
+            continue
+
+        if sig.get('direction', 'NEUTRAL') == 'NEUTRAL':
+            continue
+
+        # Calcular indicadores extendidos de la estrategia
+        try:
+            df_ext = compute_extended_indicators(df_slice, strategy)
+        except Exception:
+            df_ext = df_slice
+
+        # Aplicar filtro de la estrategia
+        passes, reason = apply_strategy_filter(strategy, sig, df_ext)
+        if not passes:
+            signals_rejected += 1
+            continue
+
+        # Enriquecer señal para obtener niveles TP/SL
+        try:
+            sig_e = enrich_signal(strategy, sig, df_ext)
+        except Exception:
+            continue
+
+        entry_price = sig_e.get('price', 0)
+        sl_price    = sig_e.get('sss_sl', 0)
+        tp1_price   = sig_e.get('sss_tp1', 0)
+        tp2_price   = sig_e.get('sss_tp2', 0)
+        tp3_price   = sig_e.get('sss_tp3', 0)
+        direction   = sig_e.get('direction', 'NEUTRAL')
+
+        if not all([entry_price, sl_price, tp1_price, tp2_price, tp3_price]):
+            continue
+
+        # Simular operación en las velas siguientes
+        trade = _simulate_trade_forward(
+            df       = df,
+            entry_bar   = bar_idx,
+            entry_price = entry_price,
+            sl_price    = sl_price,
+            tp1_price   = tp1_price,
+            tp2_price   = tp2_price,
+            tp3_price   = tp3_price,
+            direction   = direction,
+            max_bars    = max_fwd,
+        )
+        trade['bar_idx']  = bar_idx
+        trade['reasons']  = sig.get('reasons', [])
+        trade['score']    = sig.get('score_abs', 0)
+        trade['leverage'] = sig_e.get('sss_leverage', 1)
+        trade['rr1']      = sig_e.get('sss_rr_tp1', 0)
+        trade['rr2']      = sig_e.get('sss_rr_tp2', 0)
+        trade['time_str'] = str(df.index[bar_idx])[:16]
+
+        trades.append(trade)
+
+        # Avanzar cursor: si la operación se cerró, saltamos a esa barra
+        if trade.get('close_bar') is not None:
+            next_bar = trade['close_bar'] + 1
+        else:
+            # Operación abierta (sin resolver): avanzar un mínimo
+            next_bar = bar_idx + 5
+
+    # ── Calcular estadísticas ──────────────────────────────────────────────────
+    total      = len(trades)
+    tp1_hits   = sum(1 for t in trades if t['result'] == 'TP1')
+    tp2_hits   = sum(1 for t in trades if t['result'] == 'TP2')
+    tp3_hits   = sum(1 for t in trades if t['result'] == 'TP3')
+    sl_hits    = sum(1 for t in trades if t['result'] == 'SL')
+    open_count = sum(1 for t in trades if t['result'] == 'OPEN')
+    wins       = tp1_hits + tp2_hits + tp3_hits
+    resolved   = wins + sl_hits
+
+    win_rate   = round((wins / resolved * 100), 1) if resolved > 0 else 0.0
+    loss_rate  = round((sl_hits / resolved * 100), 1) if resolved > 0 else 0.0
+
+    # PnL bruto simulado (sin apalancamiento, sin fees)
+    avg_win_pct  = 0.0
+    avg_loss_pct = 0.0
+    if wins > 0:
+        avg_win_pct = round(
+            sum(t['pnl_pct'] for t in trades if t['result'] in ('TP1','TP2','TP3')) / wins, 2
+        )
+    if sl_hits > 0:
+        avg_loss_pct = round(
+            sum(abs(t['pnl_pct']) for t in trades if t['result'] == 'SL') / sl_hits, 2
+        )
+
+    # Expected value por operación (simplificado)
+    ev = round((win_rate/100 * avg_win_pct) - (loss_rate/100 * avg_loss_pct), 2) if resolved > 0 else 0
+
+    # Ratio de mejora promedio (R:R real alcanzado)
+    avg_rr1 = round(
+        sum(t.get('rr1', 0) for t in trades) / total, 2
+    ) if total > 0 else 0
+
+    stats = {
+        'total':             total,
+        'tp1_hits':          tp1_hits,
+        'tp2_hits':          tp2_hits,
+        'tp3_hits':          tp3_hits,
+        'sl_hits':           sl_hits,
+        'open_count':        open_count,
+        'wins':              wins,
+        'resolved':          resolved,
+        'win_rate':          win_rate,
+        'loss_rate':         loss_rate,
+        'avg_win_pct':       avg_win_pct,
+        'avg_loss_pct':      avg_loss_pct,
+        'ev':                ev,
+        'avg_rr1':           avg_rr1,
+        'signals_rejected':  signals_rejected,
+    }
+
+    return {
+        'trades':       trades,
+        'stats':        stats,
+        'symbol':       symbol,
+        'tf':           tf,
+        'candles_used': total_bars,
+        'error':        None,
+    }
+
+
+def format_backtest_result(result: dict, strategy: dict) -> str:
+    """
+    Formatea el resultado del backtest como mensaje de Telegram (Markdown).
+    Diseñado para ser compacto y legible en móvil.
+    """
+    if result.get('error'):
+        return (
+            "❌ *Error en el backtest*\n"
+            f"────────────────────\n"
+            f"_{result['error']}_"
+        )
+
+    s      = result['stats']
+    trades = result['trades']
+    symbol = result.get('symbol', '?')
+    tf     = result.get('tf', '?')
+    name   = strategy.get('name', '?')
+    emoji  = strategy.get('emoji', '📊')
+    total  = s['total']
+
+    if total == 0:
+        return (
+            f"{emoji} *Backtest — {name}*\n"
+            "————————————————————\n\n"
+            f"📡 `{symbol}` · `{tf}` · `{result.get('candles_used',0)}` velas\n\n"
+            "⚠️ _Sin señales encontradas con este símbolo._\n\n"
+            "_Prueba con otro par activo (BTC, ETH…)._"
+        )
+
+    tp1 = s['tp1_hits']
+    tp2 = s['tp2_hits']
+    tp3 = s['tp3_hits']
+    sl  = s['sl_hits']
+    op  = s['open_count']
+    wr  = s['win_rate']
+    ev  = s['ev']
+
+    # Barra visual de resultados
+    total_vis  = max(tp1 + tp2 + tp3 + sl, 1)
+    bar_tp = round((tp1+tp2+tp3) / total_vis * 10)
+    bar_sl = round(sl / total_vis * 10)
+    bar_vis = "🟢" * bar_tp + "🔴" * bar_sl + "⬜" * max(0, 10-bar_tp-bar_sl)
+
+    # Fiabilidad badge
+    if wr >= 65:
+        wr_badge = "🌟 Alta"
+    elif wr >= 50:
+        wr_badge = "✅ Buena"
+    elif wr >= 40:
+        wr_badge = "⚠️ Moderada"
+    else:
+        wr_badge = "❌ Baja"
+
+    # Últimas 5 operaciones
+    last_trades_lines = []
+    for t in trades[-5:]:
+        r = t['result']
+        icons = {'TP1':'🟢', 'TP2':'🟩', 'TP3':'💚', 'SL':'🔴', 'OPEN':'🔵'}
+        icon = icons.get(r, '⚪')
+        d_ico = "↑" if t['direction'] == 'BUY' else "↓"
+        pnl = f"+{t['pnl_pct']:.1f}%" if r != 'SL' else f"-{abs(t['pnl_pct']):.1f}%"
+        ts  = t.get('time_str','')[-8:]   # solo HH:MM:SS
+        last_trades_lines.append(f"  {icon} `{t['time_str'][5:16]}` {d_ico} {r} {pnl}")
+
+    last_section = "\n".join(last_trades_lines) if last_trades_lines else "  _Sin datos_"
+
+    # EV line
+    ev_str = f"+{ev:.2f}%" if ev >= 0 else f"{ev:.2f}%"
+    ev_emoji = "📈" if ev > 0 else ("📉" if ev < 0 else "➡️")
+
+    candles = result.get('candles_used', 0)
+    tf_hours = {'1m':1/60,'5m':5/60,'15m':0.25,'1h':1,'4h':4}.get(tf, 1)
+    span_h   = round(candles * tf_hours)
+    span_str = f"~{span_h}h" if span_h < 48 else f"~{span_h//24}d"
+
+    text = (
+        f"{emoji} *Backtest — {name}*\n"
+        f"————————————————————\n\n"
+        f"📡 `{symbol}` · `{tf}` · {candles} velas ({span_str})\n\n"
+        f"{bar_vis}\n\n"
+        f"*Operaciones: {total}* ({s['resolved']} resueltas · {op} abiertas)\n\n"
+        f"  🟢 TP1 alcanzado: *{tp1}*\n"
+        f"  🟩 TP2 alcanzado: *{tp2}*\n"
+        f"  💚 TP3 alcanzado: *{tp3}*\n"
+        f"  🔴 Stop Loss:     *{sl}*\n\n"
+        f"📊 *Fiabilidad: {wr}%* — {wr_badge}\n"
+        f"  Ganadas: `{s['wins']}` · Perdidas: `{sl}`\n"
+        f"  Ganancia media: `+{s['avg_win_pct']:.1f}%`\n"
+        f"  Pérdida media:  `-{s['avg_loss_pct']:.1f}%`\n"
+        f"  {ev_emoji} Valor esp.: `{ev_str}` por op.\n\n"
+        f"🕐 *Últimas operaciones:*\n"
+        f"{last_section}\n\n"
+        f"────────────────────\n"
+        f"💡 _Backtest histórico — no garantiza resultados futuros._"
+    )
+    return text
+
+
 # ─── INICIALIZACIÓN ───────────────────────────────────────────────────────────
 
 def init_sss():
