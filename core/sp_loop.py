@@ -297,20 +297,32 @@ def _pct(a: float, b: float) -> str:
     return f"{sign}{pct:.2f}%"
 
 def build_signal_message(symbol: str, tf: str, sig: dict) -> str:
-    """Construye el mensaje de señal para enviar al usuario."""
+    """
+    Construye el mensaje de señal para enviar al usuario.
+    FIX #9:  NEUTRAL ya no se muestra como SELL (rama propia).
+    FIX #11: score_label definido en todas las ramas (evita NameError).
+    FIX #10: el llamador trunca a 1024 chars si es caption de foto.
+    """
     direction = sig['direction']
-    is_buy    = direction == 'BUY'
     strength  = sig['strength']
 
-    # Emojis y textos según dirección
-    if is_buy:
-        dir_emoji = "🟢"
-        dir_text  = "SEÑAL DE COMPRA"
+    # FIX #9 y #11: tres ramas independientes, score_label siempre definido
+    if direction == 'BUY':
+        dir_emoji   = "🟢"
+        dir_text    = "SEÑAL DE COMPRA"
         score_label = f"Score: `{sig['score_buy']:.1f} BUY` vs `{sig['score_sell']:.1f} SELL`"
-    else:
-        dir_emoji = "🔴"
-        dir_text  = "SEÑAL DE VENTA"
+    elif direction == 'SELL':
+        dir_emoji   = "🔴"
+        dir_text    = "SEÑAL DE VENTA"
         score_label = f"Score: `{sig['score_sell']:.1f} SELL` vs `{sig['score_buy']:.1f} BUY`"
+    else:
+        # FIX #9: NEUTRAL tiene su propia representación
+        dir_emoji   = "⚖️"
+        dir_text    = "SIN SEÑAL CLARA"
+        score_label = (
+            f"Score: `{sig.get('score_buy', 0):.1f} BUY`"
+            f" vs `{sig.get('score_sell', 0):.1f} SELL`"
+        )
 
     strength_labels = {
         'STRONG':   '🔥 FUERTE',

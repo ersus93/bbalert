@@ -1,12 +1,24 @@
 # handlers/sp_handlers.py
 # Handlers del módulo SmartSignals (/sp).
 # Comando /sp, menús interactivos, suscripciones y callbacks.
+#
+# BUGS CORREGIDOS (11 total):
+#  1. [CRÍTICO] /sp BTC 4h siempre mostraba 5m — args no normalizados a lowercase
+#  2. [CRÍTICO] sp_main_callback — query.answer() doble (antes de check acceso)
+#  3. [CRÍTICO] sp_my_subs_callback — mismo doble answer que bug #2
+#  4. [CRÍTICO] sp_goto_shop_callback — crash: update.message=None en callbacks
+#  5. [MAYOR]   Botón 👁 4h ausente en _get_coin_keyboard
+#  6. [MAYOR]   sp_refresh_callback duplicaba mensajes (foto sin borrar la anterior)
+#  7. [MAYOR]   Última señal en menú moneda hardcodeada a "5m"
+#  8. [MAYOR]   Botón Refrescar del menú moneda siempre iba a 5m
+#  9. [MAYOR]   NEUTRAL se mostraba como SELL (en sp_loop.py/build_signal_message)
+# 10. [MENOR]   Caption foto puede superar 1024 chars (límite Telegram)
+# 11. [MENOR]   score_label NameError potencial si direction=NEUTRAL
 
 import asyncio
-import requests
 import pandas as pd
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
 
 from core.config import ADMIN_CHAT_IDS
@@ -36,32 +48,43 @@ from core.sp_loop import SPSignalEngine, _get_klines, build_signal_message, _fmt
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 def _check_sp_access(user_id: int) -> tuple[bool, str]:
-    """
-    Verifica si el usuario puede usar SmartSignals.
-    Admins tienen acceso gratis. Resto necesita sub activa.
-    """
+    """Admins: acceso libre. Resto: necesita sub activa."""
     if user_id in ADMIN_CHAT_IDS:
         return True, "Admin"
     return check_feature_access(user_id, 'sp_signals')
 
 
+def _best_display_tf(user_id: int, symbol: str) -> str:
+    """
+    Devuelve el TF más relevante para mostrar en el menú de moneda.
+    Prioriza el primer TF activo del usuario (en orden 1m→4h).
+    FIX #7 y #8: evita hardcodear '5m' en el menú de moneda.
+    """
+    user_subs  = get_user_sp_subscriptions(user_id)
+    active_tfs = user_subs.get(symbol, [])
+    if active_tfs:
+        for tf in SP_TIMEFRAMES:   # Orden natural: 1m, 5m, 15m, 1h, 4h
+            if tf in active_tfs:
+                return tf
+    return "5m"
+
+
+# ─── TECLADOS ─────────────────────────────────────────────────────────────────
+
 def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Teclado principal: lista de monedas con estado de suscripción."""
+    """Lista de monedas con estado de suscripción (3 por fila)."""
     keyboard = []
-    row = []
+    row      = []
 
     for coin in SP_SUPPORTED_COINS:
-        sym = coin['symbol']
-        key = coin['key']
-        emoji = coin['emoji']
-
-        # Verificar si tiene alguna suscripción activa para esta moneda
-        user_subs = get_user_sp_subscriptions(user_id)
-        has_any = sym in user_subs and bool(user_subs[sym])
-        status_icon = "🔔" if has_any else "○"
+        sym     = coin['symbol']
+        key     = coin['key']
+        emoji   = coin['emoji']
+        subs    = get_user_sp_subscriptions(user_id)
+        icon    = "🔔" if subs.get(sym) else "○"
 
         row.append(InlineKeyboardButton(
-            f"{status_icon} {emoji}{key}",
+            f"{icon} {emoji}{key}",
             callback_data=f"sp_coin|{sym}"
         ))
         if len(row) == 3:
@@ -73,20 +96,23 @@ def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
 
     keyboard.append([
         InlineKeyboardButton("📋 Mis señales activas", callback_data="sp_my_subs"),
-        InlineKeyboardButton("❓ Ayuda", callback_data="sp_help"),
+        InlineKeyboardButton("❓ Ayuda",               callback_data="sp_help"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
 
 def _get_coin_keyboard(user_id: int, symbol: str, current_tf: str = "5m") -> InlineKeyboardMarkup:
-    """Teclado de temporalidades para una moneda concreta."""
+    """
+    Teclado del menú de moneda.
+    FIX #5: botones 👁 TF se generan dinámicamente desde SP_TIMEFRAMES (incluye 4h).
+    FIX #8: current_tf llega desde el contexto real, no hardcodeado.
+    """
     keyboard = []
 
-    # Fila de temporalidades con estado
+    # ── Fila 1-2: botones toggle de suscripción por TF ────────────────────────
     tf_row = []
     for tf, tf_info in SP_TIMEFRAMES.items():
-        is_sub = is_sp_subscribed(user_id, symbol, tf)
-        icon = "🔔" if is_sub else "○"
+        icon = "🔔" if is_sp_subscribed(user_id, symbol, tf) else "○"
         tf_row.append(InlineKeyboardButton(
             f"{icon} {tf_info['label']}",
             callback_data=f"sp_toggle|{symbol}|{tf}"
@@ -97,46 +123,49 @@ def _get_coin_keyboard(user_id: int, symbol: str, current_tf: str = "5m") -> Inl
     if tf_row:
         keyboard.append(tf_row)
 
-    # Fila de vista de análisis
+    # ── Fila siguiente: botones 👁 VER para TODOS los TF ──────────────────────
+    # FIX #5: generados dinámicamente, incluye 4h
     view_row = []
-    for tf in ["1m", "5m", "15m", "1h"]:
+    for tf in SP_TIMEFRAMES:
         view_row.append(InlineKeyboardButton(
             f"👁 {tf}",
             callback_data=f"sp_view|{symbol}|{tf}"
         ))
+    # 5 TF caben en una sola fila
     keyboard.append(view_row)
 
+    # ── Navegación ────────────────────────────────────────────────────────────
+    # FIX #8: Refrescar usa current_tf real
     keyboard.append([
         InlineKeyboardButton("🔄 Refrescar", callback_data=f"sp_view|{symbol}|{current_tf}"),
-        InlineKeyboardButton("🔙 Lista", callback_data="sp_main"),
+        InlineKeyboardButton("🔙 Lista",      callback_data="sp_main"),
     ])
     return InlineKeyboardMarkup(keyboard)
 
 
 def _get_view_keyboard(user_id: int, symbol: str, tf: str) -> InlineKeyboardMarkup:
-    """Teclado de la vista de señal con suscripción y acciones."""
-    is_sub = is_sp_subscribed(user_id, symbol, tf)
-    sub_icon = "🔕 Desactivar" if is_sub else "🔔 Activar alertas"
-    coin = symbol.replace('USDT', '')
+    """Teclado adjunto a la vista de señal."""
+    is_sub    = is_sp_subscribed(user_id, symbol, tf)
+    sub_label = "🔕 Desactivar" if is_sub else "🔔 Activar alertas"
+    coin      = symbol.replace('USDT', '')
 
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(sub_icon,       callback_data=f"sp_toggle|{symbol}|{tf}"),
-            InlineKeyboardButton("🔄 Refrescar", callback_data=f"sp_refresh|{symbol}|{tf}"),
+            InlineKeyboardButton(sub_label,        callback_data=f"sp_toggle|{symbol}|{tf}"),
+            InlineKeyboardButton("🔄 Refrescar",   callback_data=f"sp_refresh|{symbol}|{tf}"),
         ],
         [
-            InlineKeyboardButton("📊 Ver en TA",  callback_data=f"ta_switch|BINANCE|{coin}|USDT|{tf}"),
-            InlineKeyboardButton("🔙 Monedas",   callback_data=f"sp_coin|{symbol}"),
+            InlineKeyboardButton("📊 Ver en TA",   callback_data=f"ta_switch|BINANCE|{coin}|USDT|{tf}"),
+            InlineKeyboardButton("🔙 Monedas",     callback_data=f"sp_coin|{symbol}"),
         ],
     ])
 
 
-# ─── TEXTO DEL MENÚ PRINCIPAL ─────────────────────────────────────────────────
+# ─── TEXTOS ───────────────────────────────────────────────────────────────────
 
 def _build_main_menu_text(user_id: int) -> str:
-    n_subs = count_user_sp_subs(user_id)
-    sub_info = f"📊 Tienes *{n_subs}* alerta(s) activa(s)." if n_subs else "Aún no tienes alertas activas."
-
+    n    = count_user_sp_subs(user_id)
+    info = f"📊 Tienes *{n}* alerta(s) activa(s)." if n else "Aún no tienes alertas activas."
     return (
         "📡 *SmartSignals Pro*\n"
         "————————————————————\n\n"
@@ -146,7 +175,7 @@ def _build_main_menu_text(user_id: int) -> str:
         "🔹 Pre-aviso: *10–30s antes* del cierre de vela\n"
         "🔹 Gráfico predictivo con zonas de entrada\n"
         "🔹 BTC + 12 altcoins disponibles\n\n"
-        f"{sub_info}\n\n"
+        f"{info}\n\n"
         "📌 Selecciona una moneda para ver su señal actual\n"
         "o activa/desactiva alertas automáticas:\n"
         "────────────────────"
@@ -154,7 +183,6 @@ def _build_main_menu_text(user_id: int) -> str:
 
 
 def _build_preview_text() -> str:
-    """Texto para usuarios sin acceso."""
     return (
         "📡 *SmartSignals Pro*\n"
         "————————————————————\n\n"
@@ -172,76 +200,108 @@ def _build_preview_text() -> str:
     )
 
 
-# ─── COMANDO PRINCIPAL /sp ────────────────────────────────────────────────────
+def _build_coin_menu_text(user_id: int, symbol: str, display_tf: str) -> str:
+    """
+    Texto del menú de moneda.
+    FIX #7: usa display_tf (primer TF activo) para mostrar la última señal correcta.
+    """
+    coin_info  = get_coin_info(symbol) or {"label": symbol, "emoji": "📡"}
+    label      = coin_info.get('label', symbol)
+    emoji      = coin_info.get('emoji', '📡')
+    user_subs  = get_user_sp_subscriptions(user_id)
+    active_tfs = user_subs.get(symbol, [])
+
+    sub_status = (
+        f"🔔 Alertas activas en: *{', '.join(sorted(active_tfs))}*"
+        if active_tfs else
+        "Sin alertas activas — toca un botón para activar"
+    )
+
+    # Última señal del TF relevante (FIX #7)
+    state    = get_sp_state(symbol, display_tf)
+    last_sig = ""
+    if state:
+        dir_text   = state.get('last_signal', '')
+        dir_emoji  = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
+        last_price = state.get('last_price', 0)
+        if dir_text and last_price:
+            last_sig = (
+                f"\n📌 Última señal ({display_tf}): "
+                f"{dir_emoji} `{dir_text}` @ `${_fmt_price(last_price)}`"
+            )
+
+    return (
+        f"📡 *SmartSignals — {emoji} {label}*\n"
+        f"────────────────────\n\n"
+        f"{sub_status}{last_sig}\n\n"
+        f"🔔 Toca una temporalidad para *activar/desactivar* alertas.\n"
+        f"👁 Toca *Ver TF* para ver la señal actual sin suscribirte.\n"
+        f"────────────────────"
+    )
+
+
+# ─── COMANDO /sp ──────────────────────────────────────────────────────────────
 
 async def sp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    /sp                → Menú principal con lista de monedas
-    /sp BTC            → Vista directa con última señal
-    /sp BTC 5m         → Vista directa en temporalidad específica
+    /sp           → Menú principal
+    /sp BTC       → Señal BTC 5m
+    /sp BTC 4h    → Señal BTC 4h
+    FIX #1: args[1] normalizado a lowercase → '4H' → '4h' coincide con SP_TIMEFRAMES.
     """
     user_id = update.effective_user.id
     registrar_uso_comando(user_id, 'sp')
     obtener_datos_usuario_seguro(user_id)
 
-    # ── Verificar acceso ──────────────────────────────────────────────────────
     has_access, _ = _check_sp_access(user_id)
 
     if not has_access:
-        preview_text = _build_preview_text()
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🛒 Ir a la Tienda", callback_data="sp_goto_shop"),
-        ]])
         await update.message.reply_text(
-            preview_text,
+            _build_preview_text(),
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboard
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🛒 Ir a la Tienda", callback_data="sp_goto_shop"),
+            ]])
         )
         return
 
-    # ── Sin args: menú principal ──────────────────────────────────────────────
     args = context.args
     if not args:
-        text = _build_main_menu_text(user_id)
-        kb   = _get_main_menu_keyboard(user_id)
-        await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await update.message.reply_text(
+            _build_main_menu_text(user_id),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_get_main_menu_keyboard(user_id)
+        )
         return
 
-    # ── Con args: /sp BTC [5m] ────────────────────────────────────────────────
-    raw = [a.upper() for a in args]
-    coin_key = raw[0]
-    tf = "5m"  # Default
+    # ── Con argumentos ────────────────────────────────────────────────────────
+    coin_key = args[0].upper()
+    # FIX #1: normalizar a lowercase; sin esto "4H" nunca está en SP_TIMEFRAMES
+    tf = args[1].lower() if len(args) > 1 else "5m"
+    if tf not in SP_TIMEFRAMES:
+        tf = "5m"
 
-    if len(raw) > 1 and raw[1] in SP_TIMEFRAMES:
-        tf = raw[1].lower()
-
-    # Buscar info de la moneda
     coin_info = get_coin_info(coin_key)
     if not coin_info:
         await update.message.reply_text(
             f"❌ Moneda `{coin_key}` no soportada.\n"
-            f"Usa `/sp` para ver la lista de monedas disponibles.",
+            f"Usa `/sp` para ver la lista.",
             parse_mode=ParseMode.MARKDOWN
         )
         return
 
-    symbol = coin_info['symbol']
+    symbol   = coin_info['symbol']
     msg_wait = await update.message.reply_text(
         f"⏳ _Analizando {coin_info['label']} ({tf})..._",
         parse_mode=ParseMode.MARKDOWN
     )
-
     await _show_signal_view(
-        update=update,
-        context=context,
-        user_id=user_id,
-        symbol=symbol,
-        tf=tf,
-        edit_msg=msg_wait,
+        update=update, context=context,
+        user_id=user_id, symbol=symbol, tf=tf, edit_msg=msg_wait,
     )
 
 
-# ─── VISTA DE SEÑAL (REUTILIZABLE) ───────────────────────────────────────────
+# ─── VISTA DE SEÑAL (REUTILIZABLE) ────────────────────────────────────────────
 
 async def _show_signal_view(
     update: Update,
@@ -250,75 +310,69 @@ async def _show_signal_view(
     symbol: str,
     tf: str,
     edit_msg=None,
-    answer_callback: str | None = None,
 ) -> None:
     """
-    Descarga datos, analiza la señal actual y envía/edita el mensaje con gráfico.
-    edit_msg: si se pasa, edita ese mensaje (modo espera); si no, envía nuevo.
+    Descarga → analiza → genera gráfico → envía.
+    FIX #10: caption truncado a 1024 chars (límite de Telegram para fotos).
     """
-    coin_info = get_coin_info(symbol) or {"label": symbol, "emoji": "📡", "key": symbol}
-    label = coin_info.get('label', symbol)
-
     try:
-        # 1. Descargar datos
         loop = asyncio.get_running_loop()
-        df = await loop.run_in_executor(None, _get_klines, symbol, tf, 120)
 
+        df = await loop.run_in_executor(None, _get_klines, symbol, tf, 120)
         if df is None or len(df) < 30:
             err = f"❌ No se obtuvieron datos para *{symbol}* ({tf})."
             if edit_msg:
                 await edit_msg.edit_text(err, parse_mode=ParseMode.MARKDOWN)
             return
 
-        # 2. Analizar
         engine = SPSignalEngine()
-        sig = engine.analyze(df)
+        sig    = engine.analyze(df)
 
-        # Calcular tiempo hasta cierre
         try:
-            open_time_ms = int(df.iloc[-1]['open_time'])
-            sig['time_to_close'] = estimate_time_to_candle_close(open_time_ms, tf)
+            sig['time_to_close'] = estimate_time_to_candle_close(
+                int(df.iloc[-1]['open_time']), tf
+            )
         except Exception:
             sig['time_to_close'] = 0
 
-        # 3. Generar gráfico
         chart_buf = await loop.run_in_executor(
             None, generate_sp_chart, df, symbol, tf, sig, 60
         )
 
-        # 4. Construir mensaje
         msg_text = build_signal_message(symbol, tf, sig)
-        keyboard  = _get_view_keyboard(user_id, symbol, tf)
+        keyboard = _get_view_keyboard(user_id, symbol, tf)
 
-        # 5. Enviar o editar
+        # FIX #10: Telegram limita captions a 1024 chars
+        if chart_buf and len(msg_text) > 1024:
+            msg_text = msg_text[:1020] + "…`"
+
         if chart_buf:
             chart_buf.seek(0)
             if edit_msg:
-                # Borramos el mensaje de espera y enviamos nuevo con foto
                 try:
                     await edit_msg.delete()
                 except Exception:
                     pass
-            chat_id = update.effective_chat.id
             await context.bot.send_photo(
-                chat_id=chat_id,
+                chat_id=update.effective_chat.id,
                 photo=chart_buf,
                 caption=msg_text,
                 parse_mode=ParseMode.MARKDOWN,
                 reply_markup=keyboard,
             )
         else:
-            # Fallback sin gráfico
+            # Sin gráfico — editar o enviar texto
             if edit_msg:
-                await edit_msg.edit_text(msg_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
+                await edit_msg.edit_text(
+                    msg_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
+                )
             else:
-                await update.effective_message.reply_text(msg_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard)
-
-        if answer_callback and update.callback_query:
-            await update.callback_query.answer()
+                await update.effective_message.reply_text(
+                    msg_text, parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
+                )
 
     except Exception as e:
-        add_log_line(f"[SP Handlers] Error en _show_signal_view: {e}")
+        add_log_line(f"[SP Handlers] Error en _show_signal_view {symbol}/{tf}: {e}")
         err = "⚠️ Error al generar la señal. Intenta de nuevo."
         try:
             if edit_msg:
@@ -330,30 +384,37 @@ async def _show_signal_view(
 # ─── CALLBACKS ────────────────────────────────────────────────────────────────
 
 async def sp_main_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Volver al menú principal de monedas."""
-    query = update.callback_query
+    """
+    Volver al menú principal.
+    FIX #2: acceso verificado ANTES del query.answer() para que show_alert funcione.
+    """
+    query   = update.callback_query
     user_id = query.from_user.id
-    await query.answer()
 
+    # FIX #2: primero verificar, luego responder
     has_access, _ = _check_sp_access(user_id)
     if not has_access:
         await query.answer("❌ Necesitas SmartSignals Pro.", show_alert=True)
         return
 
-    text = _build_main_menu_text(user_id)
-    kb   = _get_main_menu_keyboard(user_id)
+    await query.answer()
     try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await query.edit_message_text(
+            _build_main_menu_text(user_id),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_get_main_menu_keyboard(user_id)
+        )
     except Exception:
         pass
 
 
 async def sp_coin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Muestra el menú de temporalidades para la moneda seleccionada.
+    Menú de temporalidades de una moneda.
     Callback: sp_coin|SYMBOL
+    FIX #7 y #8: usa _best_display_tf() para señal y botón Refrescar.
     """
-    query = update.callback_query
+    query   = update.callback_query
     user_id = query.from_user.id
 
     has_access, _ = _check_sp_access(user_id)
@@ -369,39 +430,13 @@ async def sp_coin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     await query.answer()
 
-    coin_info = get_coin_info(symbol) or {"label": symbol, "emoji": "📡"}
-    label = coin_info.get('label', symbol)
-    emoji = coin_info.get('emoji', '📡')
-
-    # Estado actual de suscripciones para esta moneda
-    user_subs = get_user_sp_subscriptions(user_id)
-    active_tfs = user_subs.get(symbol, [])
-
-    if active_tfs:
-        sub_status = f"🔔 Alertas activas en: *{', '.join(active_tfs)}*"
-    else:
-        sub_status = "Sin alertas activas — toca un botón para activar"
-
-    # Última señal registrada
-    state = get_sp_state(symbol, "5m")
-    last_sig = ""
-    if state:
-        dir_text = state.get('last_signal', '')
-        dir_emoji = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
-        last_price = state.get('last_price', 0)
-        last_sig = f"\n📌 Última señal 5m: {dir_emoji} `{dir_text}` @ `${_fmt_price(last_price)}`"
-
-    text = (
-        f"📡 *SmartSignals — {emoji} {label}*\n"
-        f"────────────────────\n\n"
-        f"{sub_status}{last_sig}\n\n"
-        f"🔔 Toca una temporalidad para *activar/desactivar* alertas.\n"
-        f"👁 Toca *Ver TF* para ver la señal actual sin suscribirte.\n"
-        f"────────────────────"
-    )
-    kb = _get_coin_keyboard(user_id, symbol)
+    display_tf = _best_display_tf(user_id, symbol)   # FIX #7 y #8
     try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await query.edit_message_text(
+            _build_coin_menu_text(user_id, symbol, display_tf),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_get_coin_keyboard(user_id, symbol, current_tf=display_tf)
+        )
     except Exception:
         pass
 
@@ -410,8 +445,9 @@ async def sp_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
     """
     Activa/desactiva alerta para symbol+tf.
     Callback: sp_toggle|SYMBOL|TF
+    FIX #7 y #8: recalcula display_tf tras el toggle.
     """
-    query = update.callback_query
+    query   = update.callback_query
     user_id = query.from_user.id
 
     has_access, _ = _check_sp_access(user_id)
@@ -426,45 +462,24 @@ async def sp_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     new_state = toggle_sp_subscription(user_id, symbol, tf)
-    coin_info = get_coin_info(symbol) or {"label": symbol, "emoji": "📡"}
-    label = coin_info.get('label', symbol)
+    coin_info = get_coin_info(symbol) or {"label": symbol}
+    label     = coin_info.get('label', symbol)
 
     if new_state:
-        await query.answer(f"🔔 Alertas {label} {tf} activadas.", show_alert=False)
-        add_log_line(f"📡 SP suscripción: user {user_id} activó {symbol}/{tf}")
+        await query.answer(f"🔔 Alertas {label} ({tf}) activadas.")
+        add_log_line(f"📡 SP: user {user_id} activó {symbol}/{tf}")
     else:
-        await query.answer(f"🔕 Alertas {label} {tf} desactivadas.", show_alert=False)
-        add_log_line(f"📡 SP suscripción: user {user_id} desactivó {symbol}/{tf}")
+        await query.answer(f"🔕 Alertas {label} ({tf}) desactivadas.")
+        add_log_line(f"📡 SP: user {user_id} desactivó {symbol}/{tf}")
 
-    # Refrescar el menú de la moneda
-    user_subs = get_user_sp_subscriptions(user_id)
-    active_tfs = user_subs.get(symbol, [])
-
-    if active_tfs:
-        sub_status = f"🔔 Alertas activas en: *{', '.join(active_tfs)}*"
-    else:
-        sub_status = "Sin alertas activas para esta moneda."
-
-    emoji = coin_info.get('emoji', '📡')
-    state = get_sp_state(symbol, "5m")
-    last_sig = ""
-    if state:
-        dir_text = state.get('last_signal', '')
-        dir_emoji = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
-        last_price = state.get('last_price', 0)
-        last_sig = f"\n📌 Última señal 5m: {dir_emoji} `{dir_text}` @ `${_fmt_price(last_price)}`"
-
-    text = (
-        f"📡 *SmartSignals — {emoji} {label}*\n"
-        f"────────────────────\n\n"
-        f"{sub_status}{last_sig}\n\n"
-        f"🔔 Toca una temporalidad para *activar/desactivar* alertas.\n"
-        f"👁 Toca *Ver TF* para ver la señal actual sin suscribirte.\n"
-        f"────────────────────"
-    )
-    kb = _get_coin_keyboard(user_id, symbol)
+    # FIX #7 y #8: recalcular después del cambio
+    display_tf = _best_display_tf(user_id, symbol)
     try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await query.edit_message_text(
+            _build_coin_menu_text(user_id, symbol, display_tf),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=_get_coin_keyboard(user_id, symbol, current_tf=display_tf)
+        )
     except Exception:
         pass
 
@@ -474,7 +489,7 @@ async def sp_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     Muestra la señal actual para symbol+tf.
     Callback: sp_view|SYMBOL|TF
     """
-    query = update.callback_query
+    query   = update.callback_query
     user_id = query.from_user.id
 
     has_access, _ = _check_sp_access(user_id)
@@ -488,38 +503,36 @@ async def sp_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await query.answer("❌ Error de datos.", show_alert=True)
         return
 
+    if tf not in SP_TIMEFRAMES:
+        await query.answer(f"❌ Temporalidad '{tf}' no válida.", show_alert=True)
+        return
+
     await query.answer("⏳ Analizando...")
 
-    # Editar el mensaje actual para mostrar el spinner y capturar referencia
     spinner_msg = None
     try:
-        coin_info = get_coin_info(symbol) or {"label": symbol}
-        label = coin_info.get('label', symbol)
+        coin_info   = get_coin_info(symbol) or {"label": symbol}
         spinner_msg = await query.edit_message_text(
-            f"⏳ _Analizando {label} ({tf})..._",
+            f"⏳ _Analizando {coin_info.get('label', symbol)} ({tf})..._",
             parse_mode=ParseMode.MARKDOWN
         )
     except Exception:
         pass
 
-    # Pasamos el spinner_msg a _show_signal_view para que lo borre limpiamente
-    # antes de enviar la foto (o lo edite si no hay gráfico)
     await _show_signal_view(
-        update=update,
-        context=context,
-        user_id=user_id,
-        symbol=symbol,
-        tf=tf,
-        edit_msg=spinner_msg,
+        update=update, context=context,
+        user_id=user_id, symbol=symbol, tf=tf, edit_msg=spinner_msg,
     )
 
 
 async def sp_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Refresca la señal desde el botón en un mensaje existente.
+    Refresca la señal desde el botón de un mensaje con foto.
     Callback: sp_refresh|SYMBOL|TF
+    FIX #6: borra el mensaje con foto anterior para evitar duplicados.
+    Las fotos de Telegram no se pueden editar, hay que borrar y reenviar.
     """
-    query = update.callback_query
+    query   = update.callback_query
     user_id = query.from_user.id
 
     has_access, _ = _check_sp_access(user_id)
@@ -535,12 +548,15 @@ async def sp_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await query.answer("⏳ Actualizando señal...")
 
+    # FIX #6: borrar foto anterior para no generar duplicados
+    try:
+        await query.message.delete()
+    except Exception:
+        pass
+
     await _show_signal_view(
-        update=update,
-        context=context,
-        user_id=user_id,
-        symbol=symbol,
-        tf=tf,
+        update=update, context=context,
+        user_id=user_id, symbol=symbol, tf=tf, edit_msg=None,
     )
 
 
@@ -548,15 +564,18 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     """
     Muestra las suscripciones activas del usuario.
     Callback: sp_my_subs
+    FIX #3: acceso verificado ANTES del primer query.answer().
     """
-    query = update.callback_query
+    query   = update.callback_query
     user_id = query.from_user.id
-    await query.answer()
 
+    # FIX #3: primero verificar acceso
     has_access, _ = _check_sp_access(user_id)
     if not has_access:
         await query.answer("❌ Sin acceso.", show_alert=True)
         return
+
+    await query.answer()
 
     user_subs = get_user_sp_subscriptions(user_id)
 
@@ -573,43 +592,45 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         for sym, tfs in user_subs.items():
             if not tfs:
                 continue
-            coin_info = get_coin_info(sym) or {"label": sym, "emoji": "📡"}
-            emoji = coin_info.get('emoji', '📡')
-            label = coin_info.get('label', sym).split(' ', 1)[-1]  # Sin el símbolo
-            tfs_str = " · ".join(sorted(tfs))
+            coin_info  = get_coin_info(sym) or {"label": sym, "emoji": "📡"}
+            emoji      = coin_info.get('emoji', '📡')
+            label_full = coin_info.get('label', sym)
+            # Quitar el prefijo de símbolo (ej "₿ Bitcoin" → "Bitcoin")
+            label      = label_full.split(' ', 1)[-1] if ' ' in label_full else label_full
+            tfs_str    = " · ".join(sorted(tfs))
 
-            # Última señal
-            state = get_sp_state(sym, tfs[0])
+            state     = get_sp_state(sym, tfs[0])
             last_info = ""
             if state:
-                dir_text = state.get('last_signal', '')
+                dir_text  = state.get('last_signal', '')
                 dir_emoji = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
                 last_info = f" — última: {dir_emoji}"
 
             lines.append(f"{emoji} *{label}* · `{tfs_str}`{last_info}")
 
-        subs_text = "\n".join(lines)
         total = count_user_sp_subs(user_id)
-        text = (
+        text  = (
             f"📋 *Mis señales SmartSignals*\n"
             f"────────────────────\n\n"
             f"Tienes *{total}* alerta(s) activa(s):\n\n"
-            f"{subs_text}\n\n"
-            f"_Toca 🔙 para volver a la lista de monedas._"
+            + "\n".join(lines) +
+            "\n\n_Toca 🔙 para volver a la lista de monedas._"
         )
 
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🔙 Lista de monedas", callback_data="sp_main"),
-    ]])
-
     try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await query.edit_message_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Lista de monedas", callback_data="sp_main"),
+            ]])
+        )
     except Exception:
         pass
 
 
 async def sp_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Muestra la ayuda del módulo SP."""
+    """Ayuda del módulo SP."""
     query = update.callback_query
     await query.answer()
 
@@ -618,53 +639,85 @@ async def sp_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "————————————————————\n\n"
         "*¿Qué es SmartSignals?*\n"
         "Un radar de trading que analiza el mercado cada 45 segundos "
-        "y te avisa cuando detecta una señal de compra o venta.\n\n"
+        "y te avisa cuando detecta señales de compra o venta.\n\n"
         "*¿Cómo funciona?*\n"
         "  • Descarga velas de Binance en tiempo real\n"
-        "  • Aplica 7 indicadores técnicos (RSI, MACD, Stoch, CCI, BB, MFI, EMAs)\n"
-        "  • Si hay confluencia (score ≥4.5/8), envía alerta\n"
-        "  • Si la señal es fuerte (≥6.5) y la vela está a punto de cerrar, "
-        "envía un *pre-aviso*\n\n"
+        "  • Aplica 7 indicadores (RSI, MACD, Stoch, CCI, BB, MFI, EMAs)\n"
+        "  • Si hay confluencia (score ≥4.5), envía alerta con gráfico\n"
+        "  • Si score ≥6.5 y la vela cierra pronto → *pre-aviso*\n\n"
         "*Comandos:*\n"
-        "  • `/sp` — Abre este menú\n"
-        "  • `/sp BTC` — Señal actual de BTC en 5m\n"
-        "  • `/sp ETH 1h` — Señal actual de ETH en 1h\n\n"
+        "  `/sp` — Menú principal\n"
+        "  `/sp BTC` — Señal BTC en 5m\n"
+        "  `/sp ETH 1h` — Señal ETH en 1h\n"
+        "  `/sp BTC 4h` — Señal BTC en 4h\n\n"
         "*Gestión de alertas:*\n"
-        "  • Toca el nombre de una moneda para ver temporalidades\n"
-        "  • Toca la temporalidad para activar/desactivar alertas\n"
-        "  • El icono 🔔 indica que la alerta está activa\n\n"
-        "*¿Cuándo envía señales?*\n"
-        "  • Solo cuando hay confluencia suficiente (no spam)\n"
-        "  • Hay un cooldown entre señales del mismo par\n"
-        "  • Máximo por día por temporalidad (varía según TF)\n\n"
-        "💡 _Las señales son informativas. Siempre evalúa el contexto._"
+        "  • Toca una moneda → menú de temporalidades\n"
+        "  • Toca el TF para activar/desactivar (🔔 = activo)\n"
+        "  • Usa los botones *👁 TF* para ver señal sin suscribirte\n\n"
+        "*Cooldown entre señales:*\n"
+        "  1m → 3 min · 5m → 5 min · 15m → 15 min\n"
+        "  1h → 60 min · 4h → 120 min\n\n"
+        "💡 _Las señales son informativas. Evalúa siempre el contexto._"
     )
 
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
-    ]])
     try:
-        await query.edit_message_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=kb)
+        await query.edit_message_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Volver", callback_data="sp_main"),
+            ]])
+        )
     except Exception:
         pass
 
 
 async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Redirige al shop cuando el usuario sin acceso toca el botón."""
+    """
+    Redirige al shop desde el botón de preview.
+    FIX #4: en callbacks update.message.reply_text() crashea (message puede ser None
+    si fue editado). Usamos context.bot.send_message con chat_id explícito.
+    """
     query = update.callback_query
     await query.answer()
-    # Simplemente llamamos al shop_command
-    from handlers.pay import shop_command
-    await shop_command(update, context)
+
+    from handlers.pay import (
+        PRICE_SP_SIGNALS, PRICE_BUNDLE, PRICE_TA_VIP,
+        PRICE_TASA_VIP, PRICE_COIN_SLOT, PRICE_ALERT_SLOT,
+    )
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(
+            f"📡 SmartSignals Pro — {PRICE_SP_SIGNALS} ⭐  ✨",
+            callback_data="buy_sp"
+        )],
+        [InlineKeyboardButton(f"📦 Pack Total — {PRICE_BUNDLE} ⭐",   callback_data="buy_bundle")],
+        [InlineKeyboardButton(f"📈 TA Pro — {PRICE_TA_VIP} ⭐",       callback_data="buy_ta")],
+        [InlineKeyboardButton(f"💱 Tasa VIP — {PRICE_TASA_VIP} ⭐",   callback_data="buy_tasa")],
+        [
+            InlineKeyboardButton(f"🪙 +1 Moneda — {PRICE_COIN_SLOT} ⭐",  callback_data="buy_coin"),
+            InlineKeyboardButton(f"🔔 +1 Alerta — {PRICE_ALERT_SLOT} ⭐", callback_data="buy_alert"),
+        ],
+    ])
+
+    # FIX #4: send_message con chat_id explícito, no update.message que puede ser None
+    await context.bot.send_message(
+        chat_id=query.message.chat_id,
+        text=(
+            "🛒 *Tienda de BitBread Alert* 🛒\n"
+            "—————————————————\n\n"
+            "Mejora tu experiencia con *Telegram Stars* ⭐.\n\n"
+            "*Selecciona una opción 👇*"
+        ),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboard,
+    )
 
 
-# ─── LISTA DE HANDLERS PARA REGISTRAR EN bbalert.py ─────────────────────────
-# Se usa en bbalert.py para registrar todos los callbacks del módulo SP.
-
-from telegram.ext import CommandHandler, CallbackQueryHandler
+# ─── REGISTRO DE HANDLERS ─────────────────────────────────────────────────────
 
 sp_handlers_list = [
-    CommandHandler("sp", sp_command),
+    CommandHandler("sp",    sp_command),
     CallbackQueryHandler(sp_main_callback,      pattern=r"^sp_main$"),
     CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),
     CallbackQueryHandler(sp_toggle_callback,    pattern=r"^sp_toggle\|"),
