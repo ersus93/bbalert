@@ -50,6 +50,10 @@ from handlers.valerts_handlers import valerts_handlers_list
 from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 
+# ── SmartSignals (/sp) ────────────────────────────────────────────────────────
+from handlers.sp_handlers import sp_handlers_list
+from core.sp_loop import sp_monitor_loop, set_sp_sender
+
 from handlers.weather import (
     weather_command, 
     weather_subscribe_command, 
@@ -127,9 +131,11 @@ async def post_init(app: Application):
     except Exception as e:
         logger.error(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
         
-    # Inicio de Loops de Monitoreo (BTC y VALERTS)
+    # Inicio de Loops de Monitoreo (BTC, VALERTS y SMARTSIGNALS)
     asyncio.create_task(btc_monitor_loop(app.bot))
     asyncio.create_task(valerts_monitor_loop(app.bot))
+    asyncio.create_task(sp_monitor_loop(app.bot))
+    logger.info("✅ Bucle SmartSignals (/sp) iniciado.")
 
 
 def main():
@@ -221,6 +227,7 @@ def main():
     set_enviar_mensaje_telegram_async(enviar_mensajes, app)
     set_btc_sender(enviar_mensajes)
     set_valerts_sender(enviar_mensajes)
+    set_sp_sender(enviar_mensajes)    # ← SmartSignals
     
         # 3. REGISTRO DE HANDLERS
     
@@ -299,6 +306,10 @@ def main():
         app.add_handler(handler)
     
     app.add_handlers(valerts_handlers_list)
+
+    # ── SmartSignals (/sp) ────────────────────────────────────────────────────
+    for handler in sp_handlers_list:
+        app.add_handler(handler)
     
     # ============================================
     # CallbackQueryHandlers (DEBEN IR AL FINAL)
