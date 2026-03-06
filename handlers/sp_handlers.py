@@ -79,6 +79,8 @@ try:
     _SSS_OK = True
 except ImportError:
     _SSS_OK = False
+    run_strategy_backtest  = None
+    format_backtest_result = None
 
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -889,6 +891,9 @@ async def sp_strat_detail_callback(update: Update, context: ContextTypes.DEFAULT
     is_act = active and active['id'] == strat_id
     text   = format_strategy_detail(strat)
 
+    # Elegir símbolo para el test: primera suscripción activa o BTC
+    test_sym = _best_test_symbol(user_id)
+
     if is_act:
         action_btn = InlineKeyboardButton(
             "✅ Activa · Desactivar", callback_data="sp_strat_deactivate"
@@ -899,16 +904,10 @@ async def sp_strat_detail_callback(update: Update, context: ContextTypes.DEFAULT
             callback_data=f"sp_strat_activate|{strat_id}"
         )
 
-    # Buscar la mejor moneda activa del usuario para el test (o BTC por defecto)
-    test_symbol = _get_best_test_symbol(user_id, strat)
-
     await _safe_nav(query, text, InlineKeyboardMarkup([
         [
             action_btn,
-            InlineKeyboardButton(
-                "🧪 Test",
-                callback_data=f"sp_strat_test|{strat_id}|{test_symbol}"
-            ),
+            InlineKeyboardButton("🧪 Test", callback_data=f"sp_strat_test|{strat_id}|{test_sym}"),
         ],
         [InlineKeyboardButton("🔙 Estrategias", callback_data="sp_strategies")],
     ]))
@@ -945,12 +944,12 @@ async def sp_strat_activate_callback(update: Update, context: ContextTypes.DEFAU
     add_log_line(f"[SSS] user {user_id} activó estrategia {strat_id}")
 
     if strat:
-        text = format_strategy_detail(strat)
-        test_symbol = _get_best_test_symbol(user_id, strat)
+        test_sym = _best_test_symbol(user_id)
+        text     = format_strategy_detail(strat)
         await _safe_nav(query, text, InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("✅ Activa · Desactivar", callback_data="sp_strat_deactivate"),
-                InlineKeyboardButton("🧪 Test", callback_data=f"sp_strat_test|{strat_id}|{test_symbol}"),
+                InlineKeyboardButton("🧪 Test", callback_data=f"sp_strat_test|{strat_id}|{test_sym}"),
             ],
             [InlineKeyboardButton("🔙 Estrategias", callback_data="sp_strategies")],
         ]))
@@ -982,55 +981,40 @@ async def sp_strat_deactivate_callback(update: Update, context: ContextTypes.DEF
 
 # ─── SSS: BACKTEST DE ESTRATEGIA ─────────────────────────────────────────────
 
-# Símbolos preferidos para el backtest (más líquidos / más señales)
-_BACKTEST_SYMBOLS = [
-    "BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT",
-    "ADAUSDT", "DOGEUSDT", "AVAXUSDT", "DOTUSDT",
-]
+_BT_SYMBOLS = ["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT","ADAUSDT","DOGEUSDT"]
 
 
-def _get_best_test_symbol(user_id: int, strategy: dict) -> str:
-    """
-    Elige el mejor símbolo para el backtest de la estrategia.
-    Prioriza las suscripciones activas del usuario; si no, usa BTCUSDT.
-    """
+def _best_test_symbol(user_id: int) -> str:
+    """Elige símbolo para el test: primera suscripción activa o BTCUSDT."""
     user_subs = get_user_sp_subscriptions(user_id)
-    # Intentar usar la primera suscripción activa del usuario
-    for sym in _BACKTEST_SYMBOLS:
+    for sym in _BT_SYMBOLS:
         if sym in user_subs and user_subs[sym]:
             return sym
     return "BTCUSDT"
 
 
-def _build_test_keyboard(strat_id: str, symbol: str) -> InlineKeyboardMarkup:
-    """Teclado del resultado de test con botones de cambio de símbolo."""
-    # Botones rápidos para cambiar el par del backtest
-    sym_row = []
-    for s in ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT"]:
-        label = s.replace("USDT", "")
-        mark  = " ✓" if s == symbol else ""
-        sym_row.append(InlineKeyboardButton(
-            f"{label}{mark}",
-            callback_data=f"sp_strat_test|{strat_id}|{s}"
-        ))
-
+def _test_keyboard(strat_id: str, current_sym: str) -> InlineKeyboardMarkup:
+    """Botones rápidos para cambiar el par del backtest."""
+    quick = []
+    for sym in ["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT"]:
+        lbl = sym.replace("USDT","") + (" ✓" if sym == current_sym else "")
+        quick.append(InlineKeyboardButton(lbl, callback_data=f"sp_strat_test|{strat_id}|{sym}"))
     return InlineKeyboardMarkup([
-        sym_row,
+        quick,
         [
-            InlineKeyboardButton("🔄 Repetir test", callback_data=f"sp_strat_test|{strat_id}|{symbol}"),
-            InlineKeyboardButton("🔙 Estrategia",   callback_data=f"sp_strat_detail|{strat_id}"),
+            InlineKeyboardButton("🔄 Repetir", callback_data=f"sp_strat_test|{strat_id}|{current_sym}"),
+            InlineKeyboardButton("🔙 Estrategia", callback_data=f"sp_strat_detail|{strat_id}"),
         ],
     ])
 
 
 async def sp_strat_test_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Ejecuta un backtest de la estrategia sobre velas históricas de Binance.
+    Ejecuta backtest de la estrategia sobre velas históricas de Binance.
     Callback: sp_strat_test|STRATEGY_ID|SYMBOL
-
-    - Muestra spinner mientras calcula (puede tardar 3-8 segundos).
-    - Edita el mismo mensaje con los resultados.
-    - Botones para cambiar símbolo y repetir el test.
+    - Muestra spinner mientras calcula (3–10 segundos).
+    - Edita el mensaje con resultados estadísticos.
+    - Botones para cambiar par (BTC/ETH/SOL/BNB) y repetir.
     """
     query   = update.callback_query
     user_id = query.from_user.id
@@ -1041,14 +1025,14 @@ async def sp_strat_test_callback(update: Update, context: ContextTypes.DEFAULT_T
         return
 
     try:
-        parts = query.data.split("|")
+        parts    = query.data.split("|")
         strat_id = parts[1]
         symbol   = parts[2] if len(parts) > 2 else "BTCUSDT"
     except (IndexError, ValueError):
         await query.answer("❌ Error de datos.", show_alert=True)
         return
 
-    if not _SSS_OK:
+    if not _SSS_OK or run_strategy_backtest is None:
         await query.answer("⚠️ Módulo SSS no disponible.", show_alert=True)
         return
 
@@ -1059,61 +1043,46 @@ async def sp_strat_test_callback(update: Update, context: ContextTypes.DEFAULT_T
 
     await query.answer("⏳ Ejecutando backtest…")
 
-    # Spinner mientras se ejecuta
     tf = strat.get('timeframes', ['5m'])[0]
     try:
         await query.edit_message_text(
             f"🧪 *Backtest — {strat.get('emoji','')} {strat.get('name','')}*\n"
             f"————————————————————\n\n"
-            f"⏳ _Analizando `{symbol}` en `{tf}`…_\n\n"
-            f"Descargando velas y aplicando estrategia\n"
-            f"a operaciones pasadas. Un momento…",
-            parse_mode=ParseMode.MARKDOWN
+            f"⏳ _Analizando `{symbol}` · `{tf}`…_\n\n"
+            f"Descargando 500 velas y aplicando la\n"
+            f"estrategia sobre operaciones pasadas…",
+            parse_mode=ParseMode.MARKDOWN,
         )
     except Exception:
         pass
 
-    # Ejecutar backtest en executor (bloquea I/O de red + cálculo)
     loop = asyncio.get_running_loop()
     try:
         result = await loop.run_in_executor(
-            None,
-            run_strategy_backtest,
-            strat,
-            symbol,
-            500,   # 500 velas históricas
+            None, run_strategy_backtest, strat, symbol, 500
         )
     except Exception as e:
-        add_log_line(f"[SSS Test] Error en backtest {strat_id}/{symbol}: {e}")
-        result = {'error': f'Error inesperado: {e}', 'trades': [], 'stats': {}}
+        add_log_line(f"[SSS Test] Excepción en backtest {strat_id}/{symbol}: {e}")
+        result = {'error': f'Error inesperado: {e}', 'trades': [], 'stats': {}, 'diagnostics': {}}
 
-    # Formatear resultado
-    result_text = format_backtest_result(result, strat)
-    keyboard    = _build_test_keyboard(strat_id, symbol)
+    text     = format_backtest_result(result, strat)
+    keyboard = _test_keyboard(strat_id, symbol)
 
+    stats   = result.get('stats', {})
     add_log_line(
         f"[SSS Test] user {user_id} testó '{strat_id}' en {symbol}/{tf} "
-        f"— {result.get('stats',{}).get('total',0)} ops, "
-        f"WR={result.get('stats',{}).get('win_rate',0)}%"
+        f"— {stats.get('total',0)} ops, WR={stats.get('win_rate',0)}% "
+        f"diag={result.get('diagnostics',{})}"
     )
 
     try:
         await query.edit_message_text(
-            result_text,
+            text[:4000],
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=keyboard,
         )
     except Exception:
-        # Si el mensaje es demasiado largo, recortarlo
-        try:
-            short_text = result_text[:4000] + "\n\n_[Texto recortado]_"
-            await query.edit_message_text(
-                short_text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=keyboard,
-            )
-        except Exception:
-            pass
+        pass
 
 
 # ─── SSS: SUBIDA DE ESTRATEGIAS DE USUARIO ────────────────────────────────────

@@ -851,152 +851,322 @@ def save_user_strategy_file(user_id: int, data: dict) -> str | None:
 
 
 # ─── BACKTESTING ENGINE ───────────────────────────────────────────────────────
+# NOTA: Motor de señales inlinado aquí (sin importar sp_loop) para
+# evitar la importación circular sp_loop → sss_manager → sp_loop.
 
-# Importación diferida de SPSignalEngine para evitar importación circular
-def _get_signal_engine():
-    try:
-        from core.sp_loop import SPSignalEngine
-        return SPSignalEngine()
-    except ImportError:
-        return None
-
-
-def _download_candles_for_backtest(symbol: str, interval: str, limit: int = 500):
-    """Descarga velas desde Binance para el backtest."""
-    import requests
+def _bt_download_candles(symbol: str, interval: str, limit: int = 500):
+    """Descarga velas de Binance para el backtest."""
+    import requests as _req
     endpoints = [
         "https://api.binance.com/api/v3/klines",
         "https://api.binance.us/api/v3/klines",
     ]
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
     for url in endpoints:
         try:
-            r = requests.get(url, params=params, timeout=8)
+            r = _req.get(url, params={"symbol": symbol, "interval": interval, "limit": limit}, timeout=10)
             if r.status_code != 200:
                 continue
             data = r.json()
             if not isinstance(data, list) or len(data) < 50:
                 continue
             df = pd.DataFrame(data, columns=[
-                "open_time", "open", "high", "low", "close", "volume",
-                "close_time", "q_vol", "trades", "tb_base", "tb_quote", "ignore"
+                "open_time","open","high","low","close","volume",
+                "close_time","q_vol","trades","tb_base","tb_quote","ignore"
             ])
-            for col in ["open", "high", "low", "close", "volume"]:
+            for col in ["open","high","low","close","volume"]:
                 df[col] = pd.to_numeric(df[col], errors='coerce')
             df['time'] = pd.to_datetime(df['open_time'], unit='ms')
             df.set_index('time', inplace=True)
             return df
-        except Exception:
-            continue
+        except Exception as e:
+            logger.debug(f"[BT] Endpoint falló: {e}")
     return None
 
 
-def _simulate_trade_forward(
+def _bt_analyze_signal(df_c: pd.DataFrame, price: float) -> dict:
+    """
+    Motor de señales inlinado — lógica idéntica a SPSignalEngine.analyze().
+    Evita importación circular. Usa velas cerradas df_c.
+    """
+    buy_score = sell_score = 0.0
+    reasons   = []
+    rsi_val   = 50.0
+    has_macd_cross = False
+
+    try:
+        # EMAs
+        for span in [9, 20, 50]:
+            ema = df_c['close'].ewm(span=span, adjust=False).mean().iloc[-1]
+            if price > ema: buy_score  += 0.5
+            else:           sell_score += 0.5
+        ema50 = df_c['close'].ewm(span=50, adjust=False).mean().iloc[-1]
+        if price > ema50: buy_score  += 0.5
+        else:             sell_score += 0.5
+
+        # RSI
+        if pta:
+            rsi_s = pta.rsi(df_c['close'], length=14)
+            if rsi_s is not None:
+                rsi_val = float(rsi_s.iloc[-1])
+        if rsi_val < 30:   buy_score  += 1.5; reasons.append(f"RSI sobrevendido ({rsi_val:.1f})")
+        elif rsi_val < 45: buy_score  += 0.75
+        elif rsi_val > 70: sell_score += 1.5; reasons.append(f"RSI sobrecomprado ({rsi_val:.1f})")
+        elif rsi_val > 55: sell_score += 0.75
+
+        # MACD
+        if pta:
+            macd_df = pta.macd(df_c['close'], fast=12, slow=26, signal=9)
+            if macd_df is not None and len(macd_df.columns) >= 2:
+                hist = macd_df.iloc[:, 1]
+                h = float(hist.iloc[-1]); hp = float(hist.iloc[-2]) if len(hist) > 1 else 0.0
+                if h > 0 and hp <= 0:   buy_score += 2.0; reasons.append("MACD cruzó al alza"); has_macd_cross = True
+                elif h < 0 and hp >= 0: sell_score += 2.0; reasons.append("MACD cruzó a la baja"); has_macd_cross = True
+                elif h > 0: buy_score  += 0.75
+                else:       sell_score += 0.75
+
+        # Stochastic
+        if pta:
+            stoch = pta.stoch(df_c['high'], df_c['low'], df_c['close'], k=14, d=3, smooth_k=3)
+            if stoch is not None and len(stoch.columns) >= 2:
+                k = float(stoch.iloc[-1, 0]); d = float(stoch.iloc[-1, 1])
+                kp = float(stoch.iloc[-2, 0]) if len(stoch)>1 else k
+                dp = float(stoch.iloc[-2, 1]) if len(stoch)>1 else d
+                if k < 20 and d < 20:   buy_score  += 1.0; reasons.append(f"Estocástico sobrevendido ({k:.1f})")
+                elif k > 80 and d > 80: sell_score += 1.0; reasons.append(f"Estocástico sobrecomprado ({k:.1f})")
+                if kp <= dp and k > d and k < 50:   buy_score  += 0.75
+                elif kp >= dp and k < d and k > 50: sell_score += 0.75
+
+        # CCI
+        if pta:
+            cci_s = pta.cci(df_c['high'], df_c['low'], df_c['close'], length=20)
+            if cci_s is not None:
+                cci = float(cci_s.iloc[-1]); ccp = float(cci_s.iloc[-2]) if len(cci_s)>1 else 0
+                if cci < -100 and cci > ccp: buy_score  += 1.0; reasons.append(f"CCI rebote ({cci:.0f})")
+                elif cci > 100 and cci < ccp: sell_score += 1.0
+
+        # Bollinger Bands
+        bb_up = df_c['close'].rolling(20).mean() + 2*df_c['close'].rolling(20).std()
+        bb_lo = df_c['close'].rolling(20).mean() - 2*df_c['close'].rolling(20).std()
+        if price <= float(bb_lo.iloc[-1]) * 1.005: buy_score  += 1.0; reasons.append("Banda inferior BB")
+        elif price >= float(bb_up.iloc[-1]) * 0.995: sell_score += 1.0; reasons.append("Banda superior BB")
+
+        # MFI
+        if pta:
+            mfi = pta.mfi(df_c['high'], df_c['low'], df_c['close'], df_c['volume'], length=14)
+            if mfi is not None:
+                mv = float(mfi.iloc[-1])
+                if mv < 20: buy_score  += 0.75
+                elif mv > 80: sell_score += 0.75
+
+    except Exception as e:
+        logger.error(f"[BT] Error en _bt_analyze_signal: {e}")
+
+    net       = buy_score - sell_score
+    score_abs = abs(net)
+    direction = 'NEUTRAL'
+    if net > 0.5:    direction = 'BUY'
+    elif net < -0.5: direction = 'SELL'
+
+    # ATR
+    atr = price * 0.002
+    try:
+        if pta:
+            atr_s = pta.atr(df_c['high'], df_c['low'], df_c['close'], length=14)
+            if atr_s is not None and not pd.isna(atr_s.iloc[-1]):
+                atr = float(atr_s.iloc[-1])
+    except Exception:
+        pass
+
+    return {
+        'direction':       direction,
+        'score':           round(net, 2),
+        'score_buy':       round(buy_score, 2),
+        'score_sell':      round(sell_score, 2),
+        'score_abs':       round(score_abs, 2),
+        'strength':        'STRONG' if score_abs >= 6.5 else ('MODERATE' if score_abs >= 4.5 else 'WEAK'),
+        'price':           round(price, 8),
+        'atr':             round(atr, 8),
+        'rsi':             round(rsi_val, 2),
+        'reasons':         reasons[:4],
+        'has_macd_cross':  has_macd_cross,
+        # campos dummy para compatibilidad con enrich_signal
+        'stop': 0, 'target1': 0, 'target2': 0, 'open_time': 0,
+    }
+
+
+def _bt_compute_indicators(df_slice: pd.DataFrame, strategy: dict) -> pd.DataFrame:
+    """Calcula indicadores extendidos con manejo de errores robusto."""
+    ef     = strategy.get('entry_filter', {})
+    df_ext = df_slice.copy()
+
+    if pta is None:
+        df_ext['supertrend_direction'] = 0
+        df_ext['ash_bulls']  = np.nan
+        df_ext['ash_bears']  = np.nan
+        df_ext['sss_adx']    = np.nan
+        df_ext['sss_plus_di']  = np.nan
+        df_ext['sss_minus_di'] = np.nan
+        return df_ext
+
+    try:
+        if ef.get('supertrend_align') or ef.get('trailing_type') == 'supertrend':
+            df_ext = _compute_supertrend(df_ext)
+    except Exception as e:
+        logger.warning(f"[BT] Supertrend falló: {e}")
+        df_ext['supertrend_direction'] = 0
+
+    try:
+        if ef.get('ash_signal'):
+            df_ext = _compute_ash(df_ext)
+    except Exception as e:
+        logger.warning(f"[BT] ASH falló: {e}")
+
+    try:
+        if ef.get('adx_min', 0) > 0 or ef.get('adx_di_confirm'):
+            df_ext = _compute_adx(df_ext)
+    except Exception as e:
+        logger.warning(f"[BT] ADX falló: {e}")
+
+    return df_ext
+
+
+def _bt_apply_filter(strategy: dict, sig: dict, df_ext: pd.DataFrame) -> tuple[bool, str]:
+    """
+    Filtro de estrategia para backtest.
+    Degrada graciosamente si columnas no están disponibles:
+    en lugar de rechazar, omite el filtro específico.
+    """
+    ef        = strategy.get('entry_filter', {})
+    direction = sig.get('direction', 'NEUTRAL')
+    if direction == 'NEUTRAL':
+        return False, "NEUTRAL"
+
+    is_long = direction == 'BUY'
+
+    # ── Score mínimo ──────────────────────────────────────────────────────────
+    min_score = ef.get('min_score', 4.5)
+    if sig.get('score_abs', 0) < min_score:
+        return False, f"score<{min_score:.1f}"
+
+    # Helper para leer columna de forma segura
+    def _col(col, default=np.nan):
+        try:
+            if col not in df_ext.columns: return default
+            v = df_ext.iloc[-2][col] if len(df_ext) >= 2 else df_ext.iloc[-1][col]
+            return default if pd.isna(v) else float(v)
+        except Exception:
+            return default
+
+    # ── Supertrend: solo filtra si la columna existe y no es 0 ────────────────
+    if ef.get('supertrend_align'):
+        st_dir = _col('supertrend_direction', 0)
+        if st_dir != 0:   # 0 = no calculado → omitir filtro
+            if is_long and st_dir != 1:   return False, "ST_bajista_compra"
+            if not is_long and st_dir != -1: return False, "ST_alcista_venta"
+
+    # ── ASH: solo filtra si bulls/bears disponibles ───────────────────────────
+    if ef.get('ash_signal'):
+        bulls = _col('ash_bulls'); bears = _col('ash_bears')
+        if not (np.isnan(bulls) or np.isnan(bears)):
+            if is_long and bulls <= bears:   return False, "ASH_no_compra"
+            if not is_long and bears <= bulls: return False, "ASH_no_venta"
+
+    # ── ADX ───────────────────────────────────────────────────────────────────
+    adx_min = ef.get('adx_min', 0)
+    if adx_min > 0:
+        adx = _col('sss_adx')
+        if not np.isnan(adx) and adx < adx_min:
+            return False, f"ADX<{adx_min}"
+
+    # ── DI confirmation ───────────────────────────────────────────────────────
+    if ef.get('adx_di_confirm'):
+        pdi = _col('sss_plus_di'); mdi = _col('sss_minus_di')
+        if not (np.isnan(pdi) or np.isnan(mdi)):
+            if is_long and pdi <= mdi:    return False, "DI+<=DI-"
+            if not is_long and mdi <= pdi: return False, "DI-<=DI+"
+
+    # ── Volume spike ──────────────────────────────────────────────────────────
+    if ef.get('volume_spike'):
+        mult = ef.get('volume_spike_mult', 1.5)
+        try:
+            vol_cur = float(df_ext.iloc[-2]['volume'])
+            vol_avg = float(df_ext['volume'].tail(20).mean())
+            if vol_avg > 0 and vol_cur < vol_avg * mult:
+                return False, f"vol<{mult}x"
+        except Exception:
+            pass
+
+    # ── MACD cross ────────────────────────────────────────────────────────────
+    if ef.get('macd_cross_required'):
+        if not sig.get('has_macd_cross', False):
+            return False, "sin_MACD_cross"
+
+    # ── RSI extremes ──────────────────────────────────────────────────────────
+    rsi = sig.get('rsi', 50)
+    if is_long:
+        rl = ef.get('rsi_oversold_buy', 100)
+        if rl < 100 and rsi > rl: return False, f"RSI{rsi:.0f}>{rl}"
+    else:
+        rl = ef.get('rsi_overbought_sell', 0)
+        if rl > 0 and rsi < rl: return False, f"RSI{rsi:.0f}<{rl}"
+
+    return True, "OK"
+
+
+def _bt_sim_trade(
     df: pd.DataFrame,
     entry_bar: int,
     entry_price: float,
-    sl_price: float,
-    tp1_price: float,
-    tp2_price: float,
-    tp3_price: float,
+    sl: float,
+    tp1: float,
+    tp2: float,
+    tp3: float,
     direction: str,
-    max_bars: int = 60,
+    max_bars: int = 80,
 ) -> dict:
-    """
-    Simula una operación abierta en entry_bar avanzando vela a vela.
-    Comprueba si el precio alcanza TP1, TP2, TP3 o SL en velas siguientes.
-    Devuelve un dict con el resultado de la operación.
-    """
-    is_long    = direction == 'BUY'
-    total_bars = len(df)
-    best_tp    = 0          # 0=none, 1=TP1, 2=TP2, 3=TP3
-    sl_hit     = False
-    close_bar  = None
+    """Simula operación avanzando vela a vela. Detecta SL/TP1/TP2/TP3."""
+    is_long     = direction == 'BUY'
+    n           = len(df)
+    best_tp     = 0
+    sl_hit      = False
+    close_bar   = None
     close_price = entry_price
 
-    for i in range(entry_bar + 1, min(entry_bar + max_bars + 1, total_bars)):
-        bar_high = float(df.iloc[i]['high'])
-        bar_low  = float(df.iloc[i]['low'])
+    for i in range(entry_bar + 1, min(entry_bar + max_bars + 1, n)):
+        hi = float(df.iloc[i]['high'])
+        lo = float(df.iloc[i]['low'])
 
         if is_long:
-            # SL hit
-            if bar_low <= sl_price:
-                sl_hit      = True
-                close_bar   = i
-                close_price = sl_price
-                break
-            # TP3 hit
-            if bar_high >= tp3_price and best_tp < 3:
-                best_tp    = 3
-                close_bar  = i
-                close_price = tp3_price
-                break
-            # TP2 hit (continua para ver si TP3)
-            if bar_high >= tp2_price and best_tp < 2:
-                best_tp = 2
-            # TP1 hit
-            if bar_high >= tp1_price and best_tp < 1:
-                best_tp = 1
-        else:  # SELL
-            # SL hit
-            if bar_high >= sl_price:
-                sl_hit      = True
-                close_bar   = i
-                close_price = sl_price
-                break
-            # TP3 hit
-            if bar_low <= tp3_price and best_tp < 3:
-                best_tp    = 3
-                close_bar  = i
-                close_price = tp3_price
-                break
-            # TP2 hit
-            if bar_low <= tp2_price and best_tp < 2:
-                best_tp = 2
-            # TP1 hit
-            if bar_low <= tp1_price and best_tp < 1:
-                best_tp = 1
+            if lo <= sl:               sl_hit = True; close_bar = i; close_price = sl; break
+            if hi >= tp3 and best_tp < 3: best_tp = 3; close_bar = i; close_price = tp3; break
+            if hi >= tp2 and best_tp < 2: best_tp = 2; close_bar = i; close_price = tp2; break
+            if hi >= tp1 and best_tp < 1: best_tp = 1
+        else:
+            if hi >= sl:               sl_hit = True; close_bar = i; close_price = sl; break
+            if lo <= tp3 and best_tp < 3: best_tp = 3; close_bar = i; close_price = tp3; break
+            if lo <= tp2 and best_tp < 2: best_tp = 2; close_bar = i; close_price = tp2; break
+            if lo <= tp1 and best_tp < 1: best_tp = 1
 
-        # Si ya alcanzó TP2, la operación principal está cerrada con ganancia
-        if best_tp >= 2 and close_bar is None:
-            close_bar   = i
-            if is_long:
-                close_price = tp2_price if best_tp == 2 else tp3_price
-            else:
-                close_price = tp2_price if best_tp == 2 else tp3_price
-            break
+        # Cerrar en TP1 si pasaron ≥5 velas y no hay movimiento mayor
+        if best_tp == 1 and (i - entry_bar) >= 5:
+            close_bar = i; close_price = tp1; break
 
-    # Determinar resultado final
     if sl_hit:
-        result   = 'SL'
-        pnl_pct  = abs((sl_price - entry_price) / entry_price) * -100
-        if not is_long:
-            pnl_pct = abs((sl_price - entry_price) / entry_price) * -100
+        result  = 'SL';  pnl_pct = abs((sl - entry_price) / entry_price) * -100
     elif best_tp == 3:
-        result   = 'TP3'
-        pnl_pct  = abs((tp3_price - entry_price) / entry_price) * 100
+        result  = 'TP3'; pnl_pct = abs((tp3 - entry_price) / entry_price) * 100
     elif best_tp == 2:
-        result   = 'TP2'
-        pnl_pct  = abs((tp2_price - entry_price) / entry_price) * 100
+        result  = 'TP2'; pnl_pct = abs((tp2 - entry_price) / entry_price) * 100
     elif best_tp == 1:
-        result   = 'TP1'
-        pnl_pct  = abs((tp1_price - entry_price) / entry_price) * 100
+        result  = 'TP1'; pnl_pct = abs((tp1 - entry_price) / entry_price) * 100
     else:
-        result   = 'OPEN'   # No se resolvió dentro del horizonte
-        pnl_pct  = 0.0
+        result  = 'OPEN'; pnl_pct = 0.0
 
     return {
-        'result':       result,
-        'pnl_pct':      round(pnl_pct, 3),
-        'entry_bar':    entry_bar,
-        'close_bar':    close_bar,
-        'direction':    direction,
-        'entry_price':  entry_price,
-        'close_price':  close_price,
-        'sl':           sl_price,
-        'tp1':          tp1_price,
-        'tp2':          tp2_price,
-        'tp3':          tp3_price,
+        'result': result, 'pnl_pct': round(pnl_pct, 3),
+        'entry_bar': entry_bar, 'close_bar': close_bar,
+        'direction': direction, 'entry_price': entry_price,
+        'sl': sl, 'tp1': tp1, 'tp2': tp2, 'tp3': tp3,
     }
 
 
@@ -1006,272 +1176,246 @@ def run_strategy_backtest(
     candle_limit: int = 500,
 ) -> dict:
     """
-    Ejecuta un backtest de la estrategia sobre velas históricas de Binance.
-
-    Algoritmo:
-      1. Descarga `candle_limit` velas del primer TF de la estrategia.
-      2. Hace un barrido barra a barra desde la barra 60 hasta la última-10.
-      3. En cada barra analiza con SPSignalEngine + filtros de estrategia.
-      4. Si hay señal válida, simula la operación hacia adelante.
-      5. No abre nueva operación hasta que la anterior esté cerrada.
-
-    Devuelve:
-      dict con trades (list), stats (dict), symbol, tf, candles_used, error.
+    Backtest de la estrategia sobre velas históricas de Binance.
+    Motor de señales inlinado — sin importar sp_loop (evita circular).
     """
-    engine = _get_signal_engine()
-    if engine is None:
-        return {'error': 'SPSignalEngine no disponible.', 'trades': [], 'stats': {}}
-
-    # Elegir TF: preferir el primero de la lista de la estrategia
     tfs = strategy.get('timeframes', ['5m'])
     tf  = tfs[0] if tfs else '5m'
 
-    df = _download_candles_for_backtest(symbol, tf, candle_limit)
+    df = _bt_download_candles(symbol, tf, candle_limit)
     if df is None or len(df) < 80:
         return {
             'error': f'No se pudieron descargar velas de {symbol}/{tf}.',
-            'trades': [], 'stats': {}, 'symbol': symbol, 'tf': tf
+            'trades': [], 'stats': {}, 'symbol': symbol, 'tf': tf,
+            'diagnostics': {}
         }
 
-    total_bars = len(df)
-    min_lookback = 60   # Mínimo de velas para que los indicadores sean estables
-    max_fwd      = 80   # Máximo de velas hacia adelante para resolver cada trade
+    n_total     = len(df)
+    min_bars    = 60
+    max_fwd     = 80
+    trades      = []
+    next_bar    = min_bars
+    n_neutral   = 0
+    n_rejected  = 0
+    n_no_levels = 0
+    rej_counts  = {}
 
-    trades     = []
-    next_bar   = min_lookback   # No abrir trade antes de este índice
-    signals_rejected = 0
+    logger.info(f"[BT] Iniciando backtest '{strategy.get('id')}' en {symbol}/{tf}, {n_total} velas")
 
-    for bar_idx in range(min_lookback, total_bars - 5):
-        # Respetar cooldown: no abrir nueva trade antes de que cierre la anterior
+    for bar_idx in range(min_bars, n_total - 5):
         if bar_idx < next_bar:
             continue
 
-        # Slice de velas hasta esta barra (inclusive) como si fuera "ahora"
         df_slice = df.iloc[:bar_idx + 1].copy()
+        df_c     = df_slice.iloc[:-1]
+        price    = float(df_slice.iloc[-1]['close'])
 
-        # Analizar señal con el motor SP
         try:
-            sig = engine.analyze(df_slice)
-        except Exception:
+            sig = _bt_analyze_signal(df_c, price)
+        except Exception as e:
+            logger.warning(f"[BT] analyze error bar {bar_idx}: {e}")
             continue
 
-        if sig.get('direction', 'NEUTRAL') == 'NEUTRAL':
+        if sig['direction'] == 'NEUTRAL':
+            n_neutral += 1
             continue
 
-        # Calcular indicadores extendidos de la estrategia
         try:
-            df_ext = compute_extended_indicators(df_slice, strategy)
+            df_ext = _bt_compute_indicators(df_slice, strategy)
         except Exception:
             df_ext = df_slice
 
-        # Aplicar filtro de la estrategia
-        passes, reason = apply_strategy_filter(strategy, sig, df_ext)
+        passes, reason = _bt_apply_filter(strategy, sig, df_ext)
         if not passes:
-            signals_rejected += 1
+            n_rejected += 1
+            rej_counts[reason] = rej_counts.get(reason, 0) + 1
             continue
 
-        # Enriquecer señal para obtener niveles TP/SL
         try:
             sig_e = enrich_signal(strategy, sig, df_ext)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"[BT] enrich error: {e}")
             continue
 
-        entry_price = sig_e.get('price', 0)
-        sl_price    = sig_e.get('sss_sl', 0)
-        tp1_price   = sig_e.get('sss_tp1', 0)
-        tp2_price   = sig_e.get('sss_tp2', 0)
-        tp3_price   = sig_e.get('sss_tp3', 0)
-        direction   = sig_e.get('direction', 'NEUTRAL')
+        e_p   = sig_e.get('price', 0)
+        sl_p  = sig_e.get('sss_sl', 0)
+        tp1_p = sig_e.get('sss_tp1', 0)
+        tp2_p = sig_e.get('sss_tp2', 0)
+        tp3_p = sig_e.get('sss_tp3', 0)
+        direc = sig_e.get('direction', 'NEUTRAL')
 
-        if not all([entry_price, sl_price, tp1_price, tp2_price, tp3_price]):
+        if not all([e_p > 0, sl_p > 0, tp1_p > 0]):
+            n_no_levels += 1
             continue
 
-        # Simular operación en las velas siguientes
-        trade = _simulate_trade_forward(
-            df       = df,
-            entry_bar   = bar_idx,
-            entry_price = entry_price,
-            sl_price    = sl_price,
-            tp1_price   = tp1_price,
-            tp2_price   = tp2_price,
-            tp3_price   = tp3_price,
-            direction   = direction,
-            max_bars    = max_fwd,
-        )
+        trade = _bt_sim_trade(df, bar_idx, e_p, sl_p, tp1_p, tp2_p, tp3_p, direc, max_fwd)
         trade['bar_idx']  = bar_idx
-        trade['reasons']  = sig.get('reasons', [])
+        trade['time_str'] = str(df.index[bar_idx])[:16]
         trade['score']    = sig.get('score_abs', 0)
         trade['leverage'] = sig_e.get('sss_leverage', 1)
         trade['rr1']      = sig_e.get('sss_rr_tp1', 0)
         trade['rr2']      = sig_e.get('sss_rr_tp2', 0)
-        trade['time_str'] = str(df.index[bar_idx])[:16]
-
         trades.append(trade)
 
-        # Avanzar cursor: si la operación se cerró, saltamos a esa barra
-        if trade.get('close_bar') is not None:
-            next_bar = trade['close_bar'] + 1
-        else:
-            # Operación abierta (sin resolver): avanzar un mínimo
-            next_bar = bar_idx + 5
+        next_bar = (trade['close_bar'] + 1) if trade.get('close_bar') else bar_idx + 5
 
-    # ── Calcular estadísticas ──────────────────────────────────────────────────
-    total      = len(trades)
-    tp1_hits   = sum(1 for t in trades if t['result'] == 'TP1')
-    tp2_hits   = sum(1 for t in trades if t['result'] == 'TP2')
-    tp3_hits   = sum(1 for t in trades if t['result'] == 'TP3')
-    sl_hits    = sum(1 for t in trades if t['result'] == 'SL')
-    open_count = sum(1 for t in trades if t['result'] == 'OPEN')
-    wins       = tp1_hits + tp2_hits + tp3_hits
-    resolved   = wins + sl_hits
+    # ── Estadísticas ──────────────────────────────────────────────────────────
+    total    = len(trades)
+    tp1_hits = sum(1 for t in trades if t['result'] == 'TP1')
+    tp2_hits = sum(1 for t in trades if t['result'] == 'TP2')
+    tp3_hits = sum(1 for t in trades if t['result'] == 'TP3')
+    sl_hits  = sum(1 for t in trades if t['result'] == 'SL')
+    open_cnt = sum(1 for t in trades if t['result'] == 'OPEN')
+    wins     = tp1_hits + tp2_hits + tp3_hits
+    resolved = wins + sl_hits
 
-    win_rate   = round((wins / resolved * 100), 1) if resolved > 0 else 0.0
-    loss_rate  = round((sl_hits / resolved * 100), 1) if resolved > 0 else 0.0
+    wr       = round(wins / resolved * 100, 1) if resolved > 0 else 0.0
+    lr       = round(sl_hits / resolved * 100, 1) if resolved > 0 else 0.0
+    avg_win  = round(sum(t['pnl_pct'] for t in trades if t['result'] in ('TP1','TP2','TP3')) / wins, 2) if wins > 0 else 0.0
+    avg_loss = round(sum(abs(t['pnl_pct']) for t in trades if t['result'] == 'SL') / sl_hits, 2) if sl_hits > 0 else 0.0
+    ev       = round((wr/100 * avg_win) - (lr/100 * avg_loss), 2) if resolved > 0 else 0.0
 
-    # PnL bruto simulado (sin apalancamiento, sin fees)
-    avg_win_pct  = 0.0
-    avg_loss_pct = 0.0
-    if wins > 0:
-        avg_win_pct = round(
-            sum(t['pnl_pct'] for t in trades if t['result'] in ('TP1','TP2','TP3')) / wins, 2
-        )
-    if sl_hits > 0:
-        avg_loss_pct = round(
-            sum(abs(t['pnl_pct']) for t in trades if t['result'] == 'SL') / sl_hits, 2
-        )
+    top_rej = sorted(rej_counts.items(), key=lambda x: -x[1])[:4]
 
-    # Expected value por operación (simplificado)
-    ev = round((win_rate/100 * avg_win_pct) - (loss_rate/100 * avg_loss_pct), 2) if resolved > 0 else 0
-
-    # Ratio de mejora promedio (R:R real alcanzado)
-    avg_rr1 = round(
-        sum(t.get('rr1', 0) for t in trades) / total, 2
-    ) if total > 0 else 0
-
-    stats = {
-        'total':             total,
-        'tp1_hits':          tp1_hits,
-        'tp2_hits':          tp2_hits,
-        'tp3_hits':          tp3_hits,
-        'sl_hits':           sl_hits,
-        'open_count':        open_count,
-        'wins':              wins,
-        'resolved':          resolved,
-        'win_rate':          win_rate,
-        'loss_rate':         loss_rate,
-        'avg_win_pct':       avg_win_pct,
-        'avg_loss_pct':      avg_loss_pct,
-        'ev':                ev,
-        'avg_rr1':           avg_rr1,
-        'signals_rejected':  signals_rejected,
-    }
+    logger.info(
+        f"[BT] {symbol}/{tf}: {total} ops, {n_neutral} neutral, "
+        f"{n_rejected} rechazadas, top_rej={dict(top_rej)}, WR={wr}%"
+    )
 
     return {
         'trades':       trades,
-        'stats':        stats,
+        'stats': {
+            'total': total, 'tp1_hits': tp1_hits, 'tp2_hits': tp2_hits,
+            'tp3_hits': tp3_hits, 'sl_hits': sl_hits, 'open_count': open_cnt,
+            'wins': wins, 'resolved': resolved, 'win_rate': wr, 'loss_rate': lr,
+            'avg_win_pct': avg_win, 'avg_loss_pct': avg_loss, 'ev': ev,
+        },
+        'diagnostics': {
+            'n_neutral':   n_neutral,
+            'n_rejected':  n_rejected,
+            'n_no_levels': n_no_levels,
+            'top_reasons': top_rej,
+            'pta_ok':      pta is not None,
+        },
         'symbol':       symbol,
         'tf':           tf,
-        'candles_used': total_bars,
+        'candles_used': n_total,
         'error':        None,
     }
 
 
 def format_backtest_result(result: dict, strategy: dict) -> str:
-    """
-    Formatea el resultado del backtest como mensaje de Telegram (Markdown).
-    Diseñado para ser compacto y legible en móvil.
-    """
+    """Formatea resultado del backtest para Telegram. Incluye diagnóstico si 0 ops."""
     if result.get('error'):
         return (
             "❌ *Error en el backtest*\n"
-            f"────────────────────\n"
-            f"_{result['error']}_"
+            f"────────────────────\n_{result['error']}_\n\n"
+            "_Comprueba que el par esté activo en Binance._"
         )
 
-    s      = result['stats']
-    trades = result['trades']
-    symbol = result.get('symbol', '?')
-    tf     = result.get('tf', '?')
-    name   = strategy.get('name', '?')
-    emoji  = strategy.get('emoji', '📊')
-    total  = s['total']
+    s     = result.get('stats', {})
+    diag  = result.get('diagnostics', {})
+    total = s.get('total', 0)
+    name  = strategy.get('name', '?')[:20]
+    emoji = strategy.get('emoji', '📊')
+    sym   = result.get('symbol', '?')
+    tf    = result.get('tf', '?')
+    cand  = result.get('candles_used', 0)
 
-    if total == 0:
-        return (
-            f"{emoji} *Backtest — {name}*\n"
-            "————————————————————\n\n"
-            f"📡 `{symbol}` · `{tf}` · `{result.get('candles_used',0)}` velas\n\n"
-            "⚠️ _Sin señales encontradas con este símbolo._\n\n"
-            "_Prueba con otro par activo (BTC, ETH…)._"
-        )
+    tf_h = {'1m': 1/60, '5m': 5/60, '15m': 0.25, '1h': 1, '4h': 4}.get(tf, 1)
+    span = cand * tf_h
+    span_str = f"~{span:.0f}h" if span < 48 else f"~{span/24:.0f}d"
 
-    tp1 = s['tp1_hits']
-    tp2 = s['tp2_hits']
-    tp3 = s['tp3_hits']
-    sl  = s['sl_hits']
-    op  = s['open_count']
-    wr  = s['win_rate']
-    ev  = s['ev']
-
-    # Barra visual de resultados
-    total_vis  = max(tp1 + tp2 + tp3 + sl, 1)
-    bar_tp = round((tp1+tp2+tp3) / total_vis * 10)
-    bar_sl = round(sl / total_vis * 10)
-    bar_vis = "🟢" * bar_tp + "🔴" * bar_sl + "⬜" * max(0, 10-bar_tp-bar_sl)
-
-    # Fiabilidad badge
-    if wr >= 65:
-        wr_badge = "🌟 Alta"
-    elif wr >= 50:
-        wr_badge = "✅ Buena"
-    elif wr >= 40:
-        wr_badge = "⚠️ Moderada"
-    else:
-        wr_badge = "❌ Baja"
-
-    # Últimas 5 operaciones
-    last_trades_lines = []
-    for t in trades[-5:]:
-        r = t['result']
-        icons = {'TP1':'🟢', 'TP2':'🟩', 'TP3':'💚', 'SL':'🔴', 'OPEN':'🔵'}
-        icon = icons.get(r, '⚪')
-        d_ico = "↑" if t['direction'] == 'BUY' else "↓"
-        pnl = f"+{t['pnl_pct']:.1f}%" if r != 'SL' else f"-{abs(t['pnl_pct']):.1f}%"
-        ts  = t.get('time_str','')[-8:]   # solo HH:MM:SS
-        last_trades_lines.append(f"  {icon} `{t['time_str'][5:16]}` {d_ico} {r} {pnl}")
-
-    last_section = "\n".join(last_trades_lines) if last_trades_lines else "  _Sin datos_"
-
-    # EV line
-    ev_str = f"+{ev:.2f}%" if ev >= 0 else f"{ev:.2f}%"
-    ev_emoji = "📈" if ev > 0 else ("📉" if ev < 0 else "➡️")
-
-    candles = result.get('candles_used', 0)
-    tf_hours = {'1m':1/60,'5m':5/60,'15m':0.25,'1h':1,'4h':4}.get(tf, 1)
-    span_h   = round(candles * tf_hours)
-    span_str = f"~{span_h}h" if span_h < 48 else f"~{span_h//24}d"
-
-    text = (
+    header = (
         f"{emoji} *Backtest — {name}*\n"
         f"————————————————————\n\n"
-        f"📡 `{symbol}` · `{tf}` · {candles} velas ({span_str})\n\n"
-        f"{bar_vis}\n\n"
-        f"*Operaciones: {total}* ({s['resolved']} resueltas · {op} abiertas)\n\n"
-        f"  🟢 TP1 alcanzado: *{tp1}*\n"
-        f"  🟩 TP2 alcanzado: *{tp2}*\n"
-        f"  💚 TP3 alcanzado: *{tp3}*\n"
-        f"  🔴 Stop Loss:     *{sl}*\n\n"
-        f"📊 *Fiabilidad: {wr}%* — {wr_badge}\n"
-        f"  Ganadas: `{s['wins']}` · Perdidas: `{sl}`\n"
+        f"📡 `{sym}` · `{tf}` · {cand} velas ({span_str})\n"
+    )
+
+    # ── Sin operaciones → diagnóstico ────────────────────────────────────────
+    if total == 0:
+        n_neutral  = diag.get('n_neutral', 0)
+        n_rejected = diag.get('n_rejected', 0)
+        reasons    = diag.get('top_reasons', [])
+        pta_ok     = diag.get('pta_ok', True)
+
+        lines = [
+            f"  📊 Señales encontradas: `{n_neutral + n_rejected}`",
+            f"  🔵 Sin dirección (neutral): `{n_neutral}`",
+            f"  🔴 Filtradas por estrategia: `{n_rejected}`",
+        ]
+        if not pta_ok:
+            lines.append("  ⚠️ _pandas\\_ta no instalado_")
+        if reasons:
+            lines.append("\n  *Filtros más activos:*")
+            for r, cnt in reasons:
+                lines.append(f"    • `{r}` — {cnt}×")
+
+        # Sugerencia contextual
+        ef = strategy.get('entry_filter', {})
+        hint = ""
+        if not pta_ok and (ef.get('supertrend_align') or ef.get('ash_signal')):
+            hint = "\n\n💡 _Instala `pandas_ta` para usar Supertrend/ASH._"
+        elif ef.get('min_score', 0) >= 6.5:
+            hint = "\n\n💡 _Score mínimo muy alto (≥6.5). Prueba bajar a 5.0 en tu estrategia._"
+        elif ef.get('macd_cross_required') and ef.get('volume_spike'):
+            hint = "\n\n💡 _MACD cross + spike de volumen juntos son raros. Intenta solo uno._"
+        elif n_neutral > n_rejected:
+            hint = "\n\n💡 _Mercado sin tendencia clara en este período. Prueba otro par._"
+
+        return (
+            header +
+            "\n⚠️ *Sin operaciones encontradas*\n\n"
+            "*Diagnóstico:*\n" +
+            "\n".join(lines) + hint + "\n\n"
+            "────────────────────\n"
+            "💡 _Prueba BTC, ETH o SOL con el mismo período._"
+        )
+
+    # ── Con operaciones → estadísticas ───────────────────────────────────────
+    tp1 = s['tp1_hits']; tp2 = s['tp2_hits']
+    tp3 = s['tp3_hits']; sl  = s['sl_hits']
+    op  = s['open_count']; wr = s['win_rate']
+    ev  = s.get('ev', 0)
+
+    tot_v  = max(tp1+tp2+tp3+sl, 1)
+    b_win  = round((tp1+tp2+tp3) / tot_v * 10)
+    b_sl   = round(sl / tot_v * 10)
+    bar    = "🟢"*b_win + "🔴"*b_sl + "⬜"*max(0, 10-b_win-b_sl)
+
+    wr_b  = "🌟 Alta" if wr>=65 else ("✅ Buena" if wr>=50 else ("⚠️ Moderada" if wr>=40 else "❌ Baja"))
+    ev_s  = f"+{ev:.2f}%" if ev >= 0 else f"{ev:.2f}%"
+    ev_e  = "📈" if ev > 0 else ("📉" if ev < 0 else "➡️")
+
+    all_trades = result.get('trades', [])
+    icons = {'TP1':'🟢','TP2':'🟩','TP3':'💚','SL':'🔴','OPEN':'🔵'}
+    last_lines = []
+    for t in all_trades[-5:]:
+        ico = icons.get(t['result'], '⚪')
+        d   = "↑" if t['direction']=='BUY' else "↓"
+        pnl = f"+{t['pnl_pct']:.1f}%" if t['result']!='SL' else f"-{abs(t['pnl_pct']):.1f}%"
+        ts  = t.get('time_str', '')
+        last_lines.append(f"  {ico} `{ts[5:16]}` {d} `{t['result']}` {pnl}")
+
+    n_det = diag.get('n_neutral', 0) + diag.get('n_rejected', 0) + total
+    n_rej = diag.get('n_rejected', 0)
+
+    return (
+        header +
+        f"\n{bar}\n\n"
+        f"*{total} ops* · {s['resolved']} resueltas · {op} abiertas\n"
+        f"_({n_det} señales, {n_rej} filtradas)_\n\n"
+        f"  🟢 TP1: *{tp1}*  🟩 TP2: *{tp2}*  💚 TP3: *{tp3}*\n"
+        f"  🔴 SL:  *{sl}*\n\n"
+        f"📊 *Fiabilidad: {wr}%* — {wr_b}\n"
         f"  Ganancia media: `+{s['avg_win_pct']:.1f}%`\n"
         f"  Pérdida media:  `-{s['avg_loss_pct']:.1f}%`\n"
-        f"  {ev_emoji} Valor esp.: `{ev_str}` por op.\n\n"
+        f"  {ev_e} Valor esp.: `{ev_s}` / op\n\n"
         f"🕐 *Últimas operaciones:*\n"
-        f"{last_section}\n\n"
-        f"────────────────────\n"
-        f"💡 _Backtest histórico — no garantiza resultados futuros._"
+        + "\n".join(last_lines) + "\n\n"
+        "────────────────────\n"
+        "💡 _Backtest histórico — no garantiza resultados futuros._"
     )
-    return text
 
 
 # ─── INICIALIZACIÓN ───────────────────────────────────────────────────────────
