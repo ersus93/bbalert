@@ -12,9 +12,14 @@ CURRENT_USER=$(whoami); BOT_MAIN_FILE="bbalert.py"; REQUIREMENTS_FILE="requireme
 BACKUP_DIR="$HOME/backups"; MAX_BACKUPS=5
 
 # ── COLORES ────────────────────────────────────────────────────────────────────
-R='\033[0;31m' RB='\033[1;31m' G='\033[0;32m' GB='\033[1;32m'
-Y='\033[0;33m' YB='\033[1;33m' B='\033[0;34m' BB='\033[1;34m'
-M='\033[0;35m' C='\033[0;36m'  CB='\033[1;36m' WB='\033[1;37m'
+# Paleta calida/mate -- tonos tierra, ambar, salvia. Cuida la vista.
+R='\033[38;5;167m'  RB='\033[38;5;160m'  # ladrillo / rojo terracota
+G='\033[38;5;107m'  GB='\033[38;5;114m'  # verde salvia mate / claro
+Y='\033[38;5;136m'  YB='\033[38;5;178m'  # ambar apagado / ambar calido
+M='\033[38;5;138m'                          # mauve rosado viejo
+B='\033[38;5;103m'  BB='\033[38;5;103m'  # lavanda grisacea (bordes)
+C='\033[38;5;109m'  CB='\033[38;5;152m'  # gris azulado / perla claro
+WB='\033[38;5;253m'                         # blanco hueso calido
 DIM='\033[2m'  BOLD='\033[1m'  NC='\033[0m'
 
 # ── PRIMITIVAS TUI ─────────────────────────────────────────────────────────────
