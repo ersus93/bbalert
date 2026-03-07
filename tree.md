@@ -1,6 +1,6 @@
 # BBAlert - Estructura del Proyecto
 
-Actualizado: 2026-03-05
+Actualizado: 2026-03-06
 
 ```
 .
@@ -28,6 +28,7 @@ Actualizado: 2026-03-05
 │   ├── i18n.py
 │   ├── loops.py
 │   ├── reminders_loop.py
+│   ├── sp_loop.py                # Bucle principal del motor SmartSignals
 │   ├── valerts_loop.py
 │   ├── weather_loop_v2.py
 │   └── year_loop.py
@@ -77,6 +78,7 @@ Actualizado: 2026-03-05
 │   ├── general.py
 │   ├── pay.py
 │   ├── reminders.py
+│   ├── sp_handlers.py            # Handlers del comando /sp
 │   ├── ta.py
 │   ├── tasa.py
 │   ├── trading.py
@@ -96,6 +98,7 @@ Actualizado: 2026-03-05
 │       └── bbalert.po            # Fuente de traducciones ES
 │
 ├── plans/                        # Planes de desarrollo
+│   ├── PLAN_SMARTSIGNALS_SP.md   # Documentación técnica del módulo
 │   ├── code-improvement-plan.md
 │   ├── fix-users-dashboard-v2.md
 │   ├── git-workflow-plan.md
@@ -133,6 +136,8 @@ Actualizado: 2026-03-05
     ├── image_generator.py
     ├── logger.py
     ├── reminders_manager.py
+    ├── sp_chart.py               # Generador de gráficos predictivos
+    ├── sp_manager.py             # Gestor de suscripciones y estados
     ├── tasa_manager.py
     ├── telemetry.py
     ├── tv_helper.py

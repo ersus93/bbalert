@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.1.7-orange.svg)](version.txt)
+[![Version](https://img.shields.io/badge/Version-1.2.0-orange.svg)](version.txt)
 [![Telegram](https://img.shields.io/badge/Telegram-Bot-26A5E4.svg)](https://t.me/bbalertchannel)
 
 **Bot de Telegram Multifuncional para Criptomonedas, Clima y Trading**
@@ -43,6 +43,7 @@
 - Gráficos automáticos desde TradingView (`/graf`)
 - Monitoreo de mercados globales (`/mk`)
 - Tasas de cambio informal para Cuba (`/tasa`)
+- SmartSignals (`/sp`): Señales predictivas de trading con análisis técnico avanzado
 
 ### 🌐 Características Adicionales
 - **Multi-idioma**: Español e Inglés (i18n con gettext/Babel)
@@ -138,6 +139,7 @@ SCREENSHOT_API_KEY="TU_SCREENSHOT_KEY"
    p - Precio de cripto
    mk - Mercados globales
    shop - Tienda
+   sp - SmartSignals
    ```
 
 ---
@@ -163,6 +165,7 @@ SCREENSHOT_API_KEY="TU_SCREENSHOT_KEY"
 | `/graf [par] [tf]` | Gráfico TradingView | `/graf BTCUSDT 1h` |
 | `/mk` | Estado de mercados | - |
 | `/tasa` | Tasas de cambio Cuba | - |
+| `/sp [moneda] [tf]` | SmartSignals | `/sp BTC 4h` |
 | `/btcalerts` | Gestionar alertas BTC | - |
 | `/hbdalerts` | Gestionar alertas HBD | - |
 | `/alerta [moneda] [precio]` | Crear alerta | `/alerta BTC 50000` |
@@ -238,7 +241,8 @@ bbalert/
 │   ├── weather_loop_v2.py  # Alertas clima
 │   ├── loops.py            # Bucles generales
 │   ├── valerts_loop.py     # Multi-moneda PRO
-│   ├── i18n.py             # Internacionalización
+│   ├── sp_loop.py          # Motor SmartSignals
+│   ├── i18n.py            # Internacionalización
 │   ├── config.py           # Configuración
 │   └── api_client.py       # Clientes API
 │
@@ -247,13 +251,16 @@ bbalert/
 │   ├── weather.py
 │   ├── trading.py
 │   ├── admin.py
-│   └── alerts.py
+│   ├── alerts.py
+│   └── sp_handlers.py      # SmartSignals
 │
 ├── utils/                  # Utilidades
 │   ├── btc_manager.py
 │   ├── weather_manager.py
 │   ├── file_manager.py
-│   └── logger.py
+│   ├── logger.py
+│   ├── sp_manager.py       # Gestor SmartSignals
+│   └── sp_chart.py        # Gráficos predictivos
 │
 ├── data/                   # Datos persistentes
 │   ├── users.json
@@ -373,13 +380,14 @@ Al reportar un issue, incluir:
 
 ## 🔮 Roadmap
 
-### ✅ Completado (v1.1.7)
+### ✅ Completado (v1.2.0)
 - Alertas BTC avanzadas
 - Sistema de clima inteligente
 - Alertas HBD dinámicas
 - Pagos con Telegram Stars
 - Feeds RSS/Atom
 - Análisis técnico (/ta)
+- SmartSignals (/sp) - Señales predictivas de trading
 
 ### ⏳ En Desarrollo (v2.x)
 - Integración con más exchanges
