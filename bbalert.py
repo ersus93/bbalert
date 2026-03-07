@@ -10,7 +10,7 @@ from telegram.constants import ParseMode
 from utils.logger import logger
 from utils.file_manager import cargar_usuarios, guardar_usuarios, add_log_line
 from core.btc_loop import btc_monitor_loop, set_btc_sender
-from handlers.btc_handlers import btc_handlers_list
+from handlers.btc_handlers import btc_handlers_list, graf_from_btc_callback
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, VERSION, PID, PYTHON_VERSION, STATE
 from core.loops import (
     alerta_loop, 
@@ -41,14 +41,18 @@ from handlers.alerts import (
     borrar_alerta_callback, 
     borrar_todas_alertas_callback,
 )
-from handlers.trading import graf_command, p_command, refresh_command_callback, mk_command, ta_quick_callback
-from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback
+from handlers.trading import graf_command, graf_timeframe_callback, p_command, refresh_command_callback, mk_command, ta_quick_callback
+from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback, graf_from_ta_callback
 from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
 
 from handlers.valerts_handlers import valerts_handlers_list
 from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
+
+# ── SmartSignals (/sp) ────────────────────────────────────────────────────────
+from handlers.sp_handlers import sp_handlers_list
+from core.sp_loop import sp_monitor_loop, set_sp_sender
 
 from handlers.weather import (
     weather_command, 
@@ -127,9 +131,11 @@ async def post_init(app: Application):
     except Exception as e:
         logger.error(f"⚠️ Fallo al enviar notificación de inicio a los admins: {e}")
         
-    # Inicio de Loops de Monitoreo (BTC y VALERTS)
+    # Inicio de Loops de Monitoreo (BTC, VALERTS y SMARTSIGNALS)
     asyncio.create_task(btc_monitor_loop(app.bot))
     asyncio.create_task(valerts_monitor_loop(app.bot))
+    asyncio.create_task(sp_monitor_loop(app.bot))
+    logger.info("✅ Bucle SmartSignals (/sp) iniciado.")
 
 
 def main():
@@ -221,6 +227,7 @@ def main():
     set_enviar_mensaje_telegram_async(enviar_mensajes, app)
     set_btc_sender(enviar_mensajes)
     set_valerts_sender(enviar_mensajes)
+    set_sp_sender(enviar_mensajes)    # ← SmartSignals
     
         # 3. REGISTRO DE HANDLERS
     
@@ -299,6 +306,10 @@ def main():
         app.add_handler(handler)
     
     app.add_handlers(valerts_handlers_list)
+
+    # ── SmartSignals (/sp) ────────────────────────────────────────────────────
+    for handler in sp_handlers_list:
+        app.add_handler(handler)
     
     # ============================================
     # CallbackQueryHandlers (DEBEN IR AL FINAL)
@@ -319,6 +330,9 @@ def main():
     app.add_handler(CallbackQueryHandler(year_sub_callback, pattern="^year_sub_"))
     app.add_handler(CallbackQueryHandler(ta_switch_callback, pattern="^ta_switch\\|"))
     app.add_handler(CallbackQueryHandler(ai_analysis_callback, pattern="^ai_analyze\\|"))
+    app.add_handler(CallbackQueryHandler(graf_from_ta_callback, pattern="^graf_from_ta\\|"))
+    app.add_handler(CallbackQueryHandler(graf_from_btc_callback, pattern="^graf_from_btc\\|"))
+    app.add_handler(CallbackQueryHandler(graf_timeframe_callback, pattern="^graf_tf\\|"))
     app.add_handler(CallbackQueryHandler(refresh_command_callback, pattern=r"^refresh_"))
     app.add_handler(CallbackQueryHandler(ta_quick_callback, pattern=r"^ta_quick\|"))
     app.add_handler(CallbackQueryHandler(eltoque_refresh_callback, pattern="^eltoque_refresh$"))

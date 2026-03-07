@@ -1,486 +1,768 @@
 #!/bin/bash
+# ╔══════════════════════════════════════════════════════════════╗
+# ║         BBAlert Manager  —  Multi-Bot TUI v5                ║
+# ╚══════════════════════════════════════════════════════════════╝
 
-# ============================================
-# GESTOR MULTI-BOT DE TELEGRAM (BBAlert v3)
-# Versión Mejorada con Detección Automática
-# ============================================
-# Características:
-# - Detección inteligente de bots
-# - Gestión multi-directorio
-# - Creación robusta de venv
-# - Soporte Python 3.12 y 3.13
-# ============================================
+handle_error() { printf "\n\033[1;31m✘\033[0m  Error inesperado en línea ${1:-?}. Volviendo al menú.\n"; sleep 2; }
+trap 'handle_error $LINENO' ERR
 
-# --- CONFIGURACIÓN GLOBAL ---
-DEFAULT_PYTHON="python3.13"  # Versión preferida
-FALLBACK_PYTHON="python3.12" # Versión alternativa
-CURRENT_USER=$(whoami)
-BOT_MAIN_FILE="bbalert.py"   # Archivo principal del bot
-REQUIREMENTS_FILE="requirements.txt"
+# ── CONFIGURACIÓN ─────────────────────────────────────────────────────────────
+DEFAULT_PYTHON="python3.13"; FALLBACK_PYTHON="python3.12"
+CURRENT_USER=$(whoami); BOT_MAIN_FILE="bbalert.py"; REQUIREMENTS_FILE="requirements.txt"
+BACKUP_DIR="$HOME/backups"; MAX_BACKUPS=5
 
-# Colores
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-NC='\033[0m' # No Color
+# ── COLORES ────────────────────────────────────────────────────────────────────
+# Paleta calida/mate -- tonos tierra, ambar, salvia. Cuida la vista.
+R='\033[38;5;167m'  RB='\033[38;5;160m'  # ladrillo / rojo terracota
+G='\033[38;5;107m'  GB='\033[38;5;114m'  # verde salvia mate / claro
+Y='\033[38;5;136m'  YB='\033[38;5;178m'  # ambar apagado / ambar calido
+M='\033[38;5;138m'                          # mauve rosado viejo
+B='\033[38;5;103m'  BB='\033[38;5;103m'  # lavanda grisacea (bordes)
+C='\033[38;5;109m'  CB='\033[38;5;152m'  # gris azulado / perla claro
+WB='\033[38;5;253m'                         # blanco hueso calido
+DIM='\033[2m'  BOLD='\033[1m'  NC='\033[0m'
 
-# --- FUNCIONES DE UTILIDAD ---
+# ── PRIMITIVAS TUI ─────────────────────────────────────────────────────────────
+_w()  { tput cols  2>/dev/null || echo 80; }
+_clr(){ tput clear 2>/dev/null || clear; }
 
-print_header() {
-    clear
-    echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC}  $1"
-    echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
-    echo ""
+_hline() {
+    local char="${1:-─}" col="${2:-$B}"
+    local w; w=$(_w)
+    printf "${col}"; printf "%.s${char}" $(seq 1 "$w"); printf "${NC}\n"
 }
 
-print_success() {
-    echo -e "${GREEN}✅ $1${NC}"
+_center() {
+    local text="$1" col="${2:-$WB}"
+    local plain; plain=$(printf '%b' "$text" | sed 's/\x1b\[[0-9;]*m//g')
+    local w; w=$(_w); local pad=$(( (w - ${#plain}) / 2 ))
+    printf '%*s' "$pad" ''; printf "${col}%b${NC}\n" "$text"
 }
 
-print_error() {
-    echo -e "${RED}❌ $1${NC}"
+_ok()   { printf "  ${GB}✔${NC}  %b\n" "$*"; }
+_err()  { printf "  ${RB}✘${NC}  %b\n" "$*"; }
+_warn() { printf "  ${YB}⚠${NC}  %b\n" "$*"; }
+_info() { printf "  ${CB}›${NC}  %b\n" "$*"; }
+_step() { printf "\n  ${M}▸${NC}  ${BOLD}%b${NC}\n" "$*"; }
+_pause(){ printf "\n"; read -rp "$(printf "  ${DIM}Presiona Enter para continuar...${NC}")" _; }
+
+_spin_start() {
+    local msg="${1:-Procesando}"
+    ( local f=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏') i=0
+      while true; do
+          printf "\r  ${CB}%s${NC}  ${DIM}%s...${NC}" "${f[$i]}" "$msg"
+          i=$(( (i+1) % 10 )); sleep 0.1
+      done ) &
+    SPIN_PID=$!
+}
+_spin_stop() {
+    [[ -n "${SPIN_PID:-}" ]] && kill "$SPIN_PID" 2>/dev/null
+    wait "${SPIN_PID:-}" 2>/dev/null; unset SPIN_PID
+    local w; w=$(_w); printf "\r%*s\r" "$w" ''
 }
 
-print_warning() {
-    echo -e "${YELLOW}⚠️  $1${NC}"
+_item() {
+    local num="$1" em="$2" lbl="$3" desc="${4:-}"
+    printf "  ${CB}%3s${NC}  %s  ${WB}%-26s${NC}  ${DIM}%s${NC}\n" "${num})" "$em" "$lbl" "$desc"
 }
 
-print_info() {
-    echo -e "${CYAN}ℹ️  $1${NC}"
+_section() {
+    printf "\n  ${YB}%s${NC}\n" "$1"
+    printf "  ${DIM}"; printf '%.s─' $(seq 1 $(( $(_w) - 4 )) ); printf "${NC}\n"
 }
 
-print_step() {
-    echo -e "${MAGENTA}▶ $1${NC}"
+# ── MOTOR TUI RESPONSIVO ──────────────────────────────────────────────────────
+
+# Imprime N veces un carácter (seguro con n=0)
+_nchar() {
+    local char="${1:- }" n="${2:-0}"
+    local ni=$(( n )) 2>/dev/null; [[ ${ni:-0} -le 0 ]] && return 0
+    printf "%.s${char}" $(seq 1 "$ni")
 }
 
-check_root() {
-    if [ "$EUID" -ne 0 ]; then 
-        SUDO="sudo"
-    else 
-        SUDO=""
-        print_warning "Ejecutando como root. Se recomienda usar un usuario normal."
+# Barra de progreso: _pbar valor max ancho
+_pbar() {
+    local val="${1:-0}" max="${2:-100}" w="${3:-14}"
+    local f=0; [[ ${max:-0} -gt 0 ]] && f=$(( val * w / max ))
+    [[ $f -gt $w ]] && f=$w; [[ $f -lt 0 ]] && f=0
+    local e=$(( w - f ))
+    local col="${GB}"; [[ ${val:-0} -gt 70 ]] && col="${YB}"; [[ ${val:-0} -gt 90 ]] && col="${RB}"
+    printf "${col}"; _nchar '█' "$f"; printf "${DIM}"; _nchar '░' "$e"; printf "${NC}"
+}
+
+# CPU del sistema (muestra real, 0.2s de muestra)
+_sys_cpu() {
+    local u1 n1 s1 i1 w1 u2 n2 s2 i2 w2
+    read -r _ u1 n1 s1 i1 w1 _ < /proc/stat 2>/dev/null || { echo 0; return; }
+    sleep 0.2
+    read -r _ u2 n2 s2 i2 w2 _ < /proc/stat 2>/dev/null || { echo 0; return; }
+    local dt=$(( (u2+n2+s2+i2+w2) - (u1+n1+s1+i1+w1) ))
+    local di=$(( (i2+w2) - (i1+w1) ))
+    [[ $dt -le 0 ]] && echo 0 && return
+    echo $(( (dt - di) * 100 / dt ))
+}
+
+# ── PRIMITIVAS DE CAJA (full-width, alineación exacta) ─────────────────────────
+
+# Línea horizontal de una caja: _bline tipo IW [fill]
+# tipo: top | mid | bot | midv (con separador vertical en mitad)
+# IW = ancho interior total (sin los 2 chars de borde)
+_bline() {
+    local t="$1" IW="$2" f="${3:-─}"
+    case "$t" in
+        top)  printf "${BB}╔"; _nchar '═' "$IW"; printf "╗${NC}\n" ;;
+        bot)  printf "${BB}╚"; _nchar '═' "$IW"; printf "╝${NC}\n" ;;
+        mid)  printf "${BB}╠"; _nchar '═' "$IW"; printf "╣${NC}\n" ;;
+        sep)  printf "${BB}╠"; _nchar "$f" "$IW"; printf "╣${NC}\n" ;;
+        top2) # top de 2 columnas: _bline top2 CW RCW
+              local CW="$3" RCW="$4"
+              printf "${BB}╔"; _nchar '═' "$CW"; printf "╦"; _nchar '═' "$RCW"; printf "╗${NC}\n" ;;
+        mid2) local CW="$3" RCW="$4"
+              printf "${BB}╠"; _nchar '═' "$CW"; printf "╬"; _nchar '═' "$RCW"; printf "╣${NC}\n" ;;
+        bot2) local CW="$3" RCW="$4"
+              printf "${BB}╚"; _nchar '═' "$CW"; printf "╩"; _nchar '═' "$RCW"; printf "╝${NC}\n" ;;
+    esac
+}
+
+# Fila de caja con texto centrado: _bcenter "texto_raw" IW
+# El texto_raw puede tener ANSI, se mide quitándolos
+_bcenter() {
+    local raw="$1" IW="$2"
+    local plain; plain=$(printf '%b' "$raw" | sed 's/\x1b\[[0-9;]*m//g')
+    local clen=${#plain}
+    local lp=$(( (IW - clen) / 2 )); [[ $lp -lt 1 ]] && lp=1
+    local rp=$(( IW - clen - lp )); [[ $rp -lt 0 ]] && rp=0
+    printf "${BB}║${NC}%*s%b%*s${BB}║${NC}\n" "$lp" '' "$raw" "$rp" ''
+}
+
+# Divisor con etiqueta centrada: _blabel "LABEL" IW [fill]
+_blabel() {
+    local lbl=" $1 " IW="$2" f="${3:-─}"
+    local ll=${#lbl}
+    local lp=$(( (IW - ll) / 2 )); [[ $lp -lt 0 ]] && lp=0
+    local rp=$(( IW - ll - lp )); [[ $rp -lt 0 ]] && rp=0
+    printf "${BB}╠${NC}${B}${DIM}"; _nchar "$f" "$lp"
+    printf "${NC}${DIM}%s${NC}${B}${DIM}" "$lbl"
+    _nchar "$f" "$rp"; printf "${NC}${BB}╣${NC}\n"
+}
+
+# ── CELDAS DEL MENÚ (ancho exacto, sin emoji en zona de relleno) ────────────────
+
+# Celda de un ítem: _mcell num "Etiqueta" ancho_celda
+# Rellena exactamente ancho_celda caracteres (puro ASCII + ANSI → padding exacto)
+_mcell() {
+    local num="$1" lbl="$2" CW="$3"
+    # Formato: "  NN)  <texto>  " = 2+3+2+texto+1 = texto+8
+    local tw=$(( CW - 8 )); [[ $tw -lt 1 ]] && tw=1
+    local t="${lbl:0:$tw}"   # truncar si muy largo
+    printf "  ${CB}%2d)${NC}  ${WB}%-*s${NC} " "$num" "$tw" "$t"
+}
+
+# Celda vacía de ancho exacto
+_mcell_empty() {
+    local CW="$1"
+    printf '%*s' "$CW" ''
+}
+
+# Divisor de sección 2-col: _msect2 "HDR IZQ" "HDR DER" CW RCW
+# Texto puro ASCII → longitud exacta
+_msect2() {
+    local lh="$1" rh="$2" CW="$3" RCW="$4"
+    # Celda izquierda: " HDR " centrada en ═
+    local lt=" ${lh} " ll=${#lh}; ll=$(( ll + 2 ))
+    local llp=$(( (CW - ll) / 2 )); [[ $llp -lt 0 ]] && llp=0
+    local lrp=$(( CW - ll - llp )); [[ $lrp -lt 0 ]] && lrp=0
+    # Celda derecha
+    local rt=" ${rh} " rl=${#rh}; rl=$(( rl + 2 ))
+    local rlp=$(( (RCW - rl) / 2 )); [[ $rlp -lt 0 ]] && rlp=0
+    local rrp=$(( RCW - rl - rlp )); [[ $rrp -lt 0 ]] && rrp=0
+    printf "${BB}╠${NC}"
+    _nchar '═' "$llp"; printf "${YB} %s ${NC}" "$lh"; _nchar '═' "$lrp"
+    printf "${BB}╬${NC}"
+    _nchar '═' "$rlp"; printf "${YB} %s ${NC}" "$rh"; _nchar '═' "$rrp"
+    printf "${BB}╣${NC}\n"
+}
+
+# Divisor de sección 1-col: _msect1 "HEADER" IW
+_msect1() {
+    local hdr="$1" IW="$2"
+    local hl=$(( ${#hdr} + 2 ))
+    local lp=$(( (IW - hl) / 2 )); [[ $lp -lt 0 ]] && lp=0
+    local rp=$(( IW - hl - lp )); [[ $rp -lt 0 ]] && rp=0
+    printf "${BB}╠${NC}"; _nchar '─' "$lp"
+    printf "${YB} %s ${NC}" "$hdr"
+    _nchar '─' "$rp"; printf "${BB}╣${NC}\n"
+}
+
+# Fila de 2 columnas: _mrow2 n1 lbl1 n2 lbl2 CW RCW
+_mrow2() {
+    local n1="$1" l1="$2" n2="$3" l2="$4" CW="$5" RCW="$6"
+    local c1 c2
+    [[ -n "$l1" ]] && c1=$(_mcell "$n1" "$l1" "$CW") || c1=$(_mcell_empty "$CW")
+    [[ -n "$l2" ]] && c2=$(_mcell "$n2" "$l2" "$RCW") || c2=$(_mcell_empty "$RCW")
+    printf "${BB}║${NC}%b${BB}║${NC}%b${BB}║${NC}\n" "$c1" "$c2"
+}
+
+# Fila de 1 columna: _mrow1 num "lbl" IW
+_mrow1() {
+    local num="$1" lbl="$2" IW="$3"
+    local tw=$(( IW - 8 )); [[ $tw -lt 1 ]] && tw=1
+    local t="${lbl:0:$tw}"
+    printf "${BB}║${NC}  ${CB}%2d)${NC}  ${WB}%-*s${NC} ${BB}║${NC}\n" "$num" "$tw" "$t"
+}
+
+# ── PANEL DE INFO DEL BOT ───────────────────────────────────────────────────────
+_bot_info_panel() {
+    local W; W=$(_w); local IW=$(( W - 2 ))
+
+    # ── Datos del bot ──
+    local sdot="${YB}◌${NC}" slbl="${DIM}sin seleccionar${NC}" bot_cpu="—" bot_ram="—"
+    if [[ -n "${SERVICE_NAME:-}" ]]; then
+        if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+            sdot="${GB}●${NC}"; slbl="${GB}ACTIVO${NC}"
+            local pid; pid=$(systemctl show "${SERVICE_NAME}" --property=MainPID --value 2>/dev/null || echo "0")
+            if [[ "${pid:-0}" != "0" ]] && kill -0 "${pid}" 2>/dev/null; then
+                bot_cpu=$(ps -p "${pid}" -o %cpu= 2>/dev/null | tr -d ' ' || echo "—")
+                bot_ram=$(ps -p "${pid}" -o rss= 2>/dev/null | awk '{printf "%.0fMB",$1/1024}' || echo "—")
+            fi
+        else
+            sdot="${RB}●${NC}"; slbl="${RB}DETENIDO${NC}"
+        fi
     fi
+    local git_br="—"
+    [[ -n "${PROJECT_DIR:-}" && -d "${PROJECT_DIR}/.git" ]] && \
+        git_br=$(cd "${PROJECT_DIR}" && git branch --show-current 2>/dev/null || echo "?")
+    local now; now=$(date '+%H:%M:%S')
+
+    # ── Datos del sistema ──
+    local sys_cpu=0 sys_ramu=0 sys_ramt=1 sys_ramp=0
+    sys_cpu=$(_sys_cpu 2>/dev/null || echo 0)
+    read -r sys_ramu sys_ramt < <(free -m 2>/dev/null | awk 'NR==2{print $3,$2}')
+    [[ "${sys_ramt:-1}" -gt 0 ]] && sys_ramp=$(( sys_ramu * 100 / sys_ramt ))
+    local rg_u; rg_u=$(awk "BEGIN{printf \"%.1fG\", ${sys_ramu:-0}/1024}")
+    local rg_t; rg_t=$(awk "BEGIN{printf \"%.1fG\", ${sys_ramt:-1}/1024}")
+    local cpu_col="${GB}"; [[ ${sys_cpu:-0} -gt 70 ]] && cpu_col="${YB}"; [[ ${sys_cpu:-0} -gt 90 ]] && cpu_col="${RB}"
+    local ram_col="${GB}"; [[ ${sys_ramp:-0} -gt 70 ]] && ram_col="${YB}"; [[ ${sys_ramp:-0} -gt 90 ]] && ram_col="${RB}"
+    local bw=16; [[ $W -gt 120 ]] && bw=22; [[ $W -lt 80 ]] && bw=10
+    local cpu_bar; cpu_bar=$(_pbar "$sys_cpu" 100 "$bw")
+    local ram_bar; ram_bar=$(_pbar "$sys_ramp" 100 "$bw")
+
+    # ── Línea 1: info del bot (medimos texto plano para centrar) ──
+    local bn="${FOLDER_NAME:-sin bot}"
+    # Construimos la parte visible (sin ANSI) para medir
+    local bot_vis="  ${bn}  ${slbl//\\033\[*m/}  bot cpu:${bot_cpu}%  ram:${bot_ram}  git:${git_br}  ${now}  "
+    # Versión con colores para imprimir
+    local bot_raw
+    bot_raw=$(printf "  %b %s  %b  bot cpu:${YB}%s%%${NC}  ram:${YB}%s${NC}  git:${C}%s${NC}  ${DIM}%s${NC}  " \
+        "$sdot" "$bn" "$slbl" "$bot_cpu" "$bot_ram" "$git_br" "$now")
+    local bot_plain; bot_plain=$(printf '%b' "$bot_raw" | sed 's/\x1b\[[0-9;]*m//g')
+    local bl=${#bot_plain}
+    local blp=$(( (IW - bl) / 2 )); [[ $blp -lt 1 ]] && blp=1
+    local brp=$(( IW - bl - blp )); [[ $brp -lt 0 ]] && brp=0
+
+    # ── Línea 2: sistema (todo ASCII conocido, centramos fácil) ──
+    # Medimos los chars visibles: "  CPU [barra_N] NN%    RAM [barra_N] X.XG/Y.YG  "
+    # barra_N = bw chars, el resto es ASCII
+    local sys_fixed_vis="  CPU  ${sys_cpu}%    RAM  ${rg_u}/${rg_t}  "
+    local sys_fixed_w=$(( ${#sys_fixed_vis} + bw * 2 ))
+    local slp=$(( (IW - sys_fixed_w) / 2 )); [[ $slp -lt 1 ]] && slp=1
+    local srp=$(( IW - sys_fixed_w - slp )); [[ $srp -lt 0 ]] && srp=0
+    local sys_raw
+    sys_raw=$(printf "  CPU %b  ${cpu_col}%s%%${NC}    RAM %b  ${ram_col}%s/%s${NC}  " \
+        "$cpu_bar" "$sys_cpu" "$ram_bar" "$rg_u" "$rg_t")
+
+    # ── Render ──
+    _bline top "$IW"
+    printf "${BB}║${NC}%*s%b%*s${BB}║${NC}\n" "$blp" '' "$bot_raw" "$brp" ''
+    _blabel "SISTEMA VM" "$IW" '─'
+    printf "${BB}║${NC}%*s%b%*s${BB}║${NC}\n" "$slp" '' "$sys_raw" "$srp" ''
+    _bline bot "$IW"
+    printf "\n"
 }
 
-# Detectar versión de Python disponible
-detect_python() {
-    print_step "Detectando versión de Python disponible..."
-    
-    if command -v $DEFAULT_PYTHON &> /dev/null; then
-        TARGET_PYTHON=$DEFAULT_PYTHON
-        print_success "Usando $DEFAULT_PYTHON"
-        return 0
-    elif command -v $FALLBACK_PYTHON &> /dev/null; then
-        TARGET_PYTHON=$FALLBACK_PYTHON
-        print_warning "Python 3.13 no disponible, usando $FALLBACK_PYTHON"
-        return 0
+# ── HEADER ─────────────────────────────────────────────────────────────────────
+_header() {
+    _clr
+    _hline '═' "${BB}"
+    printf "\n"
+    _center "██████╗ ██████╗  █████╗ ██╗     ███████╗██████╗ ████████╗" "${BB}"
+    _center "██╔══██╗██╔══██╗██╔══██╗██║     ██╔════╝██╔══██╗╚══██╔══╝" "${B}"
+    _center "██████╔╝██████╔╝███████║██║     █████╗  ██████╔╝   ██║   " "${CB}"
+    _center "██╔══██╗██╔══██╗██╔══██║██║     ██╔══╝  ██╔══██╗   ██║   " "${C}"
+    _center "██████╔╝██████╔╝██║  ██║███████╗███████╗██║  ██║   ██║   " "${DIM}${C}"
+    _center "╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝╚══════╝╚═╝  ╚═╝   ╚═╝  " "${DIM}"
+    _center "M U L T I - B O T   M A N A G E R   v6" "${YB}"
+    printf "\n"
+    _hline '═' "${BB}"
+}
+
+# ── MENÚ PRINCIPAL ─────────────────────────────────────────────────────────────
+show_menu() {
+    _header
+    _bot_info_panel
+
+    local W; W=$(_w)
+    local IW=$(( W - 2 ))
+
+    if [[ $W -ge 84 ]]; then
+        # ╔══════════════ 2 COLUMNAS ══════════════╗
+        local CW=$(( (IW - 1) / 2 ))
+        local RCW=$(( IW - 1 - CW ))
+
+        _bline top2 _ "$CW" "$RCW"
+
+        _msect2 "INSTALACION Y CONFIG" "CONTROL DEL BOT" "$CW" "$RCW"
+        _mrow2  1 "Instalacion Completa"    6 "Iniciar Bot"       "$CW" "$RCW"
+        _mrow2  2 "Crear / Recrear venv"    7 "Detener Bot"       "$CW" "$RCW"
+        _mrow2  3 "Instalar Dependencias"   8 "Reiniciar Bot"     "$CW" "$RCW"
+        _mrow2  4 "Configurar .env"         9 "Estado Servicio"   "$CW" "$RCW"
+        _mrow2  5 "Crear Servicio Systemd" 10 "Estadisticas"      "$CW" "$RCW"
+
+        _bline mid2 _ "$CW" "$RCW"
+
+        _msect2 "CONTROL DE GIT" "LOGS Y MONITOREO" "$CW" "$RCW"
+        _mrow2 11 "Clonar Repositorio"    16 "Gestion de Logs"      "$CW" "$RCW"
+        _mrow2 12 "Actualizar Codigo"     17 "Dashboard Multi-Bot"  "$CW" "$RCW"
+        _mrow2 13 "Cambiar de Rama"        "" ""                     "$CW" "$RCW"
+        _mrow2 14 "Estado del Repo"        "" ""                     "$CW" "$RCW"
+        _mrow2 15 "Historial de Commits"   "" ""                     "$CW" "$RCW"
+
+        _bline mid2 _ "$CW" "$RCW"
+
+        _msect2 "BACKUP Y MANTENIMIENTO" "OTROS" "$CW" "$RCW"
+        _mrow2 18 "Crear Backup"           23 "Cambiar Bot / Dir"   "$CW" "$RCW"
+        _mrow2 19 "Restaurar Backup"        "" ""                   "$CW" "$RCW"
+        _mrow2 20 "Gestion de Entornos"     "" ""                   "$CW" "$RCW"
+        _mrow2 21 "Eliminar Dependencia"    "" ""                   "$CW" "$RCW"
+        _mrow2 22 "Desinstalar Servicio"    "" ""                   "$CW" "$RCW"
+
+        _bline bot2 _ "$CW" "$RCW"
+
     else
-        print_error "No se encontró Python 3.12 ni 3.13"
-        print_info "Instala Python con: sudo apt install python3.13 python3.13-venv python3.13-dev -y"
-        return 1
+        # ╔════ 1 COLUMNA (terminales estrechas) ════╗
+        _bline top "$IW"
+
+        _msect1 "INSTALACION Y CONFIG" "$IW"
+        _mrow1  1 "Instalacion Completa"   "$IW"
+        _mrow1  2 "Crear / Recrear venv"   "$IW"
+        _mrow1  3 "Instalar Dependencias"  "$IW"
+        _mrow1  4 "Configurar .env"        "$IW"
+        _mrow1  5 "Crear Servicio Systemd" "$IW"
+
+        _msect1 "CONTROL DEL BOT" "$IW"
+        _mrow1  6 "Iniciar Bot"    "$IW"
+        _mrow1  7 "Detener Bot"    "$IW"
+        _mrow1  8 "Reiniciar Bot"  "$IW"
+        _mrow1  9 "Estado"         "$IW"
+        _mrow1 10 "Estadisticas"   "$IW"
+
+        _msect1 "CONTROL DE GIT" "$IW"
+        _mrow1 11 "Clonar Repositorio"   "$IW"
+        _mrow1 12 "Actualizar Codigo"    "$IW"
+        _mrow1 13 "Cambiar de Rama"      "$IW"
+        _mrow1 14 "Estado del Repo"      "$IW"
+        _mrow1 15 "Historial de Commits" "$IW"
+
+        _msect1 "LOGS Y MONITOREO" "$IW"
+        _mrow1 16 "Gestion de Logs"     "$IW"
+        _mrow1 17 "Dashboard Multi-Bot" "$IW"
+
+        _msect1 "BACKUP Y MANTENIMIENTO" "$IW"
+        _mrow1 18 "Crear Backup"           "$IW"
+        _mrow1 19 "Restaurar Backup"       "$IW"
+        _mrow1 20 "Gestion de Entornos"    "$IW"
+        _mrow1 21 "Eliminar Dependencia"   "$IW"
+        _mrow1 22 "Desinstalar Servicio"   "$IW"
+        _mrow1 23 "Cambiar Bot / Dir"      "$IW"
+
+        _bline bot "$IW"
     fi
+
+    printf "\n"
+    _center "${RB}[ 0 ]${NC}  ${DIM}Salir${NC}"
+    printf "\n\n  ${CB}›${NC} Selecciona una opcion: "
 }
 
-# Validar si un directorio contiene un bot válido
+# ── UTILIDADES ─────────────────────────────────────────────────────────────────
+check_root() {
+    if [[ "$EUID" -ne 0 ]]; then SUDO="sudo"
+    else SUDO=""; _warn "Ejecutando como root. Se recomienda usuario normal."; fi
+}
+
+check_system_dependencies() {
+    _step "Verificando dependencias del sistema"
+    local missing=()
+    for cmd in curl git systemctl tar; do command -v "$cmd" &>/dev/null || missing+=("$cmd"); done
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        _err "Faltan: ${missing[*]}"
+        read -rp "  ¿Instalar ahora? [S/n]: " yn
+        [[ ! "$yn" =~ ^[nN]$ ]] && $SUDO apt update -qq && $SUDO apt install -y "${missing[@]}" -qq
+    else _ok "Todas las dependencias disponibles."; fi
+}
+
+detect_python() {
+    _step "Detectando Python"
+    if command -v $DEFAULT_PYTHON &>/dev/null; then TARGET_PYTHON=$DEFAULT_PYTHON; _ok "Usando $DEFAULT_PYTHON"; return 0
+    elif command -v $FALLBACK_PYTHON &>/dev/null; then TARGET_PYTHON=$FALLBACK_PYTHON; _warn "Usando $FALLBACK_PYTHON"; return 0
+    else _err "Python 3.12/3.13 no encontrado"; return 1; fi
+}
+
 validate_bot_directory() {
     local dir=$1
-    
-    if [ ! -d "$dir" ]; then
-        return 1
-    fi
-    
-    if [ ! -f "$dir/$BOT_MAIN_FILE" ]; then
-        return 1
-    fi
-    
-    if [ ! -f "$dir/$REQUIREMENTS_FILE" ]; then
-        return 1
-    fi
-    
-    return 0
+    [[ -d "$dir" && -f "$dir/$BOT_MAIN_FILE" && -f "$dir/$REQUIREMENTS_FILE" ]]
 }
 
-# Seleccionar directorio del bot
+get_git_branch() {
+    [[ -d "${PROJECT_DIR:-}/.git" ]] || { echo "N/A"; return; }
+    cd "${PROJECT_DIR}" && git branch --show-current 2>/dev/null || echo "N/A"
+}
+
+# ── SELECCIÓN DE DIRECTORIO ────────────────────────────────────────────────────
 select_target_directory() {
-    print_header "🔍 SELECCIÓN DE DIRECTORIO DEL BOT"
-    
-    # 1. Verificar si estamos dentro de un directorio de bot
+    _header; _center "SELECCIÓN DE BOT" "${YB}"; printf "\n"
+
     if validate_bot_directory "$(pwd)"; then
-        DETECTED_DIR=$(pwd)
-        print_success "Detectado bot en directorio actual:"
-        echo -e "   ${CYAN}$DETECTED_DIR${NC}"
-        echo ""
-        read -p "¿Usar este directorio? (S/n): " confirm
-        
-        if [[ "$confirm" =~ ^[nN]$ ]]; then
-            DETECTED_DIR=""
-        else
-            PROJECT_DIR="$DETECTED_DIR"
-        fi
+        local detected; detected=$(pwd)
+        _ok "Bot detectado en el directorio actual:"; _info "${CB}$detected${NC}"
+        printf "\n"; read -rp "  ¿Usar este directorio? [S/n]: " yn
+        [[ ! "$yn" =~ ^[nN]$ ]] && PROJECT_DIR="$detected"
     fi
 
-    # 2. Si no se detectó o el usuario rechazó, buscar en subdirectorios comunes
-    if [ -z "$PROJECT_DIR" ]; then
-        print_info "Buscando bots en subdirectorios..."
-        
+    if [[ -z "${PROJECT_DIR:-}" ]]; then
+        _info "Buscando bots en el sistema..."
         local found_bots=()
-        local search_paths=(
-            "$HOME"
-            "$HOME/bots"
-            "$HOME/telegram"
-            "/opt"
-            "$(pwd)"
-        )
-        
-        for base_path in "${search_paths[@]}"; do
-            if [ -d "$base_path" ]; then
-                while IFS= read -r -d '' bot_dir; do
-                    if validate_bot_directory "$bot_dir"; then
-                        found_bots+=("$bot_dir")
-                    fi
-                done < <(find "$base_path" -maxdepth 2 -name "$BOT_MAIN_FILE" -type f -print0 2>/dev/null | xargs -0 dirname -z 2>/dev/null)
-            fi
+        for bp in "$HOME" "$HOME/bots" "$HOME/telegram" "/opt" "$(pwd)"; do
+            [[ -d "$bp" ]] || continue
+            while IFS= read -r -d '' bd; do
+                validate_bot_directory "$bd" && found_bots+=("$bd")
+            done < <(find "$bp" -maxdepth 2 -name "$BOT_MAIN_FILE" -type f -print0 2>/dev/null | xargs -0 dirname -z 2>/dev/null)
         done
-        
-        # Eliminar duplicados
-        found_bots=($(printf '%s\n' "${found_bots[@]}" | sort -u))
-        
-        if [ ${#found_bots[@]} -gt 0 ]; then
-            echo ""
-            print_success "Se encontraron ${#found_bots[@]} bot(s):"
-            echo ""
+        found_bots=($(printf '%s\n' "${found_bots[@]}" | sort -u 2>/dev/null || true))
+        if [[ ${#found_bots[@]} -gt 0 ]]; then
+            printf "\n"; _ok "${#found_bots[@]} bot(s) encontrado(s):"; printf "\n"
             for i in "${!found_bots[@]}"; do
-                local bot_name=$(basename "${found_bots[$i]}")
-                echo -e "  ${GREEN}$((i+1)))${NC} ${CYAN}$bot_name${NC}"
-                echo -e "      ${found_bots[$i]}"
+                printf "  ${GB}%3d)${NC}  ${WB}%-20s${NC}  ${DIM}%s${NC}\n" \
+                    "$((i+1))" "$(basename "${found_bots[$i]}")" "${found_bots[$i]}"
             done
-            echo -e "  ${YELLOW}0)${NC} Ingresar ruta manualmente"
-            echo ""
-            
-            read -p "Selecciona un bot (0-${#found_bots[@]}): " selection
-            
-            if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -gt 0 ] && [ "$selection" -le "${#found_bots[@]}" ]; then
-                PROJECT_DIR="${found_bots[$((selection-1))]}"
-            fi
+            printf "  ${YB}%3d)${NC}  Ingresar ruta manual\n" "0"; printf "\n"
+            read -rp "  Selecciona (0-${#found_bots[@]}): " sel
+            [[ "$sel" =~ ^[1-9][0-9]*$ ]] && [[ "$sel" -le "${#found_bots[@]}" ]] && \
+                PROJECT_DIR="${found_bots[$((sel-1))]}"
         fi
     fi
 
-    # 3. Solicitar ruta manual si es necesario
-    while [ -z "$PROJECT_DIR" ]; do
-        echo ""
-        print_info "Ingresa la ruta completa del bot:"
-        echo -e "${YELLOW}Ejemplos:${NC}"
-        echo "  • /home/$CURRENT_USER/bbalert_v2"
-        echo "  • ~/bots/mi_bot"
-        echo "  • ./bot_folder"
-        echo ""
-        read -e -p "Ruta: " INPUT_DIR
-        
-        # Expandir tilde y rutas relativas
+    while [[ -z "${PROJECT_DIR:-}" ]]; do
+        printf "\n"; _info "Ingresa la ruta completa del bot:"
+        read -rpe "  Ruta: " INPUT_DIR
         INPUT_DIR="${INPUT_DIR/#\~/$HOME}"
         INPUT_DIR=$(realpath "$INPUT_DIR" 2>/dev/null || echo "$INPUT_DIR")
-        
-        if validate_bot_directory "$INPUT_DIR"; then
-            PROJECT_DIR="$INPUT_DIR"
-            print_success "Directorio válido confirmado."
-        else
-            print_error "No se encontró un bot válido en ese directorio."
-            print_info "Asegúrate que contenga: $BOT_MAIN_FILE y $REQUIREMENTS_FILE"
-            echo ""
-            read -p "¿Intentar con otro directorio? (S/n): " retry
-            if [[ "$retry" =~ ^[nN]$ ]]; then
-                print_error "Operación cancelada."
-                exit 1
-            fi
-        fi
+        if validate_bot_directory "$INPUT_DIR"; then PROJECT_DIR="$INPUT_DIR"; _ok "Directorio válido."
+        else _err "Bot no encontrado en esa ruta."
+            read -rp "  ¿Reintentar? [S/n]: " rt
+            [[ "$rt" =~ ^[nN]$ ]] && exit 1; fi
     done
 
-    # --- CONFIGURACIÓN DE VARIABLES DEPENDIENTES ---
-    PROJECT_DIR=$(realpath "$PROJECT_DIR")
-    FOLDER_NAME=$(basename "$PROJECT_DIR")
-    SERVICE_NAME="${FOLDER_NAME}"
-    SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
-    
-    VENV_DIR="$PROJECT_DIR/venv"
-    PYTHON_BIN="$VENV_DIR/bin/python"
-    PIP_BIN="$VENV_DIR/bin/pip"
-    ACTIVATE_SCRIPT="$VENV_DIR/bin/activate"
-    REQUIREMENTS_PATH="$PROJECT_DIR/$REQUIREMENTS_FILE"
+    PROJECT_DIR=$(realpath "$PROJECT_DIR"); FOLDER_NAME=$(basename "$PROJECT_DIR")
+    SERVICE_NAME="${FOLDER_NAME}"; SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
+    VENV_DIR="$PROJECT_DIR/venv"; PYTHON_BIN="$VENV_DIR/bin/python"; PIP_BIN="$VENV_DIR/bin/pip"
+    ACTIVATE_SCRIPT="$VENV_DIR/bin/activate"; REQUIREMENTS_PATH="$PROJECT_DIR/$REQUIREMENTS_FILE"
     BOT_SCRIPT_PATH="$PROJECT_DIR/$BOT_MAIN_FILE"
-    
-    echo ""
-    print_success "Configuración cargada:"
-    echo -e "  ${CYAN}Nombre:${NC}     $FOLDER_NAME"
-    echo -e "  ${CYAN}Ruta:${NC}       $PROJECT_DIR"
-    echo -e "  ${CYAN}Servicio:${NC}   $SERVICE_NAME"
-    echo ""
-    sleep 1
+
+    printf "\n"; _hline '─' "${B}${DIM}"
+    _ok "${WB}${FOLDER_NAME}${NC} cargado"
+    _info "Ruta: ${CB}${PROJECT_DIR}${NC}"
+    _info "Servicio: ${CB}${SERVICE_NAME}${NC}"
+    _hline '─' "${B}${DIM}"; sleep 1
 }
 
-# Crear entorno virtual robusto
+# ── VENV ───────────────────────────────────────────────────────────────────────
 create_venv() {
-    print_header "🔧 CONFIGURACIÓN DEL ENTORNO VIRTUAL"
-    
-    # Verificar que estamos en el directorio correcto
-    cd "$PROJECT_DIR" || {
-        print_error "No se pudo acceder al directorio del bot."
-        return 1
-    }
-    
-    print_info "Directorio de trabajo: $(pwd)"
-    
-    # Eliminar venv existente si está corrupto
-    if [ -d "$VENV_DIR" ]; then
-        print_warning "Ya existe un entorno virtual en: $VENV_DIR"
-        
-        # Verificar integridad
-        if [ ! -f "$ACTIVATE_SCRIPT" ] || [ ! -f "$PYTHON_BIN" ]; then
-            print_warning "El entorno virtual está corrupto."
-            read -p "¿Eliminar y recrear? (S/n): " recreate
-            
-            if [[ ! "$recreate" =~ ^[nN]$ ]]; then
-                print_step "Eliminando entorno virtual corrupto..."
-                rm -rf "$VENV_DIR"
-            else
-                print_error "No se puede continuar con un venv corrupto."
-                return 1
-            fi
+    _header; _center "ENTORNO VIRTUAL" "${YB}"; printf "\n"
+    cd "$PROJECT_DIR" || { _err "No se pudo acceder"; return 1; }
+    if [[ -d "$VENV_DIR" ]]; then
+        _warn "Ya existe un entorno virtual."
+        if [[ ! -f "$ACTIVATE_SCRIPT" ]] || [[ ! -f "$PYTHON_BIN" ]]; then
+            read -rp "  ¿Corrupto. Recrear? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && rm -rf "$VENV_DIR" || return 1
         else
-            print_success "El entorno virtual existente parece estar bien."
-            read -p "¿Recrearlo de todos modos? (s/N): " force_recreate
-            
-            if [[ "$force_recreate" =~ ^[sS]$ ]]; then
-                print_step "Eliminando entorno virtual existente..."
-                rm -rf "$VENV_DIR"
-            else
-                print_info "Usando entorno virtual existente."
-                return 0
-            fi
+            read -rp "  ¿Recrear? [s/N]: " yn; [[ "$yn" =~ ^[sS]$ ]] && rm -rf "$VENV_DIR" || { _info "Usando existente."; return 0; }
         fi
     fi
-    
-    # Detectar Python disponible
-    if ! detect_python; then
-        return 1
-    fi
-    
-    # Verificar que python -m venv está disponible
-    print_step "Verificando módulo venv..."
-    if ! $TARGET_PYTHON -m venv --help &>/dev/null; then
-        print_error "El módulo venv no está disponible para $TARGET_PYTHON"
-        print_info "Instálalo con:"
-        echo "  sudo apt update"
-        echo "  sudo apt install ${TARGET_PYTHON}-venv ${TARGET_PYTHON}-dev -y"
-        return 1
-    fi
-    
-    # Crear el entorno virtual
-    print_step "Creando entorno virtual con $TARGET_PYTHON..."
-    echo -e "${CYAN}Ejecutando: $TARGET_PYTHON -m venv venv${NC}"
-    
+    detect_python || return 1
+    _spin_start "Creando entorno virtual"
     $TARGET_PYTHON -m venv "$VENV_DIR"
-    
-    if [ $? -ne 0 ]; then
-        print_error "Falló la creación del entorno virtual."
-        print_info "Verifica los permisos del directorio y que tengas espacio en disco."
-        return 1
-    fi
-    
-    # Verificar que se creó correctamente
-    if [ ! -f "$ACTIVATE_SCRIPT" ]; then
-        print_error "No se encontró el script de activación."
-        return 1
-    fi
-    
-    if [ ! -f "$PYTHON_BIN" ]; then
-        print_error "No se encontró el intérprete de Python en el venv."
-        return 1
-    fi
-    
-    print_success "Entorno virtual creado exitosamente."
-    
-    # Activar y actualizar pip
-    print_step "Activando entorno virtual..."
+    _spin_stop
+    [[ -f "$ACTIVATE_SCRIPT" ]] || { _err "venv no creado."; return 1; }
+    _ok "Entorno virtual listo."
     source "$ACTIVATE_SCRIPT"
-    
-    print_step "Actualizando pip..."
+    _spin_start "pip upgrade"
     "$PYTHON_BIN" -m pip install --upgrade pip --quiet
-    
-    print_success "pip actualizado a la última versión."
-    
-    # Mostrar información del entorno
-    echo ""
-    print_info "Información del entorno virtual:"
-    echo -e "  ${CYAN}Python:${NC}  $("$PYTHON_BIN" --version)"
-    echo -e "  ${CYAN}Pip:${NC}     $("$PIP_BIN" --version | cut -d' ' -f1-2)"
-    echo -e "  ${CYAN}Ruta:${NC}    $VENV_DIR"
-    echo ""
-    
-    return 0
+    _spin_stop
+    _ok "pip: $("$PIP_BIN" --version | cut -d' ' -f1-2)"
 }
 
-# Instalar dependencias
+# ── DEPENDENCIAS ───────────────────────────────────────────────────────────────
 install_dependencies() {
-    print_step "Instalando dependencias desde requirements.txt..."
-    
-    if [ ! -f "$REQUIREMENTS_PATH" ]; then
-        print_error "No se encontró $REQUIREMENTS_FILE en $PROJECT_DIR"
-        return 1
-    fi
-    
-    # Verificar que el venv existe
-    if [ ! -f "$PIP_BIN" ]; then
-        print_error "El entorno virtual no existe o está corrupto."
-        print_info "Créalo primero con la opción de instalación."
-        return 1
-    fi
-    
-    # Activar venv
+    _step "Instalando dependencias"
+    [[ -f "$REQUIREMENTS_PATH" ]] || { _err "requirements.txt no encontrado"; return 1; }
+    [[ -f "$PIP_BIN" ]] || { _err "venv no existe. Créalo con opción 2."; return 1; }
     source "$ACTIVATE_SCRIPT"
-    
-    # Mostrar dependencias a instalar
-    print_info "Dependencias encontradas:"
-    grep -v '^\s*#' "$REQUIREMENTS_PATH" | grep -v '^\s*$' | while read line; do
-        echo -e "  • $line"
+    _info "Paquetes:"
+    grep -v '^\s*#' "$REQUIREMENTS_PATH" | grep -v '^\s*$' | while read -r l; do printf "    ${DIM}·${NC} %s\n" "$l"; done
+    printf "\n"
+    _spin_start "pip install"
+    "$PIP_BIN" install -r "$REQUIREMENTS_PATH" -q; local rc=$?
+    _spin_stop
+    [[ $rc -eq 0 ]] && _ok "Dependencias instaladas." || _err "Errores en la instalación."
+    return $rc
+}
+
+# ── VALIDAR TOKEN ──────────────────────────────────────────────────────────────
+validate_telegram_token() {
+    local token="$1"
+    [[ "$token" =~ ^[0-9]{8,10}:[A-Za-z0-9_-]{35}$ ]] || { _err "Formato inválido."; return 1; }
+    _spin_start "Verificando token"
+    local resp; resp=$(curl -s --max-time 10 "https://api.telegram.org/bot${token}/getMe" 2>/dev/null || echo "")
+    _spin_stop
+    echo "$resp" | grep -q '"ok":true' && {
+        local uname; uname=$(echo "$resp" | grep -o '"username":"[^"]*"' | cut -d'"' -f4)
+        _ok "Token válido — @${uname}"; return 0
+    }
+    _err "Token rechazado por Telegram."; return 1
+}
+
+notify_telegram() {
+    local msg="$1"
+    [[ -f "$PROJECT_DIR/.env" ]] || return 0
+    local token admins
+    token=$(grep '^TOKEN_TELEGRAM=' "$PROJECT_DIR/.env" | cut -d'=' -f2- | tr -d '"')
+    admins=$(grep '^ADMIN_CHAT_IDS=' "$PROJECT_DIR/.env" | cut -d'=' -f2- | tr -d '"')
+    [[ -z "$token" || -z "$admins" ]] && return 0
+    IFS=',' read -ra al <<< "$admins"
+    for aid in "${al[@]}"; do
+        aid=$(echo "$aid" | tr -d ' ')
+        curl -s --max-time 5 -X POST "https://api.telegram.org/bot${token}/sendMessage" \
+            -d "chat_id=${aid}&text=${msg}&parse_mode=HTML" > /dev/null 2>&1 || true
     done
-    echo ""
-    
-    # Instalar
-    print_step "Instalando paquetes..."
-    "$PIP_BIN" install -r "$REQUIREMENTS_PATH"
-    
-    if [ $? -eq 0 ]; then
-        print_success "Todas las dependencias instaladas correctamente."
-        return 0
-    else
-        print_error "Hubo errores al instalar algunas dependencias."
-        print_info "Revisa los mensajes de error anteriores."
-        return 1
-    fi
 }
 
-# Instalación completa desde cero
-full_install() {
-    print_header "🚀 INSTALACIÓN COMPLETA: $FOLDER_NAME"
-    
-    echo -e "${YELLOW}Este proceso realizará:${NC}"
-    echo "  1. Instalación de paquetes del sistema necesarios"
-    echo "  2. Creación del entorno virtual"
-    echo "  3. Instalación de dependencias Python"
-    echo "  4. Creación del servicio systemd"
-    echo "  5. Inicio del bot"
-    echo ""
-    read -p "¿Continuar? (S/n): " confirm
-    
-    if [[ "$confirm" =~ ^[nN]$ ]]; then
-        print_info "Instalación cancelada."
-        return 1
-    fi
-    
-    # Paso 1: Actualizar repositorios e instalar Python
-    print_header "📦 PASO 1/5: Instalación de Paquetes del Sistema"
-    
-    print_step "Actualizando repositorios..."
-    $SUDO apt update -qq
-    
-    print_step "Agregando repositorio deadsnakes (Python)..."
-    $SUDO apt install -y software-properties-common -qq
-    $SUDO add-apt-repository ppa:deadsnakes/ppa -y > /dev/null 2>&1
-    $SUDO apt update -qq
-    
-    print_step "Instalando Python y herramientas..."
-    $SUDO apt install -y python3.13 python3.13-venv python3.13-dev python3-pip -qq
-    
-    if [ $? -eq 0 ]; then
-        print_success "Paquetes del sistema instalados."
-    else
-        print_warning "Hubo algunos problemas, pero continuando..."
-    fi
-    
-    sleep 1
-    
-    # Paso 2: Crear entorno virtual
-    print_header "🔧 PASO 2/5: Creación del Entorno Virtual"
-    
-    if ! create_venv; then
-        print_error "Falló la creación del entorno virtual."
-        read -p "Presiona Enter para volver al menú..."
-        return 1
-    fi
-    
-    sleep 1
-    
-    # Paso 3: Instalar dependencias
-    print_header "📚 PASO 3/5: Instalación de Dependencias"
-    
-    if ! install_dependencies; then
-        print_error "Falló la instalación de dependencias."
-        print_info "Puedes intentar instalarlas manualmente con:"
-        echo "  cd $PROJECT_DIR"
-        echo "  source venv/bin/activate"
-        echo "  pip install -r requirements.txt"
-        read -p "Presiona Enter para volver al menú..."
-        return 1
-    fi
-    
-    sleep 1
-    
-    # Paso 4: Crear servicio
-    print_header "⚙️ PASO 4/5: Creación del Servicio Systemd"
-    
-    if ! create_systemd_service; then
-        print_warning "No se pudo crear el servicio automáticamente."
-        print_info "Puedes crearlo manualmente desde el menú."
-    fi
-    
-    sleep 1
-    
-    # Paso 5: Verificar .env
-    print_header "🔑 PASO 5/5: Verificación de Configuración"
-    
-    if [ ! -f "$PROJECT_DIR/.env" ]; then
-        print_warning "No se encontró archivo .env"
-        print_info "Necesitas configurar las variables de entorno."
-        read -p "¿Configurar ahora? (S/n): " config_env
-        
-        if [[ ! "$config_env" =~ ^[nN]$ ]]; then
-            configure_env
-        else
-            print_warning "Recuerda configurar .env antes de iniciar el bot."
+# ── BACKUP ─────────────────────────────────────────────────────────────────────
+backup_bot() {
+    _header; _center "BACKUP — ${FOLDER_NAME}" "${YB}"; printf "\n"
+    local bdir="$BACKUP_DIR/$FOLDER_NAME"
+    local ts; ts=$(date '+%Y%m%d_%H%M%S')
+    local bfile="${bdir}/${FOLDER_NAME}_${ts}.tar.gz"
+    mkdir -p "$bdir"
+    _spin_start "Comprimiendo (sin venv)"
+    tar -czf "$bfile" --exclude="$PROJECT_DIR/venv" --exclude="$PROJECT_DIR/__pycache__" \
+        --exclude="$PROJECT_DIR/*.pyc" --exclude="$PROJECT_DIR/.git" \
+        -C "$(dirname "$PROJECT_DIR")" "$(basename "$PROJECT_DIR")" 2>/dev/null; local tar_rc=$?
+    _spin_stop
+    if [[ $tar_rc -eq 0 ]]; then
+        local sz; sz=$(du -sh "$bfile" | cut -f1)
+        _ok "$(basename "$bfile") — $sz"
+        local cnt; cnt=$(ls "$bdir"/*.tar.gz 2>/dev/null | wc -l)
+        if [[ "$cnt" -gt "$MAX_BACKUPS" ]]; then
+            ls -t "$bdir"/*.tar.gz | tail -n $(( cnt - MAX_BACKUPS )) | xargs rm -f
+            _info "Rotación: se mantienen $MAX_BACKUPS backups."
         fi
-    else
-        print_success "Archivo .env encontrado."
-    fi
-    
-    # Resumen final
-    print_header "✅ INSTALACIÓN COMPLETADA"
-    
-    print_success "Bot instalado correctamente:"
-    echo -e "  ${CYAN}Nombre:${NC}     $FOLDER_NAME"
-    echo -e "  ${CYAN}Servicio:${NC}   $SERVICE_NAME"
-    echo -e "  ${CYAN}Directorio:${NC} $PROJECT_DIR"
-    echo ""
-    
-    read -p "¿Iniciar el bot ahora? (S/n): " start_now
-    
-    if [[ ! "$start_now" =~ ^[nN]$ ]]; then
-        start_bot
-    fi
-    
-    echo ""
-    read -p "Presiona Enter para volver al menú..."
+        printf "\n"; _info "Backups disponibles:"
+        ls -lh "$bdir"/*.tar.gz 2>/dev/null | awk '{printf "    %-42s %s\n", $NF, $5}'
+    else _err "Falló el backup."; return 1; fi
+    _pause
 }
 
-# Crear servicio systemd
+restore_backup() {
+    _header; _center "RESTAURAR BACKUP — ${FOLDER_NAME}" "${YB}"; printf "\n"
+    local bdir="$BACKUP_DIR/$FOLDER_NAME"
+    [[ -d "$bdir" ]] && ls "$bdir"/*.tar.gz &>/dev/null || { _err "No hay backups."; _pause; return 1; }
+    mapfile -t bkps < <(ls -t "$bdir"/*.tar.gz 2>/dev/null)
+    for i in "${!bkps[@]}"; do
+        printf "  ${GB}%3d)${NC}  %-40s  ${DIM}%s${NC}\n" "$((i+1))" "$(basename "${bkps[$i]}")" "$(du -sh "${bkps[$i]}" | cut -f1)"
+    done
+    printf "  ${YB}%3d)${NC}  Cancelar\n" "0"; printf "\n"
+    read -rp "  Selecciona: " sel
+    [[ ! "$sel" =~ ^[1-9][0-9]*$ ]] || [[ "$sel" -gt "${#bkps[@]}" ]] && { _info "Cancelado."; _pause; return 0; }
+    _warn "Esto SOBREESCRIBIRÁ el directorio actual."
+    read -rp "  ¿Confirmas? [s/N]: " cn; [[ ! "$cn" =~ ^[sS]$ ]] && { _info "Cancelado."; _pause; return 0; }
+    systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null && { _step "Deteniendo bot"; $SUDO systemctl stop "$SERVICE_NAME"; }
+    _spin_start "Restaurando"
+    tar -xzf "${bkps[$((sel-1))]}" -C "$(dirname "$PROJECT_DIR")" 2>/dev/null; local tar_rc=$?
+    _spin_stop
+    [[ $tar_rc -eq 0 ]] && _ok "Restaurado." || _err "Falló la restauración."
+    read -rp "  ¿Reiniciar bot? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && manage_service "start"
+    _pause
+}
+
+# ── ESTADÍSTICAS ───────────────────────────────────────────────────────────────
+show_bot_stats() {
+    _header; _center "ESTADÍSTICAS — ${FOLDER_NAME}" "${YB}"; printf "\n"
+    local pid; pid=$(systemctl show "${SERVICE_NAME}" --property=MainPID --value 2>/dev/null || echo "0")
+    local W; W=$(( $(_w) - 4 ))
+
+    printf "${B}╭"; printf '─%.0s' $(seq 1 $W); printf "╮${NC}\n"
+    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        printf "${B}│${NC}  ${GB}● ACTIVO${NC}%-*s${B}│${NC}\n" $(( W - 8 )) ""
+    else
+        printf "${B}│${NC}  ${RB}○ DETENIDO${NC}%-*s${B}│${NC}\n" $(( W - 10 )) ""
+    fi
+    local since; since=$(systemctl show "${SERVICE_NAME}" --property=ActiveEnterTimestamp --value 2>/dev/null || echo "N/A")
+    printf "${B}│${NC}  ${DIM}Activo desde:${NC} %-*s${B}│${NC}\n" $(( W - 15 )) "${since}"
+    local restarts; restarts=$(systemctl show "${SERVICE_NAME}" --property=NRestarts --value 2>/dev/null || echo "0")
+    if [[ "${restarts:-0}" -gt 5 ]] 2>/dev/null; then
+        printf "${B}│${NC}  ${DIM}Reinicios:${NC} ${RB}%s ⚠${NC}%-*s${B}│${NC}\n" "$restarts" $(( W - 12 - ${#restarts} )) ""
+    else
+        printf "${B}│${NC}  ${DIM}Reinicios:${NC} ${CB}%s${NC}%-*s${B}│${NC}\n" "$restarts" $(( W - 12 - ${#restarts} )) ""
+    fi
+    if [[ "${pid}" != "0" ]] && kill -0 "${pid}" 2>/dev/null; then
+        local cpu ram thr
+        cpu=$(ps -p "${pid}" -o %cpu= 2>/dev/null | tr -d ' ' || echo "?")
+        ram=$(ps -p "${pid}" -o rss= 2>/dev/null | awk '{printf "%.1f MB",$1/1024}' || echo "?")
+        thr=$(ps -p "${pid}" -o nlwp= 2>/dev/null | tr -d ' ' || echo "?")
+        printf "${B}│${NC}  ${DIM}PID:${NC}${CB}%s${NC}  ${DIM}CPU:${NC}${YB}%s%%${NC}  ${DIM}RAM:${NC}${YB}%s${NC}  ${DIM}Hilos:${NC}${CB}%s${NC}%-*s${B}│${NC}\n" \
+            "$pid" "$cpu" "$ram" "$thr" $(( W - 30 - ${#pid} - ${#cpu} - ${#ram} - ${#thr} )) ""
+    fi
+    local psz vsz; psz=$(du -sh "$PROJECT_DIR" --exclude="$VENV_DIR" 2>/dev/null | cut -f1 || echo "?")
+    vsz=$(du -sh "$VENV_DIR" 2>/dev/null | cut -f1 || echo "?")
+    printf "${B}│${NC}  ${DIM}Disco bot:${NC}${CB}%s${NC}  ${DIM}venv:${NC}${CB}%s${NC}%-*s${B}│${NC}\n" \
+        "$psz" "$vsz" $(( W - 20 - ${#psz} - ${#vsz} )) ""
+    printf "${B}╰"; printf '─%.0s' $(seq 1 $W); printf "╯${NC}\n"
+
+    printf "\n"; _info "Errores recientes (24h):"
+    local ec; ec=$($SUDO journalctl -u "${SERVICE_NAME}" --since "24h ago" -p err --no-pager -q 2>/dev/null | wc -l || echo "0")
+    if [[ "$ec" -gt 0 ]]; then
+        _warn "${ec} error(s) en 24h:"
+        $SUDO journalctl -u "${SERVICE_NAME}" --since "24h ago" -p err --no-pager -n 5 2>/dev/null | \
+            while IFS= read -r l; do printf "  ${DIM}%s${NC}\n" "$l"; done
+    else _ok "Sin errores en las últimas 24 horas."; fi
+    _pause
+}
+
+# ── DASHBOARD MULTI-BOT ────────────────────────────────────────────────────────
+show_all_bots_dashboard() {
+    _header; _center "DASHBOARD MULTI-BOT" "${YB}"; printf "\n"
+    local svcs
+    svcs=$(systemctl list-units --type=service --state=loaded --no-pager --no-legend 2>/dev/null \
+        | grep -E "bbalert|telebot|bot" | awk '{print $1}' || true)
+    if [[ -z "$svcs" ]]; then _warn "No hay bots como servicios systemd."; _pause; return 0; fi
+    printf "\n  ${WB}%-26s %-12s %-8s %-10s %-8s${NC}\n" "NOMBRE" "ESTADO" "CPU%" "RAM" "REINIC."
+    _hline '─' "${B}${DIM}"
+    for svc in $svcs; do
+        local name="${svc%.service}"
+        local active; active=$(systemctl is-active "$svc" 2>/dev/null || echo "unknown")
+        local pid; pid=$(systemctl show "$svc" --property=MainPID --value 2>/dev/null || echo "0")
+        local restarts; restarts=$(systemctl show "$svc" --property=NRestarts --value 2>/dev/null || echo "?")
+        local cpu="—" ram="—"
+        [[ "$pid" != "0" ]] && kill -0 "$pid" 2>/dev/null && {
+            cpu=$(ps -p "$pid" -o %cpu= 2>/dev/null | tr -d ' ' || echo "—")
+            ram=$(ps -p "$pid" -o rss= 2>/dev/null | awk '{printf "%.0fMB",$1/1024}' || echo "—")
+        }
+        local col=$R icon="○"; [[ "$active" = "active" ]] && col=$G && icon="●"
+        printf "  ${col}%s %-24s${NC} %-12s %-8s %-10s %-8s\n" \
+            "$icon" "$name" "$active" "${cpu}%" "$ram" "$restarts"
+    done
+    printf "\n"; _info "Total: $(echo "$svcs" | wc -l) bot(s)"; _pause
+}
+
+# ── GESTIÓN DE LOGS ────────────────────────────────────────────────────────────
+manage_logs() {
+    while true; do
+        _header; _center "GESTIÓN DE LOGS — ${FOLDER_NAME}" "${YB}"; printf "\n"
+        _item  1 "📡" "Tiempo real"           "Ctrl+C para salir"
+        _item  2 "📋" "Últimas 50 líneas"    ""
+        _item  3 "📋" "Últimas 200 líneas"   ""
+        _item  4 "🔴" "Solo errores"         "Últimas 50"
+        _item  5 "🔍" "Buscar texto"         ""
+        _item  6 "📅" "Por fecha"            "YYYY-MM-DD"
+        _item  7 "💾" "Exportar"             "archivo .txt"
+        _item  8 "📊" "Errores por hora"     "Últimas 24h"
+        _item  0 "✕"  "Volver"              ""
+        printf "\n"; read -rp "  Opción: " lc
+        case $lc in
+            1) _info "Ctrl+C para salir."; sleep 1; $SUDO journalctl -u "$SERVICE_NAME" -f ;;
+            2) $SUDO journalctl -u "$SERVICE_NAME" -n 50 --no-pager; _pause ;;
+            3) $SUDO journalctl -u "$SERVICE_NAME" -n 200 --no-pager; _pause ;;
+            4) $SUDO journalctl -u "$SERVICE_NAME" -p err --no-pager -n 50; _pause ;;
+            5) read -rp "  Texto: " st
+               [[ -n "$st" ]] && $SUDO journalctl -u "$SERVICE_NAME" --no-pager -n 5000 2>/dev/null \
+                   | grep -i "$st" | tail -50 || _warn "Sin resultados."
+               _pause ;;
+            6) read -rp "  Fecha (YYYY-MM-DD): " ld
+               [[ "$ld" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && \
+                   $SUDO journalctl -u "$SERVICE_NAME" --since "${ld} 00:00:00" --until "${ld} 23:59:59" --no-pager \
+                   || _err "Formato inválido."; _pause ;;
+            7) local lf="$HOME/logs_${FOLDER_NAME}_$(date +%Y%m%d_%H%M%S).txt"
+               _spin_start "Exportando"; $SUDO journalctl -u "$SERVICE_NAME" --no-pager > "$lf" 2>/dev/null; _spin_stop
+               _ok "Logs en: $lf ($(du -sh "$lf" | cut -f1))"; _pause ;;
+            8) printf "\n"; _info "Errores por hora (24h):"
+               $SUDO journalctl -u "$SERVICE_NAME" --since "24h ago" -p err --no-pager 2>/dev/null \
+                   | awk '{print $1,$2,substr($3,1,2)":00"}' | sort | uniq -c | sort -rn | head -20 \
+                   || _ok "Sin errores."
+               _pause ;;
+            0) return 0 ;;
+            *) _err "Opción inválida."; sleep 1 ;;
+        esac
+    done
+}
+
+# ── CONFIGURAR .ENV ────────────────────────────────────────────────────────────
+configure_env() {
+    _header; _center "VARIABLES DE ENTORNO" "${YB}"; printf "\n"
+    if [[ -f "$PROJECT_DIR/.env" ]]; then
+        _warn "Ya existe .env"
+        read -rp "  ¿Reconfigurar? [s/N]: " yn; [[ ! "$yn" =~ ^[sS]$ ]] && { _info "Conservando."; return 0; }
+    fi
+    local TOKEN="" tv=false attempts=0
+    while [[ "$tv" = false ]] && [[ $attempts -lt 3 ]]; do
+        read -rsp "  🔑 TOKEN de Telegram Bot: " TOKEN; printf "\n"
+        [[ -z "$TOKEN" ]] && { _err "Token vacío."; ((attempts++)); continue; }
+        validate_telegram_token "$TOKEN" && tv=true || ((attempts++))
+    done
+    [[ "$tv" = false ]] && _warn "Token no validado. Guardando de todos modos."
+    printf "\n"
+    read -rp "  👤 ADMIN_CHAT_IDS (coma-separados): " ADMIN_IDS
+    read -rp "  🌤  OpenWeatherMap API Key (Enter=omitir): " WEATHER_KEY
+    cat > "$PROJECT_DIR/.env" << EOF
+# ============================================
+# $FOLDER_NAME — Variables de Entorno
+# Generado: $(date)
+# ============================================
+TOKEN_TELEGRAM=$TOKEN
+ADMIN_CHAT_IDS=$ADMIN_IDS
+OPENWEATHER_API_KEY=$WEATHER_KEY
+EOF
+    chmod 600 "$PROJECT_DIR/.env"
+    _ok "Archivo .env creado con permisos 600."
+}
+
+# ── INSTALACIÓN COMPLETA ───────────────────────────────────────────────────────
+full_install() {
+    _header; _center "INSTALACIÓN COMPLETA — ${FOLDER_NAME}" "${YB}"; printf "\n"
+    _info "Instalará: paquetes del sistema, venv, dependencias, servicio, .env"
+    printf "\n"; read -rp "  ¿Continuar? [S/n]: " yn; [[ "$yn" =~ ^[nN]$ ]] && return 1
+
+    _step "PASO 1/5 — Paquetes del sistema"
+    _spin_start "apt update"; $SUDO apt update -qq; _spin_stop
+    $SUDO apt install -y software-properties-common python3.13 python3.13-venv python3.13-dev python3-pip -qq
+    _ok "Paquetes instalados."
+
+    _step "PASO 2/5 — Entorno virtual"; create_venv || { _err "Falló venv."; _pause; return 1; }
+    _step "PASO 3/5 — Dependencias"; install_dependencies || { _err "Falló pip."; _pause; return 1; }
+    _step "PASO 4/5 — Servicio Systemd"; create_systemd_service || _warn "No se pudo crear el servicio."
+    _step "PASO 5/5 — Verificación .env"
+    if [[ ! -f "$PROJECT_DIR/.env" ]]; then
+        _warn "No se encontró .env"
+        read -rp "  ¿Configurar ahora? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && configure_env
+    else _ok ".env encontrado."; fi
+
+    printf "\n"; _hline '═' "${GB}"; _center "✔  INSTALACIÓN COMPLETADA" "${GB}"; _hline '═' "${GB}"; printf "\n"
+    read -rp "  ¿Iniciar el bot ahora? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && start_bot
+    _pause
+}
+
+# ── SERVICIO SYSTEMD ───────────────────────────────────────────────────────────
 create_systemd_service() {
-    print_step "Generando configuración del servicio..."
-    
-    # Crear archivo de servicio temporal
-    SERVICE_CONTENT="[Unit]
+    _step "Generando servicio systemd"
+    echo "[Unit]
 Description=Bot Telegram - $FOLDER_NAME
 After=network.target
 StartLimitIntervalSec=0
@@ -495,1037 +777,248 @@ Environment=\"PYTHONUNBUFFERED=1\"
 ExecStart=$PYTHON_BIN $BOT_SCRIPT_PATH
 Restart=always
 RestartSec=10
-
-# Seguridad adicional
 NoNewPrivileges=true
 PrivateTmp=true
-
-# Logging
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=$FOLDER_NAME
 
 [Install]
-WantedBy=multi-user.target"
-
-    # Guardar en archivo temporal
-    echo "$SERVICE_CONTENT" > "/tmp/$SERVICE_NAME.service"
-    
-    # Copiar a systemd
-    print_step "Instalando servicio (requiere sudo)..."
-    $SUDO cp "/tmp/$SERVICE_NAME.service" "$SERVICE_FILE"
-    
-    if [ $? -ne 0 ]; then
-        print_error "Falló la instalación del servicio."
-        return 1
-    fi
-    
-    # Recargar y habilitar
+WantedBy=multi-user.target" > "/tmp/$SERVICE_NAME.service"
+    $SUDO cp "/tmp/$SERVICE_NAME.service" "$SERVICE_FILE" || { _err "Falló la copia."; return 1; }
     $SUDO systemctl daemon-reload
     $SUDO systemctl enable "$SERVICE_NAME" &>/dev/null
-    
-    print_success "Servicio $SERVICE_NAME creado y habilitado."
-    return 0
+    _ok "Servicio $SERVICE_NAME creado y habilitado."
 }
 
-# Configurar variables de entorno
-configure_env() {
-    print_header "🔑 CONFIGURACIÓN DE VARIABLES DE ENTORNO"
-    
-    if [ -f "$PROJECT_DIR/.env" ]; then
-        print_warning "Ya existe un archivo .env"
-        read -p "¿Deseas reconfigurarlo? (s/N): " recreate
-        
-        if [[ ! "$recreate" =~ ^[sS]$ ]]; then
-            print_info "Conservando configuración existente."
-            return 0
-        fi
-    fi
-    
-    print_info "Configurando $FOLDER_NAME..."
-    echo ""
-    
-    # Solicitar datos
-    read -p "🔑 TOKEN de Telegram Bot: " TELEGRAM_TOKEN
-    read -p "👤 ADMIN_CHAT_IDS (separados por coma): " ADMIN_IDS
-    read -p "🌦️  OpenWeatherMap API Key (Enter para omitir): " WEATHER_KEY
-    
-    # Crear archivo .env
-    cat > "$PROJECT_DIR/.env" << EOF
-# ============================================
-# $FOLDER_NAME - Variables de Entorno
-# Generado: $(date)
-# ============================================
-
-# Token del Bot de Telegram (Requerido)
-TOKEN_TELEGRAM=$TELEGRAM_TOKEN
-
-# IDs de administradores separados por comas (Requerido)
-ADMIN_CHAT_IDS=$ADMIN_IDS
-
-# API Key de OpenWeatherMap (Opcional)
-OPENWEATHER_API_KEY=$WEATHER_KEY
-
-# Otras configuraciones opcionales
-# DEBUG=False
-EOF
-    
-    chmod 600 "$PROJECT_DIR/.env"
-    print_success "Archivo .env creado exitosamente."
-    
-    return 0
-}
-
-# Gestión del servicio
+# ── GESTIÓN DE SERVICIO ────────────────────────────────────────────────────────
 manage_service() {
-    ACTION=$1
-    
+    local ACTION=$1
     case $ACTION in
-        "start")
-            print_step "Iniciando $SERVICE_NAME..."
-            $SUDO systemctl start "$SERVICE_NAME"
-            sleep 2
-            ;;
-        "stop")
-            print_step "Deteniendo $SERVICE_NAME..."
-            $SUDO systemctl stop "$SERVICE_NAME"
-            sleep 1
-            ;;
-        "restart")
-            print_step "Reiniciando $SERVICE_NAME..."
-            $SUDO systemctl restart "$SERVICE_NAME"
-            sleep 2
-            ;;
-        "status")
-            $SUDO systemctl status "$SERVICE_NAME" --no-pager -l
-            return 0
-            ;;
+        start)   _step "Iniciando";   $SUDO systemctl start   "$SERVICE_NAME"; sleep 2 ;;
+        stop)    _step "Deteniendo";  $SUDO systemctl stop    "$SERVICE_NAME"; sleep 1 ;;
+        restart) _step "Reiniciando"; $SUDO systemctl restart "$SERVICE_NAME"; sleep 2 ;;
+        status)  $SUDO systemctl status "$SERVICE_NAME" --no-pager -l; return 0 ;;
     esac
-    
-    # Verificar resultado
     if systemctl is-active --quiet "$SERVICE_NAME"; then
-        print_success "Bot corriendo correctamente."
-    else
-        print_error "El bot no está corriendo."
-        print_info "Revisa los logs con: sudo journalctl -u $SERVICE_NAME -n 50"
-    fi
+        _ok "Bot corriendo correctamente."
+        notify_telegram "✅ <b>$FOLDER_NAME</b> ${ACTION^} en <code>$(hostname)</code>"
+    else _err "El bot no está corriendo."; _info "journalctl -u $SERVICE_NAME -n 50"; fi
 }
 
 start_bot() {
-    print_header "▶️ INICIANDO BOT: $FOLDER_NAME"
-
-    # Preguntar por actualización de versión antes de iniciar
+    _header; _center "INICIAR — ${FOLDER_NAME}" "${YB}"; printf "\n"
     prompt_version_update
-
     if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-        print_warning "El servicio ya está corriendo."
-        read -p "¿Deseas reiniciarlo? (s/N): " restart_opt
-
-        if [[ "$restart_opt" =~ ^[sS]$ ]]; then
-            manage_service "restart"
-        fi
-    else
-        manage_service "start"
-    fi
-
-    echo ""
-    read -p "¿Ver logs en tiempo real? (s/N): " view_logs_opt
-
-    if [[ "$view_logs_opt" =~ ^[sS]$ ]]; then
-        view_logs
-    fi
+        _warn "Ya está corriendo."
+        read -rp "  ¿Reiniciar? [s/N]: " yn; [[ "$yn" =~ ^[sS]$ ]] && manage_service "restart"
+    else manage_service "start"; fi
+    printf "\n"; read -rp "  ¿Ver logs en tiempo real? [s/N]: " yn
+    [[ "$yn" =~ ^[sS]$ ]] && $SUDO journalctl -u "$SERVICE_NAME" -f
 }
+stop_bot()    { _header; _center "DETENER — ${FOLDER_NAME}" "${YB}"; printf "\n"; manage_service "stop"; _pause; }
+restart_bot() { _header; _center "REINICIAR — ${FOLDER_NAME}" "${YB}"; printf "\n"; prompt_version_update; manage_service "restart"; printf "\n"; $SUDO journalctl -u "$SERVICE_NAME" -f; }
+status_bot()  { _header; _center "ESTADO — ${FOLDER_NAME}" "${YB}"; printf "\n"; manage_service "status"; _pause; }
 
-stop_bot() {
-    print_header "⏹️ DETENIENDO BOT: $FOLDER_NAME"
-    manage_service "stop"
-    echo ""
-    read -p "Presiona Enter para continuar..."
-}
-
-restart_bot() {
-    print_header "🔄 REINICIANDO BOT: $FOLDER_NAME"
-
-    # Preguntar por actualización de versión antes de reiniciar
-    prompt_version_update
-
-    manage_service "restart"
-    echo ""
-    view_logs
-}
-
-status_bot() {
-    print_header "📊 ESTADO DEL BOT: $FOLDER_NAME"
-    manage_service "status"
-    echo ""
-    read -p "Presiona Enter para continuar..."
-}
-
-view_logs() {
-    print_header "📜 LOGS EN TIEMPO REAL: $FOLDER_NAME"
-    print_info "Presiona Ctrl+C para salir"
-    echo ""
-    sleep 1
-    $SUDO journalctl -u "$SERVICE_NAME" -f
-}
-
-# Nueva función para preguntar actualización de versión
+# ── VERSIÓN ────────────────────────────────────────────────────────────────────
 prompt_version_update() {
-    print_header "🔄 ACTUALIZACIÓN DE VERSIÓN"
-
-    read -p "¿Deseas actualizar la versión del bot? (s/N): " update_choice
-
-    if [[ "$update_choice" =~ ^[sS]$ ]]; then
-        echo ""
-        print_info "Selecciona el tipo de actualización:"
-        echo ""
-        echo -e "  ${GREEN}1)${NC} Simple (patch)   - Último número +1  (ej: 1.0.0 → 1.0.1)"
-        echo -e "  ${GREEN}2)${NC} Grande (minor)   - Segundo número +1 (ej: 1.0.5 → 1.1.0)"
-        echo -e "  ${GREEN}3)${NC} Completa (major) - Primer número +1  (ej: 1.2.3 → 2.0.0)"
-        echo -e "  ${YELLOW}0)${NC} Cancelar"
-        echo ""
-        read -p "Selecciona una opción (0-3): " version_choice
-
-        case $version_choice in
-            1) update_version "patch" ;;
-            2) update_version "minor" ;;
-            3) update_version "major" ;;
-            0) print_info "Actualización cancelada." ;;
-            *) print_error "Opción inválida. No se actualizará la versión." ;;
-        esac
-    else
-        print_info "Manteniendo versión actual."
-    fi
+    _header; _center "ACTUALIZACIÓN DE VERSIÓN" "${YB}"; printf "\n"
+    read -rp "  ¿Actualizar versión? [s/N]: " yn; [[ ! "$yn" =~ ^[sS]$ ]] && { _info "Versión sin cambios."; return 0; }
+    printf "\n"
+    _item 1 "🔹" "Patch" "1.0.0 → 1.0.1"
+    _item 2 "🔸" "Minor" "1.0.5 → 1.1.0"
+    _item 3 "🔶" "Major" "1.2.3 → 2.0.0"
+    _item 0 "✕"  "Cancelar" ""
+    printf "\n"; read -rp "  Tipo: " vc
+    case $vc in 1) update_version "patch";; 2) update_version "minor";; 3) update_version "major";; 0) _info "Cancelado.";; esac
 }
-
-# Actualizar versión según el tipo especificado
 update_version() {
-    local VERSION_TYPE="${1:-patch}"  # patch por defecto
-    local VERSION_SCRIPT="$PROJECT_DIR/update_version.py"
-
-    if [ -f "$VERSION_SCRIPT" ]; then
-        print_step "Actualizando versión del bot (tipo: $VERSION_TYPE)..."
-        cd "$PROJECT_DIR"
-
-        # Verificar que el venv existe
-        if [ -f "$PYTHON_BIN" ]; then
-            "$PYTHON_BIN" "$VERSION_SCRIPT" "$VERSION_TYPE"
-        else
-            print_warning "Entorno virtual no encontrado, usando Python del sistema."
-            python3 "$VERSION_SCRIPT" "$VERSION_TYPE" || print_warning "No se pudo actualizar la versión."
-        fi
-    else
-        print_warning "No se encontró update_version.py en $PROJECT_DIR"
-    fi
+    local vt="${1:-patch}" vs="$PROJECT_DIR/update_version.py"
+    [[ -f "$vs" ]] || { _warn "No se encontró update_version.py"; return; }
+    _step "Actualizando versión ($vt)"
+    cd "$PROJECT_DIR" || { _err "No se pudo acceder a $PROJECT_DIR"; return 1; }
+    [[ -f "$PYTHON_BIN" ]] && "$PYTHON_BIN" "$vs" "$vt" || python3 "$vs" "$vt"
 }
-
-# Actualizar dependencias
 update_dependencies() {
-    print_header "📥 ACTUALIZACIÓN DE DEPENDENCIAS"
-    
-    if [ ! -f "$REQUIREMENTS_PATH" ]; then
-        print_error "No se encontró requirements.txt"
-        read -p "Presiona Enter para continuar..."
-        return 1
-    fi
-    
-    print_info "Instalando/Actualizando dependencias..."
-    
-    if install_dependencies; then
-        print_success "Dependencias actualizadas."
-        echo ""
-        read -p "¿Reiniciar el bot para aplicar cambios? (S/n): " restart_opt
-        
-        if [[ ! "$restart_opt" =~ ^[nN]$ ]]; then
-            manage_service "restart"
-        fi
-    fi
-    
-    echo ""
-    read -p "Presiona Enter para continuar..."
+    _header; _center "ACTUALIZAR DEPENDENCIAS" "${YB}"; printf "\n"
+    install_dependencies && {
+        _ok "Dependencias actualizadas."
+        read -rp "  ¿Reiniciar bot? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && manage_service "restart"
+    }; _pause
 }
-
-# Eliminar dependencia
 remove_dependency() {
-    print_header "🗑️ ELIMINAR DEPENDENCIA"
-    
-    if [ ! -f "$REQUIREMENTS_PATH" ]; then
-        print_error "No se encontró requirements.txt"
-        read -p "Presiona Enter para continuar..."
-        return 1
-    fi
-    
-    # Leer dependencias
+    _header; _center "ELIMINAR DEPENDENCIA" "${YB}"; printf "\n"
+    [[ -f "$REQUIREMENTS_PATH" ]] || { _err "requirements.txt no encontrado"; _pause; return 1; }
     mapfile -t lines < <(grep -v '^\s*$' "$REQUIREMENTS_PATH" | grep -v '^\s*#')
-    
-    if [ ${#lines[@]} -eq 0 ]; then
-        print_warning "No hay dependencias instaladas."
-        read -p "Presiona Enter para continuar..."
-        return 0
-    fi
-    
-    print_info "Dependencias actuales:"
-    echo ""
-    i=1
-    for line in "${lines[@]}"; do
-        echo -e "  ${GREEN}$i)${NC} ${YELLOW}$line${NC}"
-        ((i++))
-    done
-    echo -e "  ${RED}0)${NC} Cancelar"
-    echo ""
-    
-    read -p "Número de dependencia a eliminar: " selection
-    
-    if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -gt 0 ] && [ "$selection" -le "${#lines[@]}" ]; then
-        SELECTED_LINE="${lines[$((selection-1))]}"
-        PACKAGE_NAME=$(echo "$SELECTED_LINE" | sed -E 's/([a-zA-Z0-9_\-]+).*/\1/')
-        
-        print_step "Eliminando $PACKAGE_NAME del venv..."
-        "$PIP_BIN" uninstall -y "$PACKAGE_NAME"
-        
-        print_step "Eliminando de requirements.txt..."
-        grep -vF "$SELECTED_LINE" "$REQUIREMENTS_PATH" > "${REQUIREMENTS_PATH}.tmp"
+    [[ ${#lines[@]} -eq 0 ]] && { _warn "Sin dependencias."; _pause; return 0; }
+    local i=1; for l in "${lines[@]}"; do printf "  ${GB}%3d)${NC}  %s\n" "$i" "$l"; ((i++)); done
+    printf "  ${RB}%3d)${NC}  Cancelar\n" "0"; printf "\n"
+    read -rp "  Número: " sel
+    if [[ "$sel" =~ ^[1-9][0-9]*$ ]] && [[ "$sel" -le "${#lines[@]}" ]]; then
+        local pkg; pkg=$(echo "${lines[$((sel-1))]}" | sed -E 's/([a-zA-Z0-9_\-]+).*/\1/')
+        _step "Eliminando $pkg"; "$PIP_BIN" uninstall -y "$pkg"
+        grep -vF "${lines[$((sel-1))]}" "$REQUIREMENTS_PATH" > "${REQUIREMENTS_PATH}.tmp"
         mv "${REQUIREMENTS_PATH}.tmp" "$REQUIREMENTS_PATH"
-        
-        print_success "Dependencia eliminada."
-        
-        read -p "¿Reiniciar bot? (s/N): " restart_opt
-        if [[ "$restart_opt" =~ ^[sS]$ ]]; then
-            manage_service "restart"
-        fi
-    elif [ "$selection" -eq 0 ]; then
-        print_info "Operación cancelada."
-    else
-        print_error "Selección inválida."
-    fi
-    
-    echo ""
-    read -p "Presiona Enter para continuar..."
+        _ok "Dependencia eliminada."
+        read -rp "  ¿Reiniciar? [s/N]: " yn; [[ "$yn" =~ ^[sS]$ ]] && manage_service "restart"
+    else _info "Cancelado."; fi; _pause
 }
-
-# Desinstalar servicio
 uninstall_service() {
-    print_header "🗑️ DESINSTALAR SERVICIO"
-    
-    print_warning "Esto eliminará el servicio systemd de $FOLDER_NAME"
-    print_info "El directorio y archivos del bot NO serán eliminados."
-    echo ""
-    read -p "¿Estás seguro? (s/N): " confirm
-    
-    if [[ ! "$confirm" =~ ^[sS]$ ]]; then
-        print_info "Operación cancelada."
-        read -p "Presiona Enter para continuar..."
-        return 0
-    fi
-    
-    # Detener servicio
-    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-        print_step "Deteniendo servicio..."
-        $SUDO systemctl stop "$SERVICE_NAME"
-    fi
-    
-    # Deshabilitar
-    $SUDO systemctl disable "$SERVICE_NAME" 2>/dev/null
-    
-    # Eliminar archivo
-    if [ -f "$SERVICE_FILE" ]; then
-        $SUDO rm "$SERVICE_FILE"
-        print_success "Archivo de servicio eliminado."
-    fi
-    
-    # Recargar systemd
-    $SUDO systemctl daemon-reload
-    $SUDO systemctl reset-failed 2>/dev/null
-    
-    print_success "Servicio $SERVICE_NAME desinstalado completamente."
-    echo ""
-    read -p "Presiona Enter para continuar..."
+    _header; _center "DESINSTALAR SERVICIO" "${RB}"; printf "\n"
+    _warn "Eliminará el servicio. Los archivos del bot NO se borran."
+    read -rp "  ¿Confirmas? [s/N]: " yn; [[ ! "$yn" =~ ^[sS]$ ]] && { _info "Cancelado."; _pause; return 0; }
+    systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null && $SUDO systemctl stop "$SERVICE_NAME"
+    $SUDO systemctl disable "$SERVICE_NAME" 2>/dev/null; [[ -f "$SERVICE_FILE" ]] && $SUDO rm "$SERVICE_FILE"
+    $SUDO systemctl daemon-reload; $SUDO systemctl reset-failed 2>/dev/null
+    _ok "Servicio $SERVICE_NAME desinstalado."; _pause
 }
+change_directory() { PROJECT_DIR=""; FOLDER_NAME=""; SERVICE_NAME=""; select_target_directory; }
 
-# Cambiar directorio objetivo
-change_directory() {
-    PROJECT_DIR=""
-    FOLDER_NAME=""
-    SERVICE_NAME=""
-    select_target_directory
-}
-
-# --- FUNCIONES DE GIT ---
-
-# Obtener rama actual de Git
-get_git_branch() {
-    if [ -d "$PROJECT_DIR/.git" ]; then
-        cd "$PROJECT_DIR"
-        git branch --show-current 2>/dev/null || echo "N/A"
-    else
-        echo "N/A"
-    fi
-}
-
-# Clonar repositorio
+# ── GIT ────────────────────────────────────────────────────────────────────────
 git_clone_repository() {
-    print_header "📥 CLONAR REPOSITORIO"
-    
-    # URL por defecto
-    DEFAULT_REPO="https://github.com/ersus93/bbalert.git"
-    read -p "URL del repositorio [$DEFAULT_REPO]: " REPO_URL
-    REPO_URL=${REPO_URL:-$DEFAULT_REPO}
-    
-    # Directorio destino
-    read -p "Directorio destino [~/bbalert]: " DEST_DIR
-    DEST_DIR=${DEST_DIR:-"$HOME/bbalert"}
-    DEST_DIR="${DEST_DIR/#\~/$HOME}"
-    
-    # Verificar si ya existe
-    if [ -d "$DEST_DIR" ]; then
-        print_warning "El directorio $DEST_DIR ya existe."
-        read -p "¿Eliminar y continuar? (s/N): " overwrite
-        if [[ "$overwrite" =~ ^[sS]$ ]]; then
-            rm -rf "$DEST_DIR"
-        else
-            print_info "Operación cancelada."
-            return 1
-        fi
-    fi
-    
-    # Clonar
-    print_step "Clonando $REPO_URL..."
-    git clone "$REPO_URL" "$DEST_DIR"
-    
-    if [ $? -eq 0 ]; then
-        print_success "Repositorio clonado en $DEST_DIR"
-        
-        # Ofrecer configurar
-        read -p "¿Configurar este bot ahora? (S/n): " setup_now
-        if [[ ! "$setup_now" =~ ^[nN]$ ]]; then
-            PROJECT_DIR="$DEST_DIR"
-            FOLDER_NAME=$(basename "$PROJECT_DIR")
-            SERVICE_NAME="${FOLDER_NAME}"
-            SERVICE_FILE="/etc/systemd/system/$SERVICE_NAME.service"
-            VENV_DIR="$PROJECT_DIR/venv"
-            PYTHON_BIN="$VENV_DIR/bin/python"
-            PIP_BIN="$VENV_DIR/bin/pip"
-            ACTIVATE_SCRIPT="$VENV_DIR/bin/activate"
-            REQUIREMENTS_PATH="$PROJECT_DIR/$REQUIREMENTS_FILE"
-            BOT_SCRIPT_PATH="$PROJECT_DIR/$BOT_MAIN_FILE"
-        fi
-    else
-        print_error "Error al clonar el repositorio."
-        return 1
-    fi
+    _header; _center "CLONAR REPOSITORIO" "${YB}"; printf "\n"
+    local dflt="https://github.com/ersus93/bbalert.git"
+    read -rp "  URL [$dflt]: " url; url=${url:-$dflt}
+    read -rp "  Destino [~/bbalert]: " dest; dest="${dest:-$HOME/bbalert}"; dest="${dest/#\~/$HOME}"
+    [[ -d "$dest" ]] && { read -rp "  Ya existe. ¿Eliminar? [s/N]: " yn; [[ "$yn" =~ ^[sS]$ ]] && rm -rf "$dest" || return 1; }
+    _spin_start "Clonando"; git clone "$url" "$dest"; local clone_rc=$?; _spin_stop
+    [[ $clone_rc -eq 0 ]] && _ok "Repositorio en $dest" || _err "Error clonando."; _pause
 }
-
-# Forzar pull descartando cambios locales
 force_pull_repository() {
-    local branch="$1"
-    local remote="${2:-origin}"
-
-    print_warning "Se descartarán TODOS los cambios locales."
-    print_info "Esto incluye: archivos modificados, archivos sin trackear, y commits locales no pusheados."
-    echo ""
-    read -p "¿Estás COMPLETAMENTE SEGURO? Escribe 'SI' para confirmar: " confirm_force
-
-    if [[ "$confirm_force" != "SI" ]]; then
-        print_info "Operación cancelada. No se realizaron cambios."
-        return 1
-    fi
-
-    print_step "Guardando backup de seguridad (stash)..."
-    git stash push -m "Backup automático antes de force-pull ($(date '+%Y-%m-%d %H:%M:%S'))" --include-untracked 2>/dev/null || true
-
-    print_step "Reseteando a estado limpio..."
-    if ! git reset --hard "${remote}/${branch}"; then
-        print_error "Falló el reset. Intentando estrategia alternativa..."
-
-        # Estrategia alternativa: limpiar todo y fetch de nuevo
-        print_step "Limpiando archivos no trackeados..."
-        git clean -fd || true
-
-        print_step "Fetch forzado..."
-        git fetch "${remote}" "${branch}" --force
-
-        print_step "Reset hard..."
-        git reset --hard "${remote}/${branch}"
-    fi
-
-    print_success "Código forzado a la versión de GitHub."
-    print_info "Backup guardado en: git stash list"
-    return 0
+    local branch="$1" remote="${2:-origin}"
+    read -rp "  Escribe 'SI' para descartar cambios: " cn; [[ "$cn" != "SI" ]] && return 1
+    git stash push -m "Auto-backup $(date)" --include-untracked 2>/dev/null || true
+    git reset --hard "${remote}/${branch}" || { git clean -fd; git fetch "${remote}" "${branch}" --force; git reset --hard "${remote}/${branch}"; }
+    _ok "Forzado a versión remota."
 }
-
-# Detectar por qué falló el pull
-diagnose_pull_failure() {
-    local exit_code=$1
-    local branch=$2
-
-    print_error "El pull falló (código: $exit_code)"
-    echo ""
-    print_info "Diagnóstico de posibles causas:"
-    echo ""
-
-    # Verificar cambios locales sin commitear
-    if ! git diff-index --quiet HEAD --; then
-        echo -e "  ${RED}•${NC} Tienes cambios locales sin commitear:"
-        git status --short | head -10
-        echo ""
-    fi
-
-    # Verificar archivos sin trackear
-    local untracked=$(git ls-files --others --exclude-standard 2>/dev/null | wc -l)
-    if [ "$untracked" -gt 0 ]; then
-        echo -e "  ${RED}•${NC} Hay $untracked archivo(s) sin trackear en el directorio"
-        echo ""
-    fi
-
-    # Verificar commits locales no pusheados
-    local unpushed=$(git log @{u}..HEAD --oneline 2>/dev/null | wc -l)
-    if [ "$unpushed" -gt 0 ]; then
-        echo -e "  ${RED}•${NC} Tienes $unpushed commit(s) locales no pusheados"
-        echo ""
-    fi
-
-    # Verificar conflictos de merge previos
-    if [ -d ".git/rebase-merge" ] || [ -d ".git/rebase-apply" ]; then
-        echo -e "  ${RED}•${NC} Hay un rebase/merge en progreso sin completar"
-        echo ""
-    fi
-
-    # Verificar divergencia de ramas
-    local local_hash=$(git rev-parse HEAD)
-    local remote_hash=$(git rev-parse "@{u}" 2>/dev/null || echo "")
-    if [ -n "$remote_hash" ] && [ "$local_hash" != "$remote_hash" ]; then
-        local base_hash=$(git merge-base HEAD "@{u}" 2>/dev/null || echo "")
-        if [ "$base_hash" != "$local_hash" ] && [ "$base_hash" != "$remote_hash" ]; then
-            echo -e "  ${RED}•${NC} Las ramas han divergido (tienen historiales diferentes)"
-            echo ""
-        fi
-    fi
-}
-
-# Actualizar código del repositorio con manejo robusto de errores
 git_pull_repository() {
-    local force_mode="${1:-false}"
-
-    print_header "📥 ACTUALIZAR CÓDIGO DEL REPOSITORIO"
-
-    cd "$PROJECT_DIR" || { print_error "No se pudo acceder a $PROJECT_DIR"; return 1; }
-
-    # Verificar que es un repo git
-    if [ ! -d ".git" ]; then
-        print_error "Este directorio no es un repositorio Git."
-        return 1
-    fi
-
-    # Mostrar rama actual
-    local current_branch
-    current_branch=$(git branch --show-current)
-    print_info "Rama actual: $current_branch"
-
-    # Verificar si hay remote configurado
-    if ! git remote get-url origin &>/dev/null; then
-        print_error "No hay remote configurado."
-        return 1
-    fi
-
-    # Fetch
-    print_step "Buscando actualizaciones..."
-    if ! git fetch origin; then
-        print_error "Falló el fetch. Verifica tu conexión a internet y acceso al repositorio."
-        return 1
-    fi
-
-    # Verificar si hay upstream configurado
-    if ! git rev-parse --abbrev-ref '@{u}' &>/dev/null; then
-        print_warning "No hay upstream configurado para la rama $current_branch"
-        print_info "Configurando upstream a origin/$current_branch..."
-        git branch --set-upstream-to="origin/${current_branch}" "$current_branch" || {
-            print_error "No se pudo configurar upstream"
-            return 1
-        }
-    fi
-
-    # Verificar si hay cambios
-    local local_hash remote_hash
-    local_hash=$(git rev-parse HEAD)
-    remote_hash=$(git rev-parse '@{u}' 2>/dev/null || echo "")
-
-    if [ -z "$remote_hash" ]; then
-        print_error "No se pudo obtener el estado remoto"
-        return 1
-    fi
-
-    if [ "$local_hash" = "$remote_hash" ]; then
-        print_success "El código está actualizado."
-        return 0
-    fi
-
-    # Mostrar cambios disponibles
-    print_info "Nuevos commits disponibles:"
-    git log HEAD..@{u} --oneline
-    echo ""
-
-    # Si estamos en modo force, saltar confirmación
-    if [[ "$force_mode" == "true" ]]; then
-        print_warning "Modo FORZAR activado - Se descartarán cambios locales"
+    local force="${1:-false}"
+    _header; _center "ACTUALIZAR CÓDIGO" "${YB}"; printf "\n"
+    cd "$PROJECT_DIR" || return 1; [[ -d ".git" ]] || { _err "No es Git."; _pause; return 1; }
+    local branch; branch=$(git branch --show-current); _info "Rama: ${CB}${branch}${NC}"
+    _spin_start "git fetch"; git fetch origin; _spin_stop
+    git rev-parse --abbrev-ref '@{u}' &>/dev/null || git branch --set-upstream-to="origin/${branch}" "$branch"
+    local lh rh; lh=$(git rev-parse HEAD); rh=$(git rev-parse '@{u}' 2>/dev/null || echo "")
+    [[ -z "$rh" ]] && { _err "No se pudo verificar remote."; _pause; return 1; }
+    [[ "$lh" = "$rh" ]] && { _ok "Código actualizado."; _pause; return 0; }
+    _info "Nuevos commits:"; git log HEAD..@{u} --oneline | while IFS= read -r l; do printf "  ${DIM}· %s${NC}\n" "$l"; done
+    printf "\n"; [[ "$force" != "true" ]] && { read -rp "  ¿Actualizar? [S/n]: " yn; [[ "$yn" =~ ^[nN]$ ]] && return 0; }
+    _spin_start "git pull"; git pull origin "$branch"; local rc=$?; _spin_stop
+    if [[ $rc -eq 0 ]]; then _ok "Actualizado."
     else
-        read -p "¿Actualizar ahora? (S/n): " confirm
-        if [[ "$confirm" =~ ^[nN]$ ]]; then
-            return 0
-        fi
+        _warn "Pull falló."; printf "\n"
+        _item 1 "⚡" "Forzar (descarta cambios)"; _item 2 "🔍" "Ver diferencias"; _item 3 "📦" "Stash y pull"; _item 4 "✕" "Cancelar"
+        read -rp "  Opción: " ro
+        case $ro in
+            1) force_pull_repository "$branch" ;; 2) git diff --stat; _pause; return 1 ;;
+            3) git stash push -m "Auto-stash $(date)" && git pull origin "$branch" && _ok "Pull exitoso." ;;
+            *) _info "Cancelado."; return 1 ;;
+        esac
     fi
-
-    # Intentar pull normal primero
-    print_step "Intentando actualización normal..."
-    if git pull origin "$current_branch"; then
-        print_success "Código actualizado correctamente."
-    else
-        local pull_exit_code=$?
-        echo ""
-        diagnose_pull_failure "$pull_exit_code" "$current_branch"
-        echo ""
-
-        # Opciones para resolver
-        if [[ "$force_mode" == "true" ]]; then
-            print_warning "Modo forzar activado - Aplicando solución automática..."
-            force_pull_repository "$current_branch" "origin"
-        else
-            echo -e "${YELLOW}Opciones disponibles:${NC}"
-            echo ""
-            echo "  1) Forzar actualización (DESCARTAR cambios locales)"
-            echo "     → Usa la versión exacta de GitHub"
-            echo ""
-            echo "  2) Ver diferencias (comparar cambios locales)"
-            echo "     → Muestra qué cambios tienes sin commitear"
-            echo ""
-            echo "  3) Intentar stash (guardar cambios temporalmente)"
-            echo "     → Guarda tus cambios y luego hace pull"
-            echo ""
-            echo "  4) Cancelar"
-            echo "     → No hacer nada, salir"
-            echo ""
-            read -p "Selecciona una opción (1-4): " resolve_choice
-
-            case "$resolve_choice" in
-                1)
-                    force_pull_repository "$current_branch" "origin"
-                    ;;
-                2)
-                    echo ""
-                    print_info "Diferencias de archivos modificados:"
-                    git diff --stat
-                    echo ""
-                    read -p "Presiona Enter para volver al menú..."
-                    return 1
-                    ;;
-                3)
-                    print_step "Guardando cambios locales en stash..."
-                    if git stash push -m "Auto-stash antes de pull ($(date '+%Y-%m-%d %H:%M:%S'))"; then
-                        print_success "Cambios guardados en stash"
-                        print_step "Intentando pull nuevamente..."
-                        if git pull origin "$current_branch"; then
-                            print_success "Pull exitoso"
-                            print_info "Tus cambios guardados están en: git stash list"
-                            print_info "Para recuperarlos: git stash pop"
-                        else
-                            print_error "El pull sigue fallando incluso después del stash"
-                            return 1
-                        fi
-                    else
-                        print_error "No se pudieron guardar los cambios en stash"
-                        return 1
-                    fi
-                    ;;
-                *)
-                    print_info "Operación cancelada."
-                    return 1
-                    ;;
-            esac
-        fi
-    fi
-
-    # Si llegamos aquí, el pull fue exitoso (normal o forzado)
-    print_success "Código sincronizado con GitHub"
-
-    # Preguntar sobre dependencias
-    read -p "¿Actualizar dependencias? (S/n): " update_deps
-    if [[ ! "$update_deps" =~ ^[nN]$ ]]; then
-        install_dependencies
-    fi
-
-    # Preguntar sobre reinicio
-    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-        read -p "¿Reiniciar el bot? (S/n): " restart_bot
-        if [[ ! "$restart_bot" =~ ^[nN]$ ]]; then
-            manage_service "restart"
-        fi
-    fi
-
-    return 0
+    read -rp "  ¿Actualizar deps? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && install_dependencies
+    systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null && {
+        read -rp "  ¿Reiniciar? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && manage_service "restart"
+    }; _pause
 }
-
-# Cambiar de rama
 git_switch_branch() {
-    print_header "🔄 CAMBIAR DE RAMA"
-    
-    cd "$PROJECT_DIR" || return 1
-    
-    # Verificar que es un repo git
-    if [ ! -d ".git" ]; then
-        print_error "Este directorio no es un repositorio Git."
-        return 1
+    _header; _center "CAMBIAR DE RAMA" "${YB}"; printf "\n"
+    cd "$PROJECT_DIR" || return 1; [[ -d ".git" ]] || { _err "No es Git."; _pause; return 1; }
+    local cur; cur=$(git branch --show-current); _info "Rama actual: ${CB}${cur}${NC}"
+    if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+        _warn "Cambios sin committear:"; git status --short
+        read -rp "  ¿Descartarlos? [s/N]: " yn; [[ ! "$yn" =~ ^[sS]$ ]] && return 0; git checkout -- .
     fi
-    
-    # Mostrar rama actual
-    CURRENT_BRANCH=$(git branch --show-current)
-    print_info "Rama actual: ${CYAN}$CURRENT_BRANCH${NC}"
-    
-    # Verificar cambios pendientes
-    if ! git diff-index --quiet HEAD --; then
-        print_warning "Tienes cambios sin committear:"
-        git status --short
-        echo ""
-        read -p "¿Descartar cambios y continuar? (s/N): " discard
-        if [[ ! "$discard" =~ ^[sS]$ ]]; then
-            print_info "Operación cancelada."
-            return 0
-        fi
-        git checkout -- .
-    fi
-    
-    # Listar ramas
-    echo ""
-    print_info "Ramas disponibles:"
-    echo ""
-    
-    BRANCHES=("main" "testing" "dev")
-    local i=1
-    for branch in "${BRANCHES[@]}"; do
-        if [ "$branch" = "$CURRENT_BRANCH" ]; then
-            echo -e "  ${GREEN}*) $branch ${YELLOW}(actual)${NC}"
-        else
-            echo -e "  ${GREEN}$i)${NC} $branch"
-        fi
-        ((i++))
+    printf "\n"; local branches=("main" "testing" "dev"); local i=1
+    for b in "${branches[@]}"; do
+        [[ "$b" = "$cur" ]] && printf "  ${GB}  *${NC}  ${WB}%s${NC} ${DIM}(actual)${NC}\n" "$b" || printf "  ${CB}%3d)${NC}  %s\n" "$i" "$b"; ((i++))
     done
-    echo -e "  ${YELLOW}0)${NC} Cancelar"
-    echo ""
-    
-    read -p "Selecciona rama: " selection
-    
-    if [ "$selection" = "0" ]; then
-        return 0
-    fi
-    
-    # Determinar rama destino
-    if [[ "$selection" =~ ^[0-9]+$ ]]; then
-        TARGET_BRANCH="${BRANCHES[$((selection-1))]}"
-    else
-        TARGET_BRANCH="$selection"
-    fi
-    
-    if [ -z "$TARGET_BRANCH" ]; then
-        print_error "Selección inválida."
-        return 1
-    fi
-    
-    # Cambiar de rama
-    print_step "Cambiando a rama $TARGET_BRANCH..."
-    git checkout "$TARGET_BRANCH"
-    git pull origin "$TARGET_BRANCH"
-    
-    if [ $? -eq 0 ]; then
-        print_success "Ahora en rama: $TARGET_BRANCH"
-        
-        # Actualizar dependencias
-        read -p "¿Actualizar dependencias? (S/n): " update_deps
-        if [[ ! "$update_deps" =~ ^[nN]$ ]]; then
-            install_dependencies
-        fi
-    fi
+    printf "  ${YB}  0)${NC}  Cancelar\n"; printf "\n"; read -rp "  Rama: " sel; [[ "$sel" = "0" ]] && return 0
+    local tgt="${branches[$((sel-1))]}"; [[ -z "$tgt" ]] && { _err "Inválido."; return 1; }
+    _spin_start "Cambiando"; git checkout "$tgt" && git pull origin "$tgt"; _spin_stop
+    _ok "Ahora en: ${CB}${tgt}${NC}"
+    read -rp "  ¿Actualizar deps? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && install_dependencies; _pause
 }
-
-# Ver estado del repositorio
 git_show_status() {
-    print_header "📊 ESTADO DEL REPOSITORIO"
-    
-    cd "$PROJECT_DIR" || return 1
-    
-    if [ ! -d ".git" ]; then
-        print_error "No es un repositorio Git."
-        return 1
-    fi
-    
-    echo ""
-    # Rama actual
-    CURRENT_BRANCH=$(git branch --show-current)
-    echo -e "${CYAN}Rama actual:${NC}     $CURRENT_BRANCH"
-    
-    # Remote
-    REMOTE_URL=$(git remote get-url origin 2>/dev/null)
-    echo -e "${CYAN}Remote:${NC}          $REMOTE_URL"
-    
-    # Último commit
-    LAST_COMMIT=$(git log -1 --format="%h - %s (%cr)")
-    echo -e "${CYAN}Último commit:${NC}   $LAST_COMMIT"
-    
-    echo ""
-    echo -e "${YELLOW}Estado de archivos:${NC}"
-    git status --short
-    
-    echo ""
-    echo -e "${YELLOW}Commits locales no enviados:${NC}"
-    git log @{u}..HEAD --oneline 2>/dev/null || echo "  (ninguno)"
-    
-    echo ""
-    echo -e "${YELLOW}Commits remotos no descargados:${NC}"
-    git log HEAD..@{u} --oneline 2>/dev/null || echo "  (ninguno)"
-    
-    echo ""
-    read -p "Presiona Enter para continuar..."
+    _header; _center "ESTADO DEL REPOSITORIO" "${YB}"; printf "\n"
+    cd "$PROJECT_DIR" || return 1; [[ -d ".git" ]] || { _err "No es Git."; _pause; return 1; }
+    printf "  ${DIM}Rama:${NC}   ${CB}%s${NC}\n" "$(git branch --show-current)"
+    printf "  ${DIM}Remote:${NC} ${CB}%s${NC}\n" "$(git remote get-url origin 2>/dev/null || echo 'N/A')"
+    printf "  ${DIM}Último:${NC} ${WB}%s${NC}\n" "$(git log -1 --format='%h — %s (%cr)')"
+    printf "\n"; _info "Modificados:"; git status --short | while IFS= read -r l; do printf "  %s\n" "$l"; done
+    printf "\n"; _info "Commits locales no enviados:"; git log @{u}..HEAD --oneline 2>/dev/null | while IFS= read -r l; do printf "  · %s\n" "$l"; done
+    printf "\n"; _info "Remotos no descargados:"; git log HEAD..@{u} --oneline 2>/dev/null | while IFS= read -r l; do printf "  · %s\n" "$l"; done
+    _pause
 }
-
-# Ver historial de commits
 git_show_history() {
-    print_header "📜 HISTORIAL DE COMMITS"
-    
-    cd "$PROJECT_DIR" || return 1
-    
-    if [ ! -d ".git" ]; then
-        print_error "No es un repositorio Git."
-        return 1
-    fi
-    
-    echo ""
-    print_info "Últimos 15 commits:"
-    echo ""
-    git log --oneline -15 --decorate --graph
-    
-    echo ""
-    read -p "¿Ver detalles de un commit? (ingresa hash o Enter para continuar): " commit_hash
-    
-    if [ -n "$commit_hash" ]; then
-        echo ""
-        git show "$commit_hash"
-        read -p "Presiona Enter para continuar..."
-    fi
+    _header; _center "HISTORIAL DE COMMITS" "${YB}"; printf "\n"
+    cd "$PROJECT_DIR" || return 1; [[ -d ".git" ]] || { _err "No es Git."; _pause; return 1; }
+    git log --oneline -15 --decorate --graph | while IFS= read -r l; do printf "  %s\n" "$l"; done
+    printf "\n"; read -rp "  Ver commit (hash o Enter para continuar): " ch
+    [[ -n "$ch" ]] && { git show "$ch"; _pause; }; _pause
 }
-
-# Gestión de entornos staging/producción
 manage_environments() {
-    print_header "🌐 GESTIÓN DE ENTORNOS"
-    
-    echo ""
-    print_info "Entornos disponibles:"
-    echo ""
-    echo -e "  ${GREEN}1)${NC} Staging    ${YELLOW}(rama: testing)${NC}"
-    echo -e "  ${GREEN}2)${NC} Producción ${YELLOW}(rama: main)${NC}"
-    echo -e "  ${YELLOW}0)${NC} Volver"
-    echo ""
-    
-    read -p "Selecciona entorno: " env_choice
-    
-    case $env_choice in
-        1)
-            ENV_NAME="staging"
-            ENV_DIR="$HOME/bbalert-staging"
-            ENV_BRANCH="testing"
-            ;;
-        2)
-            ENV_NAME="producción"
-            ENV_DIR="$HOME/bbalert-prod"
-            ENV_BRANCH="main"
-            ;;
-        *)
-            return 0
-            ;;
-    esac
-    
-    print_header "🔧 ENTORNO: $ENV_NAME"
-    
-    # Verificar si existe
-    if [ ! -d "$ENV_DIR" ]; then
-        print_warning "El entorno no existe."
-        read -p "¿Crear entorno $ENV_NAME? (S/n): " create_env
-        
-        if [[ ! "$create_env" =~ ^[nN]$ ]]; then
-            create_environment "$ENV_DIR" "$ENV_BRANCH"
-        fi
-        return 0
+    _header; _center "GESTIÓN DE ENTORNOS" "${YB}"; printf "\n"
+    _item 1 "🧪" "Staging"    "rama: testing"; _item 2 "🚀" "Producción" "rama: main"; _item 0 "✕"  "Volver"     ""
+    printf "\n"; read -rp "  Entorno: " ec
+    local en="" ed="" eb=""
+    case $ec in 1) en="staging" ed="$HOME/bbalert-staging" eb="testing";; 2) en="producción" ed="$HOME/bbalert-prod" eb="main";; *) return 0;; esac
+    if [[ ! -d "$ed" ]]; then
+        _warn "No existe."; read -rp "  ¿Crear? [S/n]: " yn
+        [[ ! "$yn" =~ ^[nN]$ ]] && { detect_python; git clone https://github.com/ersus93/bbalert.git "$ed"; cd "$ed"; git checkout "$eb"; $TARGET_PYTHON -m venv venv; source venv/bin/activate; pip install -r requirements.txt --quiet; _ok "Entorno creado."; }
+        _pause; return 0
     fi
-    
-    # Mostrar estado
-    ENV_SERVICE=$(basename "$ENV_DIR")
-    echo ""
-    print_info "Directorio: $ENV_DIR"
-    print_info "Rama: $ENV_BRANCH"
-    
-    if systemctl is-active --quiet "$ENV_SERVICE" 2>/dev/null; then
-        echo -e "${GREEN}Estado: En ejecución${NC}"
-    else
-        echo -e "${RED}Estado: Detenido${NC}"
-    fi
-    
-    echo ""
-    echo -e "${YELLOW}Acciones:${NC}"
-    echo "  1) Actualizar código (git pull)"
-    echo "  2) Iniciar servicio"
-    echo "  3) Detener servicio"
-    echo "  4) Reiniciar servicio"
-    echo "  5) Ver logs"
-    echo "  0) Volver"
-    echo ""
-    
-    read -p "Acción: " action
-    
-    case $action in
-        1) 
-            cd "$ENV_DIR"
-            git checkout "$ENV_BRANCH"
-            git pull origin "$ENV_BRANCH"
-            print_success "Código actualizado."
-            ;;
-        2) sudo systemctl start "$ENV_SERVICE" ;;
-        3) sudo systemctl stop "$ENV_SERVICE" ;;
-        4) sudo systemctl restart "$ENV_SERVICE" ;;
-        5) sudo journalctl -u "$ENV_SERVICE" -f ;;
-    esac
+    local es; es=$(basename "$ed"); _info "Dir: $ed | Rama: $eb"
+    systemctl is-active --quiet "$es" 2>/dev/null && _ok "Activo" || _warn "Detenido"; printf "\n"
+    _item 1 "⬇ " "git pull"; _item 2 "▶ " "Iniciar"; _item 3 "⏹ " "Detener"; _item 4 "🔄" "Reiniciar"; _item 5 "📋" "Logs"
+    read -rp "  Acción: " ac
+    case $ac in
+        1) cd "$ed" && git checkout "$eb" && git pull origin "$eb" && _ok "Actualizado." ;;
+        2) sudo systemctl start "$es";; 3) sudo systemctl stop "$es";;
+        4) sudo systemctl restart "$es";; 5) sudo journalctl -u "$es" -f;;
+    esac; _pause
 }
 
-# Crear entorno
-create_environment() {
-    local ENV_DIR=$1
-    local ENV_BRANCH=$2
-    
-    print_step "Creando entorno en $ENV_DIR..."
-    
-    # Clonar
-    git clone https://github.com/ersus93/bbalert.git "$ENV_DIR"
-    cd "$ENV_DIR"
-    git checkout "$ENV_BRANCH"
-    
-    # Crear venv
-    detect_python
-    $TARGET_PYTHON -m venv venv
-    
-    # Instalar dependencias
-    source venv/bin/activate
-    pip install -r requirements.txt --quiet
-    
-    print_success "Entorno creado exitosamente."
-    print_info "Recuerda configurar el archivo .env en $ENV_DIR"
-}
-
-# Menú principal
-show_menu() {
-    clear
-    echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
-    echo -e "${BLUE}║${NC}   🤖 GESTOR MULTI-BOT TELEGRAM (v3)        ${BLUE}║${NC}"
-    echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
-    echo ""
-    echo -e "${CYAN}Bot Actual:${NC}    $FOLDER_NAME"
-    echo -e "${CYAN}Servicio:${NC}     $SERVICE_NAME"
-    echo -e "${CYAN}Directorio:${NC}   $PROJECT_DIR"
-    echo -e "${CYAN}Rama Git:${NC}     $(get_git_branch)"
-    echo ""
-    
-    # Mostrar estado
-    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
-        echo -e "${GREEN}● Estado: Bot en ejecución${NC}"
-    else
-        echo -e "${RED}○ Estado: Bot detenido${NC}"
-    fi
-    
-    echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${YELLOW}📦 INSTALACIÓN Y CONFIGURACIÓN${NC}"
-    echo "  1)  🚀 Instalación Completa (desde cero)"
-    echo "  2)  🔧 Crear/Recrear Entorno Virtual (venv)"
-    echo "  3)  📥 Instalar/Actualizar Dependencias"
-    echo "  4)  🔑 Configurar Variables de Entorno (.env)"
-    echo "  5)  ⚙️  Crear/Actualizar Servicio Systemd"
-    echo ""
-    echo -e "${YELLOW}🎮 CONTROL DEL BOT${NC}"
-    echo "  6)  ▶️  Iniciar Bot"
-    echo "  7)  ⏹️  Detener Bot"
-    echo "  8)  🔄 Reiniciar Bot"
-    echo "  9)  📊 Ver Estado del Servicio"
-    echo "  10) 📜 Ver Logs en Tiempo Real"
-    echo ""
-    echo -e "${YELLOW}🔀 CONTROL DE GIT${NC}"
-    echo "  11) 📥 Clonar Repositorio"
-    echo "  12) 🔄 Actualizar Código (git pull)"
-    echo "  13) 🌿 Cambiar de Rama"
-    echo "  14) 📊 Ver Estado del Repositorio"
-    echo "  15) 📜 Ver Historial de Commits"
-    echo ""
-    echo -e "${YELLOW}🌐 ENTORNOS${NC}"
-    echo "  16) 🗺️  Gestión de Entornos (Staging/Producción)"
-    echo ""
-    echo -e "${YELLOW}� MANTENIMIENTO${NC}"
-    echo "  17) 🗑️  Eliminar Dependencia"
-    echo "  18) 🗑️  Desinstalar Servicio"
-    echo ""
-    echo -e "${YELLOW}📂 OTROS${NC}"
-    echo "  19) 📂 Cambiar Bot/Directorio Objetivo"
-    echo "  0)  ❌ Salir"
-    echo ""
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-}
-
-# === PROGRAMA PRINCIPAL ===
-
+# ── PROGRAMA PRINCIPAL ─────────────────────────────────────────────────────────
 check_root
+check_system_dependencies
 
-# Si se pasa --install, hacer instalación completa automática
-if [ "$1" == "--install" ]; then
-    select_target_directory
-    full_install
-    exit 0
-fi
+case "${1:-}" in
+    --install)    select_target_directory; full_install; exit 0;;
+    --force-pull) select_target_directory; git_pull_repository true; exit 0;;
+    --backup)     select_target_directory; backup_bot; exit 0;;
+    --stats)      select_target_directory; show_bot_stats; exit 0;;
+esac
 
-# Si se pasa --force-pull, activar modo forzar en git pull
-if [ "$1" == "--force-pull" ]; then
-    export FORCE_PULL=true
-    select_target_directory
-    git_pull_repository true
-    exit 0
-fi
-
-# Seleccionar directorio al inicio
 select_target_directory
 
-# Menú interactivo
 while true; do
     show_menu
-    read -p "Selecciona una opción: " choice
-    
+    read -rp "" choice
     case $choice in
-        1)  full_install ;;
-        2)  create_venv; read -p "Presiona Enter para continuar..." ;;
-        3)  update_dependencies ;;
-        4)  configure_env; read -p "Presiona Enter para continuar..." ;;
-        5)  create_systemd_service; read -p "Presiona Enter para continuar..." ;;
-        6)  start_bot ;;
-        7)  stop_bot ;;
-        8)  restart_bot ;;
-        9)  status_bot ;;
-        10) view_logs;;
-        11) git_clone_repository; read -p "Presiona Enter para continuar..." ;;
-        12) git_pull_repository "${FORCE_PULL:-false}" ;;
-        13) git_switch_branch ;;
-        14) git_show_status ;;
-        15) git_show_history ;;
-        16) manage_environments ;;
-        17) remove_dependency ;;
-        18) uninstall_service ;;
-        19) change_directory ;;
-        0)  
-            print_info "¡Hasta luego!"
-            exit 0
-            ;;
-        *)  
-            print_error "Opción inválida."
-            sleep 1
-            ;;
+        1)  full_install;;
+        2)  _header; create_venv; _pause;;
+        3)  update_dependencies;;
+        4)  _header; configure_env; _pause;;
+        5)  _header; create_systemd_service; _pause;;
+        6)  start_bot;;
+        7)  stop_bot;;
+        8)  restart_bot;;
+        9)  status_bot;;
+        10) show_bot_stats;;
+        11) git_clone_repository;;
+        12) git_pull_repository "${FORCE_PULL:-false}";;
+        13) git_switch_branch;;
+        14) git_show_status;;
+        15) git_show_history;;
+        16) manage_logs;;
+        17) show_all_bots_dashboard;;
+        18) backup_bot;;
+        19) restore_backup;;
+        20) manage_environments;;
+        21) remove_dependency;;
+        22) uninstall_service;;
+        23) change_directory;;
+        0)  _header; _center "¡Hasta luego!" "${GB}"; printf "\n"; exit 0;;
+        *)  _err "Opción inválida."; sleep 1;;
     esac
 done

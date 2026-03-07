@@ -25,3 +25,22 @@ logs/
 # Archivo de versión local (generado automáticamente)
 # Cada entorno (local/VPS) mantiene su propia versión
 version.txt
+
+# Caché de pytest
+.pytest_cache/
+
+# Archivos de backup temporales
+*.backup
+*.bak
+*.orig
+
+# Archivos temporales de Windows
+nul
+Thumbs.db
+desktop.ini
+
+# Tests (solo para entorno local de desarrollo)
+tests/
+
+# Skills privados (docs/sk_*.md)
+docs/sk_*.md

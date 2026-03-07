@@ -30,12 +30,19 @@ WEATHER_EMOJIS = {
 
 # Cooldowns diferenciados (Paso 9)
 ALERT_COOLDOWNS = {
-    "rain": 4,        # h — la lluvia puede cambiar rápido
-    "storm": 3,       # h — tormentas cortas e intensas
-    "uv_high": 12,    # h — fenómeno de día completo
-    "daily_summary": 22,  # h — una vez al día con margen
+    "rain": 3,          # h — aviso próximas 3h, mínimo spam
+    "storm": 2,         # h — tormentas cortas e intensas
+    "uv_high": 25,      # h — UNA VEZ AL DÍA (>24h garantiza 1/día)
+    "daily_summary": 22,# h — una vez al día con margen
     "temp_high": 8,
     "temp_low": 8,
+}
+
+# Umbrales UV para mensajes diferenciados
+UV_LEVELS = {
+    6:  ("Alto",     "🟡", "Usa protector FPS 30+. Busca sombra al mediodía."),
+    8:  ("Muy Alto", "🟠", "FPS 50+ obligatorio. Evita exposición entre 12-16h."),
+    11: ("Extremo",  "🔴", "¡PELIGROSO! Permanece bajo techo entre 10-17h."),
 }
 
 # Ventana horaria para alertas UV (Paso 1)
@@ -212,13 +219,25 @@ async def weather_alerts_loop(bot: Bot):
                             time_str = dt_rain.strftime('%H:%M')
                             time_remaining = _format_time_remaining(dt_rain, local_now.replace(tzinfo=None), user_id)
 
+                            # Intensidad de lluvia basada en weather_id
+                            wid_rain = _get_weather_id(upcoming_rain)
+                            if wid_rain >= 500:   # Lluvia moderada-fuerte
+                                intensity = "intensa"; rain_icon = "🌧️"; rain_tip = "Evita salir si puedes."
+                            elif wid_rain >= 300: # Llovizna
+                                intensity = "ligera (llovizna)"; rain_icon = "🌦️"; rain_tip = "Lleva paraguas."
+                            else:
+                                intensity = "variable"; rain_icon = "🌧️"; rain_tip = "¡No olvides el paraguas!"
+
+                            # Temperatura en ese momento
+                            rain_temp = upcoming_rain.get('main', {}).get('temp', None)
+                            temp_str = f" | 🌡 {rain_temp:.0f}°C" if rain_temp else ""
+
                             msg = _(
-                                f"🌧️ *Alerta de Lluvia en {city}*\n"
+                                f"{rain_icon} *Alerta de Lluvia — {city}*\n"
                                 f"—————————————————\n"
-                                f"Se espera: *{desc}*\n"
-                                f"⏰ { _('Ocurrirá a las', user_id) }: *{time_str}*\n"
-                                f"⏳ { _('Tiempo restante', user_id) }: *{time_remaining}*\n"
-                                f"☔ { _('¡No olvides el paraguas!', user_id) }",
+                                f"🌂 Tipo: *{desc}* ({intensity})\n"
+                                f"⏰ A las *{time_str}* ({time_remaining}){temp_str}\n"
+                                f"💡 _{rain_tip}_",
                                 user_id
                             )
                             msg += get_random_ad_text()
@@ -263,13 +282,24 @@ async def weather_alerts_loop(bot: Bot):
                             time_str = dt_storm.strftime('%H:%M')
                             time_remaining = _format_time_remaining(dt_storm, local_now.replace(tzinfo=None), user_id)
 
+                            # Severidad basada en weather_id de tormenta
+                            wid_storm = _get_weather_id(upcoming_storm)
+                            if wid_storm >= 212:   # Tormenta fuerte con lluvia torrencial
+                                sev = "SEVERA"; sev_icon = "⛈️"; sev_tip = "¡Quédate en interior! Riesgo de inundaciones."
+                            elif wid_storm >= 202: # Tormenta con lluvia fuerte
+                                sev = "Fuerte"; sev_icon = "⛈️"; sev_tip = "Evita áreas abiertas y árboles."
+                            else:                  # Tormenta leve
+                                sev = "Moderada"; sev_icon = "🌩️"; sev_tip = "Toma precauciones. Cierra ventanas."
+
+                            wind_speed_storm = upcoming_storm.get('wind', {}).get('speed', None)
+                            wind_str = f" | 💨 {wind_speed_storm:.0f} m/s" if wind_speed_storm else ""
+
                             msg = _(
-                                f"⛈️ *Alerta de Tormenta en {city}*\n"
+                                f"{sev_icon} *Tormenta {sev} — {city}*\n"
                                 f"—————————————————\n"
-                                f"⚠️ Condición: *{desc}*\n"
-                                f"⏰ { _('Ocurrirá a las', user_id) }: *{time_str}*\n"
-                                f"⏳ { _('Tiempo restante', user_id) }: *{time_remaining}*\n"
-                                f"⚡ { _('Toma precauciones.', user_id) }",
+                                f"⚡ Condición: *{desc}*\n"
+                                f"⏰ A las *{time_str}* ({time_remaining}){wind_str}\n"
+                                f"🚨 _{sev_tip}_",
                                 user_id
                             )
                             msg += get_random_ad_text()
@@ -290,20 +320,46 @@ async def weather_alerts_loop(bot: Bot):
                     uv_window = UV_ALERT_HOUR_START <= local_now.hour < UV_ALERT_HOUR_END
 
                     if is_daytime and uv_window and isinstance(uv_val, (int, float)) and uv_val >= 6:
+                        # FIX ANTI-SPAM: usar mediodía del día actual como event_time fijo.
+                        # Esto garantiza que generate_event_id produzca el MISMO hash durante
+                        # todo el día → el cooldown de 25h bloquea correctamente.
+                        uv_event_time = local_now.replace(hour=12, minute=0, second=0, microsecond=0)
+
                         should_send, reason = should_send_alert_advanced(
                             user_id=user_id,
                             alert_type='uv_high',
-                            event_time=local_now,
+                            event_time=uv_event_time,
                             cooldown_hours=ALERT_COOLDOWNS['uv_high'],
                             weather_id=0
                         )
 
                         if should_send:
+                            # Mensaje inteligente según nivel UV
+                            uv_num = float(uv_val)
+                            level_label, level_emoji, level_advice = "Moderado-Alto", "🟡", "Usa protector FPS 30+."
+                            for threshold in sorted(UV_LEVELS.keys(), reverse=True):
+                                if uv_num >= threshold:
+                                    level_label, level_emoji, level_advice = UV_LEVELS[threshold]
+                                    break
+
+                            # Hora pico estimada (suele ser 12:00-14:00)
+                            peak_start = local_now.replace(hour=12, minute=0)
+                            peak_end   = local_now.replace(hour=14, minute=0)
+                            time_advice = ""
+                            if local_now.hour < 12:
+                                mins_to_peak = int((peak_start - local_now).total_seconds() / 60)
+                                time_advice = f"\n⏰ Pico UV en ~{mins_to_peak}min (12:00-14:00). ¡Prepárate!"
+                            elif local_now.hour < 14:
+                                time_advice = "\n⚠️ Estás en el horario de mayor intensidad UV ahora mismo."
+                            else:
+                                time_advice = "\n📉 UV en descenso, pero sigue siendo peligroso."
+
                             msg = _(
-                                f"☀️ *Alerta UV Alto en {city}*\n"
+                                f"{level_emoji} *Alerta UV {level_label} — {city}*\n"
                                 f"—————————————————\n"
-                                f"Índice actual: *{uv_val:.1f}*\n"
-                                f"🧴 Usa protector solar si vas a salir.",
+                                f"☀️ Índice UV actual: *{uv_num:.1f}* ({level_label}){time_advice}\n"
+                                f"\n💡 _{level_advice}_\n"
+                                f"📅 _Esta alerta no se repetirá el resto del día._",
                                 user_id
                             )
                             msg += get_random_ad_text()
@@ -312,9 +368,9 @@ async def weather_alerts_loop(bot: Bot):
                                 mark_alert_sent_advanced(
                                     user_id=user_id,
                                     alert_type='uv_high',
-                                    event_time=local_now,
+                                    event_time=uv_event_time,
                                     weather_id=0,
-                                    event_desc=f"UV {uv_val:.1f}"
+                                    event_desc=f"UV {uv_num:.1f} {level_label}"
                                 )
 
             await asyncio.sleep(ALERTS_LOOP_INTERVAL)

@@ -227,13 +227,18 @@ def get_tradingview_analysis_enhanced(symbol_pair, interval_str):
         'ATR': ind.get('ATR', 0)
     }
 
-async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None, skip_binance_check=False):
+async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, override_source=None, override_args=None, skip_binance_check=False, force_new_message=False):
     """
     Controlador maestro de Análisis Técnico con soporte para Switch de Fuente.
     """
     user_id = update.effective_user.id
-    is_callback = update.callback_query is not None
+    # force_new_message: cuando viene de /graf (foto), forzamos flujo de mensaje nuevo
+    # aunque técnicamente sea un callback, tratamos como si no lo fuera
+    is_callback = (update.callback_query is not None) and not force_new_message
     message = update.effective_message
+    # En force_new_message, usamos el chat del mensaje de la foto para reply
+    if force_new_message and update.callback_query:
+        message = update.callback_query.message
 
     # BUG-4 FIX: Registrar uso del comando /ta para estadísticas del dashboard
     # Solo registramos en invocaciones directas (no en callbacks de switch de fuente)
@@ -241,7 +246,9 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
         registrar_uso_comando(user_id, 'ta')
 
     # === ARGUMENT PARSING ===
-    if is_callback and override_args:
+    # override_args se verifica independientemente de is_callback porque
+    # force_new_message pone is_callback=False pero igual pasa override_args
+    if override_args:
         # Formato args: [SYMBOL, PAIR, TIME]
         symbol_base, pair, timeframe = override_args
         full_symbol = f"{symbol_base}{pair}"
@@ -500,8 +507,15 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
         btn_data = f"ta_switch|TV|{symbol_base}|{pair}|{timeframe}"
         kb.append([InlineKeyboardButton("📊 Ver en TradingView", callback_data=btn_data)])
 
-    # 3. Botón de Análisis IA (FUERA DEL IF para que salga SIEMPRE)
-    # Lo ponemos en una fila nueva
+    # 3. Botón de Gráfico (genera el chart de /graf en el mismo timeframe)
+    kb.append([
+        InlineKeyboardButton(
+            "📊 Ver Gráfico",
+            callback_data=f"graf_from_ta|{symbol_base}|{pair}|{timeframe}"
+        )
+    ])
+
+    # 4. Botón de Análisis IA (FUERA DEL IF para que salga SIEMPRE)
     kb.append([
         InlineKeyboardButton(
             "🤖 Análisis IA Profesional", 
@@ -524,6 +538,7 @@ async def ta_command(update: Update, context: ContextTypes.DEFAULT_TYPE, overrid
             # Si el mensaje es idéntico, Telegram lanza error, lo ignoramos
             pass
     else:
+        # Modo normal O force_new_message (foto desde /graf)
         await msg_wait.edit_text(msg, parse_mode=ParseMode.MARKDOWN, reply_markup=reply_markup)
 
 
@@ -597,6 +612,38 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 # === HANDLER DEL BOTÓN ===
+
+async def graf_from_ta_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback del botón "📊 Ver Gráfico" en /ta.
+    Genera el gráfico OHLCV para el par y timeframe que está viendo el usuario.
+    Formato: graf_from_ta|BASE|PAIR|TIMEFRAME
+    """
+    query = update.callback_query
+    await query.answer("📊 Generando gráfico...")
+
+    try:
+        parts = query.data.split("|")
+        if len(parts) < 4:
+            await query.answer("❌ Datos inválidos", show_alert=True)
+            return
+
+        _, base, pair, timeframe = parts[0], parts[1], parts[2], parts[3]
+        context.args = [base, pair, timeframe]
+
+        # Reutilizamos _do_graf de trading.py directamente
+        from handlers.trading import _do_graf
+        await _do_graf(
+            update, context,
+            base=base.upper(),
+            quote=pair.upper(),
+            timeframe=timeframe.lower(),
+            is_callback=True
+        )
+    except Exception as e:
+        print(f"Error en graf_from_ta_callback: {e}")
+        await query.answer("❌ Error al generar el gráfico", show_alert=True)
+
 
 async def ta_switch_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """

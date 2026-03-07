@@ -429,13 +429,19 @@ def obtener_datos_usuario_seguro(chat_id):
     # 2. Suscripciones (Relleno de estructura si falta)
     if 'subscriptions' not in usuario:
         usuario['subscriptions'] = {
-            'alerts_extra': {'qty': 0, 'expires': None},
-            'coins_extra': {'qty': 0, 'expires': None},
+            'alerts_extra':     {'qty': 0,     'expires': None},
+            'coins_extra':      {'qty': 0,     'expires': None},
             'watchlist_bundle': {'active': False, 'expires': None},
-            'tasa_vip': {'active': False, 'expires': None},
-            'ta_vip': {'active': False, 'expires': None}
+            'tasa_vip':         {'active': False, 'expires': None},
+            'ta_vip':           {'active': False, 'expires': None},
+            'sp_signals':       {'active': False, 'expires': None},  # SmartSignals Pro
         }
         guardar = True
+    else:
+        # Migración: usuarios existentes que aún no tienen sp_signals
+        if 'sp_signals' not in usuario['subscriptions']:
+            usuario['subscriptions']['sp_signals'] = {'active': False, 'expires': None}
+            guardar = True
 
     # 3. Campos de tracking (Relleno si faltan — compatibilidad con usuarios antiguos)
     if 'last_seen' not in usuario:
@@ -586,6 +592,20 @@ def check_feature_access(chat_id, feature_type, current_count=None):
             )
         return True, "OK"
 
+    # --- REGLA 8: SmartSignals Pro (/sp) ---
+    if feature_type == 'sp_signals':
+        if is_active('sp_signals'):
+            return True, "OK"
+        return False, (
+            "🔒 *SmartSignals Pro*\n—————————————————\n\n"
+            "Esta función es exclusiva para suscriptores.\n\n"
+            "📡 Recibe señales predictivas de compra/venta con gráfico,\n"
+            "pre-aviso 10-30s antes del cierre de vela y soporte para\n"
+            "BTC + 12 altcoins — todo por solo *200 ⭐ / 30 días*.\n\n"
+            "—————————————————\n"
+            "Usa /shop para activar SmartSignals Pro."
+        )
+
     return True, "OK"
 
 def registrar_uso_comando(chat_id, comando):
@@ -627,7 +647,7 @@ def add_subscription_days(chat_id, sub_type, days=30, quantity=0):
     subs = user['subscriptions']
     now = datetime.now()
     
-    if sub_type in ['watchlist_bundle', 'tasa_vip', 'ta_vip']:
+    if sub_type in ['watchlist_bundle', 'tasa_vip', 'ta_vip', 'sp_signals']:
         current_exp_str = subs[sub_type]['expires']
         if current_exp_str:
             current_exp = datetime.strptime(current_exp_str, '%Y-%m-%d %H:%M:%S')
@@ -805,4 +825,3 @@ def get_hbd_alert_recipients() -> list:
         if data.get('hbd_alerts', False):
             recipients.append(chat_id)
     return recipients
-
