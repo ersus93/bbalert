@@ -443,6 +443,42 @@ def apply_strategy_filter(strategy: dict, sig: dict, df_ext: pd.DataFrame) -> tu
         if rsi_limit > 0 and rsi < rsi_limit:
             return False, f"RSI {rsi:.1f} no en zona de venta (<{rsi_limit})"
 
+    # ── BB Squeeze required ───────────────────────────────────────────────────
+    # Bollinger Bands squeeze: BB width < media histórica de BB width.
+    # Confirma que el precio estaba comprimido antes de la señal (pre-explosión).
+    if ef.get('bb_squeeze_required'):
+        try:
+            close_s = df_ext['close']
+            bb_mid  = close_s.rolling(20).mean()
+            bb_std  = close_s.rolling(20).std()
+            bb_width = ((bb_mid + 2 * bb_std) - (bb_mid - 2 * bb_std)) / bb_mid
+
+            # Eliminar NaN y calcular umbral histórico
+            bb_width_clean = bb_width.dropna()
+            if len(bb_width_clean) >= 20:
+                recent_width   = float(bb_width_clean.iloc[-2])   # última vela cerrada
+                avg_width      = float(bb_width_clean.tail(50).mean())
+                if recent_width >= avg_width * 0.9:
+                    return False, f"Sin squeeze BB (ancho {recent_width:.3f} ≥ {avg_width*0.9:.3f})"
+        except Exception:
+            pass  # Si hay error de cálculo, el filtro no bloquea
+
+    # ── EMA cross confirm ─────────────────────────────────────────────────────
+    # Confirma que EMA9 está por encima de EMA20 en BUY, o debajo en SELL.
+    # Evita entradas contratendencia dentro de la señal.
+    if ef.get('ema_cross_confirm'):
+        try:
+            close_s = df_ext['close']
+            ema9  = float(close_s.ewm(span=9,  adjust=False).mean().iloc[-2])
+            ema20 = float(close_s.ewm(span=20, adjust=False).mean().iloc[-2])
+
+            if is_long and ema9 <= ema20:
+                return False, f"EMA9 ({ema9:.4f}) ≤ EMA20 ({ema20:.4f}) en compra"
+            if not is_long and ema9 >= ema20:
+                return False, f"EMA9 ({ema9:.4f}) ≥ EMA20 ({ema20:.4f}) en venta"
+        except Exception:
+            pass  # Si hay error de cálculo, el filtro no bloquea
+
     return True, "OK"
 
 
@@ -1109,6 +1145,33 @@ def _bt_apply_filter(strategy: dict, sig: dict, df_ext: pd.DataFrame) -> tuple[b
     else:
         rl = ef.get('rsi_overbought_sell', 0)
         if rl > 0 and rsi < rl: return False, f"RSI{rsi:.0f}<{rl}"
+
+    # ── BB Squeeze (backtest) ─────────────────────────────────────────────────
+    if ef.get('bb_squeeze_required'):
+        try:
+            close_s  = df_ext['close']
+            bb_mid   = close_s.rolling(20).mean()
+            bb_std   = close_s.rolling(20).std()
+            bb_width = ((bb_mid + 2 * bb_std) - (bb_mid - 2 * bb_std)) / bb_mid
+            bw_clean = bb_width.dropna()
+            if len(bw_clean) >= 20:
+                rw = float(bw_clean.iloc[-2])
+                aw = float(bw_clean.tail(50).mean())
+                if rw >= aw * 0.9:
+                    return False, "sin_squeeze_BB"
+        except Exception:
+            pass
+
+    # ── EMA cross (backtest) ──────────────────────────────────────────────────
+    if ef.get('ema_cross_confirm'):
+        try:
+            close_s = df_ext['close']
+            ema9  = float(close_s.ewm(span=9,  adjust=False).mean().iloc[-2])
+            ema20 = float(close_s.ewm(span=20, adjust=False).mean().iloc[-2])
+            if is_long and ema9 <= ema20:  return False, "EMA9<=EMA20_buy"
+            if not is_long and ema9 >= ema20: return False, "EMA9>=EMA20_sell"
+        except Exception:
+            pass
 
     return True, "OK"
 
