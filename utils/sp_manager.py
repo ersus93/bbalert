@@ -5,6 +5,7 @@
 import json
 import os
 import time
+import threading
 from datetime import datetime
 from core.config import DATA_DIR
 
@@ -49,23 +50,41 @@ SP_TIMEFRAMES = {
 
 # ─── HELPERS JSON ─────────────────────────────────────────────────────────────
 
+# Lock por archivo para evitar race conditions en acceso concurrente
+_file_locks: dict[str, threading.Lock] = {}
+_file_locks_registry = threading.Lock()
+
+
+def _get_lock(path: str) -> threading.Lock:
+    """Devuelve (o crea) el lock asociado al path de archivo."""
+    with _file_locks_registry:
+        if path not in _file_locks:
+            _file_locks[path] = threading.Lock()
+        return _file_locks[path]
+
+
 def _load(path: str) -> dict:
-    if not os.path.exists(path):
-        return {}
-    try:
-        with open(path, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    lock = _get_lock(path)
+    with lock:
+        if not os.path.exists(path):
+            return {}
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            return {}
+
 
 def _save(path: str, data: dict) -> None:
-    try:
-        tmp = f"{path}.tmp"
-        with open(tmp, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, path)
-    except Exception as e:
-        print(f"[SP Manager] Error guardando {path}: {e}")
+    lock = _get_lock(path)
+    with lock:
+        try:
+            tmp = f"{path}.tmp"
+            with open(tmp, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, path)
+        except Exception as e:
+            print(f"[SP Manager] Error guardando {path}: {e}")
 
 # ─── SUSCRIPCIONES ────────────────────────────────────────────────────────────
 

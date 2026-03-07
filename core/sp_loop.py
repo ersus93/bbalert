@@ -62,7 +62,17 @@ PRE_ALERT_SECS    = 35    # Umbral para pre-aviso (vela cierra en <N segundos)
 PRE_ALERT_MIN_SCORE = 5.5 # Score mínimo para activar pre-aviso
 
 # Control de pre-avisos ya enviados (evitar spam)
-_pre_alerts_sent: dict = {}   # key f"{symbol}_{tf}_{open_time}" -> True
+# {key: timestamp_unix} — se limpian entradas con >2h de antigüedad
+_pre_alerts_sent: dict[str, float] = {}
+_PRE_ALERT_TTL_S = 7200   # 2 horas — vida máxima de un pre-aviso en el cache
+
+
+def _cleanup_pre_alerts() -> None:
+    """Elimina pre-avisos con más de 2 horas de antigüedad."""
+    cutoff = time.time() - _PRE_ALERT_TTL_S
+    expired = [k for k, ts in _pre_alerts_sent.items() if ts < cutoff]
+    for k in expired:
+        del _pre_alerts_sent[k]
 
 # ─── OBTENCIÓN DE DATOS ───────────────────────────────────────────────────────
 
@@ -117,12 +127,18 @@ class SPSignalEngine:
             if len(df) < 30:
                 return self._empty_result(df)
 
-            # Velas cerradas (confiables para indicadores)
-            df_c = df.iloc[:-1].copy()
+            # Velas cerradas (confiables para indicadores) — vista sin copia
+            df_c = df.iloc[:-1]
             if len(df_c) < 20:
                 return self._empty_result(df)
 
-            curr = df_c.iloc[-1]
+            # Solo copiar las columnas numéricas que realmente se van a mutar
+            close_s  = df_c['close'].copy()
+            high_s   = df_c['high'].copy()
+            low_s    = df_c['low'].copy()
+            volume_s = df_c['volume'].copy()
+
+            curr  = df_c.iloc[-1]
             price = float(df.iloc[-1]['close'])  # Precio actual (vela parcial)
 
             buy_score  = 0.0
@@ -131,21 +147,21 @@ class SPSignalEngine:
 
             # ── GRUPO 1: EMAs (Tendencia) ──────────────────────────────────
             for span in [9, 20, 50]:
-                ema_val = df_c['close'].ewm(span=span, adjust=False).mean().iloc[-1]
+                ema_val = close_s.ewm(span=span, adjust=False).mean().iloc[-1]
                 if price > ema_val:
                     buy_score  += 0.5
                 else:
                     sell_score += 0.5
 
             # EMA 50 doble peso
-            ema50 = df_c['close'].ewm(span=50, adjust=False).mean().iloc[-1]
+            ema50 = close_s.ewm(span=50, adjust=False).mean().iloc[-1]
             if price > ema50:
                 buy_score += 0.5
             else:
                 sell_score += 0.5
 
             # ── GRUPO 2: RSI ───────────────────────────────────────────────
-            rsi_series = ta.rsi(df_c['close'], length=14)
+            rsi_series = ta.rsi(close_s, length=14)
             rsi = float(rsi_series.iloc[-1]) if rsi_series is not None else 50.0
 
             if rsi < 30:
@@ -160,7 +176,7 @@ class SPSignalEngine:
                 sell_score += 0.75
 
             # ── GRUPO 3: MACD ──────────────────────────────────────────────
-            macd_df = ta.macd(df_c['close'], fast=12, slow=26, signal=9)
+            macd_df = ta.macd(close_s, fast=12, slow=26, signal=9)
             if macd_df is not None and len(macd_df.columns) >= 2:
                 hist_series = macd_df.iloc[:, 1]
                 hist_curr = float(hist_series.iloc[-1])
@@ -178,7 +194,7 @@ class SPSignalEngine:
                     sell_score += 0.75
 
             # ── GRUPO 4: Stochastic ────────────────────────────────────────
-            stoch = ta.stoch(df_c['high'], df_c['low'], df_c['close'], k=14, d=3, smooth_k=3)
+            stoch = ta.stoch(high_s, low_s, close_s, k=14, d=3, smooth_k=3)
             if stoch is not None and len(stoch.columns) >= 2:
                 k_curr = float(stoch.iloc[-1, 0])
                 d_curr = float(stoch.iloc[-1, 1])
@@ -199,7 +215,7 @@ class SPSignalEngine:
                     sell_score += 0.75
 
             # ── GRUPO 5: CCI ───────────────────────────────────────────────
-            cci_series = ta.cci(df_c['high'], df_c['low'], df_c['close'], length=20)
+            cci_series = ta.cci(high_s, low_s, close_s, length=20)
             if cci_series is not None:
                 cci = float(cci_series.iloc[-1])
                 cci_prev = float(cci_series.iloc[-2]) if len(cci_series) > 1 else 0.0
@@ -211,10 +227,10 @@ class SPSignalEngine:
                     sell_score += 1.0
 
             # ── GRUPO 6: Bollinger Bands ───────────────────────────────────
-            bb_up = df_c['close'].rolling(20).mean() + 2 * df_c['close'].rolling(20).std()
-            bb_lo = df_c['close'].rolling(20).mean() - 2 * df_c['close'].rolling(20).std()
-            bb_up_val = float(bb_up.iloc[-1])
-            bb_lo_val = float(bb_lo.iloc[-1])
+            bb_mid = close_s.rolling(20).mean()
+            bb_std = close_s.rolling(20).std()
+            bb_up_val = float((bb_mid + 2 * bb_std).iloc[-1])
+            bb_lo_val = float((bb_mid - 2 * bb_std).iloc[-1])
 
             if price <= bb_lo_val * 1.005:
                 buy_score += 1.0
@@ -224,7 +240,7 @@ class SPSignalEngine:
                 reasons.append("Precio en banda superior BB")
 
             # ── GRUPO 7: Volumen (MFI) ────────────────────────────────────
-            mfi_series = ta.mfi(df_c['high'], df_c['low'], df_c['close'], df_c['volume'], length=14)
+            mfi_series = ta.mfi(high_s, low_s, close_s, volume_s, length=14)
             if mfi_series is not None:
                 mfi = float(mfi_series.iloc[-1])
                 if mfi < 20:
@@ -249,11 +265,11 @@ class SPSignalEngine:
             else:
                 strength = 'WEAK'
 
-            # ── NIVELES ────────────────────────────────────────────────────
-            atr_series = ta.atr(df_c['high'], df_c['low'], df_c['close'], length=14)
+            # ── ATR ────────────────────────────────────────────────────────
+            atr_series = ta.atr(high_s, low_s, close_s, length=14)
             atr = float(atr_series.iloc[-1]) if atr_series is not None else price * 0.002
 
-            if direction == 'BUY':
+            # ── NIVELES ────────────────────────────────────────────────────
                 stop_loss = price - atr * 1.5
                 target1   = price + atr * 2.0
                 target2   = price + atr * 3.5
@@ -447,6 +463,9 @@ async def sp_monitor_loop(bot):
     while True:
         try:
             pairs = get_active_sp_pairs()
+
+            # Limpieza periódica de pre-avisos expirados
+            _cleanup_pre_alerts()
 
             if not pairs:
                 await asyncio.sleep(30)
@@ -659,7 +678,7 @@ async def _check_pre_alert(bot, symbol: str, tf: str, sig: dict, df: pd.DataFram
 
     # Evitar pre-avisos duplicados para la misma vela
     pre_key = f"{symbol}_{tf}_{open_time_ms}"
-    if _pre_alerts_sent.get(pre_key):
+    if pre_key in _pre_alerts_sent:
         return
 
     subscribers = get_sp_subscribers(symbol, tf)
@@ -683,12 +702,10 @@ async def _check_pre_alert(bot, symbol: str, tf: str, sig: dict, df: pd.DataFram
             pass
 
     if sent > 0:
-        _pre_alerts_sent[pre_key] = True
-        # Limpiar pre-avisos antiguos (solo guardar últimos 200)
-        if len(_pre_alerts_sent) > 200:
-            keys = list(_pre_alerts_sent.keys())
-            for old_key in keys[:50]:
-                del _pre_alerts_sent[old_key]
+        _pre_alerts_sent[pre_key] = time.time()
+        # Limpiar entradas expiradas (>2h) periódicamente
+        if len(_pre_alerts_sent) > 100:
+            _cleanup_pre_alerts()
 
         coin = symbol.replace('USDT', '')
         add_log_line(f"⚡ SP pre-aviso {sig['direction']} {coin}/{tf} — "

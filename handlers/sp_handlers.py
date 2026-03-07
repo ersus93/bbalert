@@ -23,10 +23,16 @@
 #  17. [CRÍTICO] Botón 🔙 Lista falla en mensajes con foto → _safe_nav()
 #  18. [MENOR]   Líneas de texto demasiado largas en bloques SSS
 #  19. [NUEVO]   Submenú de subida de estrategias de usuario
+#  — v2.2 (análisis de seguridad) —
+#  20. [CRÍTICO] Race conditions en archivos JSON → threading.Lock por path
+#  21. [CRÍTICO] Sin rate limiting → DoS flooding → Rate limiter por usuario
+#  22. [CRÍTICO] Callback data no validada → inyección → _validate_symbol/_validate_tf
+#  23. [RENDIMIENTO] DataFrame .copy() innecesario en SPSignalEngine.analyze()
 
 import asyncio
 import json
 import os
+import time
 import pandas as pd
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Document
 from telegram.ext import (
@@ -83,6 +89,34 @@ except ImportError:
     format_backtest_result = None
 
 
+# ─── RATE LIMITER ─────────────────────────────────────────────────────────────
+# Previene abuso del comando /sp y ataques DoS por flooding de callbacks.
+# Límite: MAX_CALLS llamadas dentro de WINDOW_S segundos por usuario.
+
+_rl_calls: dict[int, list[float]] = {}   # user_id -> [timestamps]
+_rl_lock = __import__('threading').Lock()
+_RL_MAX_CALLS  = 8    # max solicitudes en la ventana
+_RL_WINDOW_S   = 20   # ventana en segundos
+
+
+def _check_rate_limit(user_id: int) -> bool:
+    """
+    Devuelve True si el usuario está dentro del límite permitido.
+    Limpia timestamps caducados en cada llamada.
+    """
+    now = time.time()
+    with _rl_lock:
+        timestamps = _rl_calls.get(user_id, [])
+        # Descartar llamadas fuera de la ventana
+        timestamps = [t for t in timestamps if now - t < _RL_WINDOW_S]
+        if len(timestamps) >= _RL_MAX_CALLS:
+            _rl_calls[user_id] = timestamps
+            return False
+        timestamps.append(now)
+        _rl_calls[user_id] = timestamps
+        return True
+
+
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
 def _check_sp_access(user_id: int) -> tuple[bool, str]:
@@ -90,6 +124,25 @@ def _check_sp_access(user_id: int) -> tuple[bool, str]:
     if user_id in ADMIN_CHAT_IDS:
         return True, "Admin"
     return check_feature_access(user_id, 'sp_signals')
+
+
+def _validate_symbol(raw: str) -> str | None:
+    """
+    Valida y normaliza un símbolo de callback (e.g. 'BTCUSDT').
+    Devuelve el símbolo si es válido, None si no lo es.
+    """
+    from utils.sp_manager import SP_COINS_MAP
+    sym = raw.upper().strip()
+    return sym if sym in SP_COINS_MAP else None
+
+
+def _validate_tf(raw: str) -> str | None:
+    """
+    Valida y normaliza una temporalidad de callback (e.g. '5m').
+    Devuelve el TF si es válido, None si no lo es.
+    """
+    tf = raw.lower().strip()
+    return tf if tf in SP_TIMEFRAMES else None
 
 
 def _best_display_tf(user_id: int, symbol: str) -> str:
@@ -318,6 +371,14 @@ async def sp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     registrar_uso_comando(user_id, 'sp')
     obtener_datos_usuario_seguro(user_id)
 
+    # Rate limiting: previene flooding/DoS
+    if not _check_rate_limit(user_id) and user_id not in ADMIN_CHAT_IDS:
+        await update.message.reply_text(
+            "⏳ _Demasiadas solicitudes. Espera unos segundos._",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
     has_access, _ = _check_sp_access(user_id)
 
     if not has_access:
@@ -506,9 +567,14 @@ async def sp_coin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     try:
-        _, symbol = query.data.split("|", 1)
+        _, raw_sym = query.data.split("|", 1)
     except ValueError:
         await query.answer("❌ Error de datos.", show_alert=True)
+        return
+
+    symbol = _validate_symbol(raw_sym)
+    if not symbol:
+        await query.answer("❌ Moneda no válida.", show_alert=True)
         return
 
     await query.answer()
@@ -538,9 +604,15 @@ async def sp_toggle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     try:
-        _, symbol, tf = query.data.split("|")
+        _, raw_sym, raw_tf = query.data.split("|")
     except ValueError:
         await query.answer("❌ Error de datos.", show_alert=True)
+        return
+
+    symbol = _validate_symbol(raw_sym)
+    tf     = _validate_tf(raw_tf)
+    if not symbol or not tf:
+        await query.answer("❌ Parámetros no válidos.", show_alert=True)
         return
 
     new_state = toggle_sp_subscription(user_id, symbol, tf)
@@ -577,13 +649,18 @@ async def sp_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     try:
-        _, symbol, tf = query.data.split("|")
+        _, raw_sym, raw_tf = query.data.split("|")
     except ValueError:
         await query.answer("❌ Error de datos.", show_alert=True)
         return
 
-    if tf not in SP_TIMEFRAMES:
-        await query.answer(f"❌ Temporalidad '{tf}' no válida.", show_alert=True)
+    symbol = _validate_symbol(raw_sym)
+    tf     = _validate_tf(raw_tf)
+    if not symbol:
+        await query.answer("❌ Moneda no válida.", show_alert=True)
+        return
+    if not tf:
+        await query.answer(f"❌ Temporalidad no válida.", show_alert=True)
         return
 
     await query.answer("⏳ Analizando...")
@@ -619,9 +696,15 @@ async def sp_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     try:
-        _, symbol, tf = query.data.split("|")
+        _, raw_sym, raw_tf = query.data.split("|")
     except ValueError:
         await query.answer("❌ Error de datos.", show_alert=True)
+        return
+
+    symbol = _validate_symbol(raw_sym)
+    tf     = _validate_tf(raw_tf)
+    if not symbol or not tf:
+        await query.answer("❌ Parámetros no válidos.", show_alert=True)
         return
 
     await query.answer("⏳ Actualizando...")
