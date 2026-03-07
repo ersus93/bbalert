@@ -270,6 +270,7 @@ class SPSignalEngine:
             atr = float(atr_series.iloc[-1]) if atr_series is not None else price * 0.002
 
             # ── NIVELES ────────────────────────────────────────────────────
+            if direction == 'BUY':
                 stop_loss = price - atr * 1.5
                 target1   = price + atr * 2.0
                 target2   = price + atr * 3.5
