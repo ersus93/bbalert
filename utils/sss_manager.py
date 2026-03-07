@@ -921,78 +921,117 @@ def _bt_download_candles(symbol: str, interval: str, limit: int = 500):
 
 def _bt_analyze_signal(df_c: pd.DataFrame, price: float) -> dict:
     """
-    Motor de señales inlinado — lógica idéntica a SPSignalEngine.analyze().
-    Evita importación circular. Usa velas cerradas df_c.
+    Motor de señales inlinado — lógica IDÉNTICA a SPSignalEngine.analyze() corregido.
+    Scoring entero estilo BTCAdvancedAnalyzer para compatibilidad con min_score de estrategias.
     """
-    buy_score = sell_score = 0.0
+    buy_score = 0
+    sell_score = 0
     reasons   = []
     rsi_val   = 50.0
     has_macd_cross = False
 
     try:
-        # EMAs
-        for span in [9, 20, 50]:
+        # ── EMAs (1 punto entero por EMA) ─────────────────────────────────
+        ma_bullish = 0
+        for span in [9, 20, 50, 200]:
             ema = df_c['close'].ewm(span=span, adjust=False).mean().iloc[-1]
-            if price > ema: buy_score  += 0.5
-            else:           sell_score += 0.5
-        ema50 = df_c['close'].ewm(span=50, adjust=False).mean().iloc[-1]
-        if price > ema50: buy_score  += 0.5
-        else:             sell_score += 0.5
+            if price > ema:
+                buy_score  += 1
+                ma_bullish += 1
+            else:
+                sell_score += 1
 
-        # RSI
+        # ── RSI — CORRECCIÓN: RSI 50-70 es ALCISTA ────────────────────────
         if pta:
             rsi_s = pta.rsi(df_c['close'], length=14)
             if rsi_s is not None:
                 rsi_val = float(rsi_s.iloc[-1])
-        if rsi_val < 30:   buy_score  += 1.5; reasons.append(f"RSI sobrevendido ({rsi_val:.1f})")
-        elif rsi_val < 45: buy_score  += 0.75
-        elif rsi_val > 70: sell_score += 1.5; reasons.append(f"RSI sobrecomprado ({rsi_val:.1f})")
-        elif rsi_val > 55: sell_score += 0.75
+        if rsi_val < 30:
+            buy_score  += 1; reasons.append(f"RSI sobrevendido ({rsi_val:.1f})")
+        elif rsi_val < 50:
+            sell_score += 1          # RSI 30-50: presión bajista
+        elif rsi_val < 70:
+            buy_score  += 1          # RSI 50-70: momentum alcista activo
+        else:
+            sell_score += 1; reasons.append(f"RSI sobrecomprado ({rsi_val:.1f})")
 
-        # MACD
+        # ── MACD — tendencia: +1, cruce: +2 ──────────────────────────────
         if pta:
             macd_df = pta.macd(df_c['close'], fast=12, slow=26, signal=9)
             if macd_df is not None and len(macd_df.columns) >= 2:
                 hist = macd_df.iloc[:, 1]
                 h = float(hist.iloc[-1]); hp = float(hist.iloc[-2]) if len(hist) > 1 else 0.0
-                if h > 0 and hp <= 0:   buy_score += 2.0; reasons.append("MACD cruzó al alza"); has_macd_cross = True
-                elif h < 0 and hp >= 0: sell_score += 2.0; reasons.append("MACD cruzó a la baja"); has_macd_cross = True
-                elif h > 0: buy_score  += 0.75
-                else:       sell_score += 0.75
+                if h > 0 and hp <= 0:
+                    buy_score += 2; reasons.append("MACD cruzó al alza"); has_macd_cross = True
+                elif h < 0 and hp >= 0:
+                    sell_score += 2; reasons.append("MACD cruzó a la baja"); has_macd_cross = True
+                elif h > 0:
+                    buy_score  += 1
+                else:
+                    sell_score += 1
 
-        # Stochastic
+        # ── Awesome Oscillator ────────────────────────────────────────────
+        if pta:
+            try:
+                ao_s = pta.ao(df_c['high'], df_c['low'])
+                if ao_s is not None:
+                    ao_val = float(ao_s.iloc[-1])
+                    if ao_val > 0: buy_score  += 1
+                    else:          sell_score += 1
+            except Exception:
+                pass
+
+        # ── Stochastic ────────────────────────────────────────────────────
         if pta:
             stoch = pta.stoch(df_c['high'], df_c['low'], df_c['close'], k=14, d=3, smooth_k=3)
             if stoch is not None and len(stoch.columns) >= 2:
                 k = float(stoch.iloc[-1, 0]); d = float(stoch.iloc[-1, 1])
                 kp = float(stoch.iloc[-2, 0]) if len(stoch)>1 else k
                 dp = float(stoch.iloc[-2, 1]) if len(stoch)>1 else d
-                if k < 20 and d < 20:   buy_score  += 1.0; reasons.append(f"Estocástico sobrevendido ({k:.1f})")
-                elif k > 80 and d > 80: sell_score += 1.0; reasons.append(f"Estocástico sobrecomprado ({k:.1f})")
-                if kp <= dp and k > d and k < 50:   buy_score  += 0.75
-                elif kp >= dp and k < d and k > 50: sell_score += 0.75
+                if k < 20 and d < 20:
+                    buy_score  += 1; reasons.append(f"Estocástico sobrevendido ({k:.1f})")
+                elif k > 80 and d > 80:
+                    sell_score += 1; reasons.append(f"Estocástico sobrecomprado ({k:.1f})")
+                if kp <= dp and k > d and k < 50:   buy_score  += 1
+                elif kp >= dp and k < d and k > 50: sell_score += 1
 
-        # CCI
+        # ── CCI ───────────────────────────────────────────────────────────
         if pta:
             cci_s = pta.cci(df_c['high'], df_c['low'], df_c['close'], length=20)
             if cci_s is not None:
-                cci = float(cci_s.iloc[-1]); ccp = float(cci_s.iloc[-2]) if len(cci_s)>1 else 0
-                if cci < -100 and cci > ccp: buy_score  += 1.0; reasons.append(f"CCI rebote ({cci:.0f})")
-                elif cci > 100 and cci < ccp: sell_score += 1.0
+                cci = float(cci_s.iloc[-1])
+                if cci < -100:  buy_score  += 1; reasons.append(f"CCI rebote ({cci:.0f})")
+                elif cci > 100: sell_score += 1
 
-        # Bollinger Bands
+        # ── Bollinger Bands ───────────────────────────────────────────────
         bb_up = df_c['close'].rolling(20).mean() + 2*df_c['close'].rolling(20).std()
         bb_lo = df_c['close'].rolling(20).mean() - 2*df_c['close'].rolling(20).std()
-        if price <= float(bb_lo.iloc[-1]) * 1.005: buy_score  += 1.0; reasons.append("Banda inferior BB")
-        elif price >= float(bb_up.iloc[-1]) * 0.995: sell_score += 1.0; reasons.append("Banda superior BB")
+        if price <= float(bb_lo.iloc[-1]) * 1.005:
+            buy_score  += 1; reasons.append("Banda inferior BB")
+        elif price >= float(bb_up.iloc[-1]) * 0.995:
+            sell_score += 1; reasons.append("Banda superior BB")
 
-        # MFI
+        # ── MFI ───────────────────────────────────────────────────────────
         if pta:
             mfi = pta.mfi(df_c['high'], df_c['low'], df_c['close'], df_c['volume'], length=14)
             if mfi is not None:
                 mv = float(mfi.iloc[-1])
-                if mv < 20: buy_score  += 0.75
-                elif mv > 80: sell_score += 0.75
+                if mv < 20: buy_score  += 1
+                elif mv > 80: sell_score += 1
+
+        # ── ADX — bono por tendencia fuerte (igual que BTCAdvancedAnalyzer) ──
+        if pta:
+            try:
+                adx_df = pta.adx(df_c['high'], df_c['low'], df_c['close'], length=14)
+                if adx_df is not None:
+                    adx_val = float(adx_df.iloc[-1, 0])
+                    if adx_val > 25:
+                        if ma_bullish >= 3:
+                            buy_score  += 2; reasons.append(f"ADX fuerte ({adx_val:.1f}) confirma alza")
+                        elif ma_bullish <= 1:
+                            sell_score += 2; reasons.append(f"ADX fuerte ({adx_val:.1f}) confirma baja")
+            except Exception:
+                pass
 
     except Exception as e:
         logger.error(f"[BT] Error en _bt_analyze_signal: {e}")
@@ -1000,8 +1039,8 @@ def _bt_analyze_signal(df_c: pd.DataFrame, price: float) -> dict:
     net       = buy_score - sell_score
     score_abs = abs(net)
     direction = 'NEUTRAL'
-    if net > 0.5:    direction = 'BUY'
-    elif net < -0.5: direction = 'SELL'
+    if net >= 2:    direction = 'BUY'
+    elif net <= -2: direction = 'SELL'
 
     # ATR
     atr = price * 0.002
@@ -1071,15 +1110,38 @@ def _bt_apply_filter(strategy: dict, sig: dict, df_ext: pd.DataFrame) -> tuple[b
     Filtro de estrategia para backtest.
     Degrada graciosamente si columnas no están disponibles:
     en lugar de rechazar, omite el filtro específico.
+
+    REVERSAL FIX v2.2: Las estrategias 'reversal'/'short' operan contratendencia.
+    El motor es trend-following → cuando el mercado está oversold (lo que reversal
+    quiere comprar), el motor produce dirección SELL o score bajo en BUY.
+    Para estas estrategias la dirección se determina por RSI/Stoch extremos,
+    y el score_abs confirma que hay suficiente actividad en el mercado.
     """
     ef        = strategy.get('entry_filter', {})
+    style     = strategy.get('style', 'trend')
+    is_reversal = style in ('reversal', 'short', 'mean_reversion')
+
     direction = sig.get('direction', 'NEUTRAL')
+    rsi       = sig.get('rsi', 50)
+
+    # ── Para estrategias reversal: dirección por RSI extremo, no por el motor ─
+    if is_reversal:
+        rsi_buy_limit  = ef.get('rsi_oversold_buy', 100)
+        rsi_sell_limit = ef.get('rsi_overbought_sell', 0)
+        if rsi_buy_limit < 100 and rsi <= rsi_buy_limit:
+            direction = 'BUY'   # RSI oversold → entrada long reversal
+        elif rsi_sell_limit > 0 and rsi >= rsi_sell_limit:
+            direction = 'SELL'  # RSI overbought → entrada short reversal
+        else:
+            return False, f"RSI{rsi:.0f}_fuera_zona_reversal"
+
     if direction == 'NEUTRAL':
         return False, "NEUTRAL"
 
     is_long = direction == 'BUY'
 
     # ── Score mínimo ──────────────────────────────────────────────────────────
+    # Para reversal: score_abs confirma actividad en el mercado (sin importar dirección)
     min_score = ef.get('min_score', 4.5)
     if sig.get('score_abs', 0) < min_score:
         return False, f"score<{min_score:.1f}"
@@ -1279,7 +1341,11 @@ def run_strategy_backtest(
             logger.warning(f"[BT] analyze error bar {bar_idx}: {e}")
             continue
 
-        if sig['direction'] == 'NEUTRAL':
+        # Para estrategias reversal: no descartar NEUTRAL ni SELL cuando hay
+        # condiciones RSI extremas — _bt_apply_filter determinará la dirección.
+        style = strategy.get('style', 'trend')
+        is_reversal = style in ('reversal', 'short', 'mean_reversion')
+        if sig['direction'] == 'NEUTRAL' and not is_reversal:
             n_neutral += 1
             continue
 
@@ -1293,6 +1359,18 @@ def run_strategy_backtest(
             n_rejected += 1
             rej_counts[reason] = rej_counts.get(reason, 0) + 1
             continue
+
+        # Para reversal: la dirección puede haber sido corregida en _bt_apply_filter.
+        # Reconstruimos la señal con la dirección correcta para enrich_signal.
+        ef = strategy.get('entry_filter', {})
+        rsi = sig.get('rsi', 50)
+        if is_reversal:
+            rsi_buy  = ef.get('rsi_oversold_buy', 100)
+            rsi_sell = ef.get('rsi_overbought_sell', 0)
+            if rsi_buy < 100 and rsi <= rsi_buy:
+                sig = dict(sig); sig['direction'] = 'BUY'
+            elif rsi_sell > 0 and rsi >= rsi_sell:
+                sig = dict(sig); sig['direction'] = 'SELL'
 
         try:
             sig_e = enrich_signal(strategy, sig, df_ext)
