@@ -1466,22 +1466,42 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
         coin = symbol.replace("USDT", "")
         dir_emoji = "🟢" if direction == "BUY" else "🔴"
         
-        await query.edit_message_text(
+        trade_text = (
             f"✅ *Operación Abierta* {dir_emoji}\n"
             f"────────────────────\n\n"
             f"📡 *{coin}* ({tf}) · {direction}\n"
-            f"💰 Entrada: ${_fmt_price(entry_price)}\n"
-            f"🛡 SL: ${_fmt_price(stop_loss)}\n"
-            f"🎯 TP1: ${_fmt_price(tp1)}\n"
-            f"🎯 TP2: ${_fmt_price(tp2)}\n\n"
+            f"💰 Entrada: `${_fmt_price(entry_price)}`\n"
+            f"🛡 SL: `${_fmt_price(stop_loss)}`\n"
+            f"🎯 TP1: `${_fmt_price(tp1)}`\n"
+            f"🎯 TP2: `${_fmt_price(tp2)}`\n\n"
             f"🆔 ID: `{trade_id}`\n\n"
             f"ℹ️ Te notificaré al tocar SL o TP.\n"
-            f"Usa /sp\_ops para ver operaciones.",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Volver", callback_data=f"sp_view|{symbol}|{tf}")]
-            ])
+            f"Usa /sp\_ops para ver operaciones."
         )
+        trade_kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📋 Mis Operaciones", callback_data="sp_ops")],
+            [InlineKeyboardButton("🔙 Volver", callback_data=f"sp_view|{symbol}|{tf}")]
+        ])
+        
+        # El mensaje puede ser foto (caption) o texto — manejar ambos casos
+        try:
+            await query.edit_message_caption(
+                caption=trade_text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=trade_kb,
+            )
+        except Exception:
+            # Fallback: borrar foto y enviar mensaje de texto
+            try:
+                await query.message.delete()
+            except Exception:
+                pass
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=trade_text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=trade_kb,
+            )
     except Exception as e:
         add_log_line(f"[SP Trading] Error open_trade: {e}")
         await query.answer("❌ Error al abrir operación.", show_alert=True)
