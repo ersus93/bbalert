@@ -4,7 +4,7 @@ import asyncio
 import warnings
 from telegram.warnings import PTBUserWarning
 from telegram import Update
-from telegram.error import BadRequest
+from telegram.error import BadRequest, NetworkError, TimedOut, RetryAfter
 from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
 from telegram.constants import ParseMode
 from utils.logger import logger
@@ -354,6 +354,32 @@ def main():
     
     # 4. Asignar la función post_init
     app.post_init = post_init
+
+    # ── Error handler global ──────────────────────────────────────────────────
+    async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """
+        Captura excepciones no manejadas y las loguea limpiamente.
+        - NetworkError / TimedOut / ReadError: errores transitorios de red,
+          PTB los reintenta solo → solo un WARNING sin traceback completo.
+        - RetryAfter: flood control de Telegram → espera el tiempo indicado.
+        - Resto: log completo para debugging.
+        """
+        err = context.error
+        if isinstance(err, (NetworkError, TimedOut)):
+            # Errores de red esperados durante el polling — ignorar silenciosamente
+            logger.debug(f"🌐 Error de red transitorio (auto-retry): {err}")
+            return
+        if isinstance(err, RetryAfter):
+            logger.warning(f"⏳ Flood control: esperando {err.retry_after}s")
+            await asyncio.sleep(err.retry_after)
+            return
+        # Para cualquier otro error, loguear con contexto
+        logger.error(f"❌ Excepción no manejada: {err}", exc_info=context.error)
+        if update:
+            logger.error(f"   Update causante: {update}")
+
+    app.add_error_handler(error_handler)
+    # ─────────────────────────────────────────────────────────────────────────
     
     # 5. Iniciar el polling
     print("✅ BitBread iniciado. Esperando mensajes...")
