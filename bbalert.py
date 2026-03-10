@@ -53,6 +53,7 @@ from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 # ── SmartSignals (/sp) ────────────────────────────────────────────────────────
 from handlers.sp_handlers import sp_handlers_list
 from core.sp_loop import sp_monitor_loop, set_sp_sender
+from core.sp_trading_loop import sp_trading_monitor_loop
 
 from handlers.weather import (
     weather_command, 
@@ -135,7 +136,9 @@ async def post_init(app: Application):
     asyncio.create_task(btc_monitor_loop(app.bot))
     asyncio.create_task(valerts_monitor_loop(app.bot))
     asyncio.create_task(sp_monitor_loop(app.bot))
+    asyncio.create_task(sp_trading_monitor_loop(app.bot, add_log_line))
     logger.info("✅ Bucle SmartSignals (/sp) iniciado.")
+    logger.info("✅ Bucle Trading Monitor (/sp) iniciado.")
 
 
 def main():

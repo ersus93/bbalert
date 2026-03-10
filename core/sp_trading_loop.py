@@ -9,6 +9,7 @@ from telegram.constants import ParseMode
 from utils.sp_manager import (
     get_all_open_trades,
     update_trade_price,
+    close_trade,
     check_trade_crosses,
     _load,
     _save,
@@ -68,6 +69,7 @@ async def sp_trading_monitor_loop(bot, add_log_line):
                             if _should_notify(key, last_notify):
                                 pnl = _calc_pnl(direction, entry, trade.get("stop_loss", 0))
                                 await _notify_close(bot, user_id, trade, price, "SL", pnl, coin)
+                                close_trade(user_id, trade_id, "SL_HIT", pnl)
                                 last_notify[key] = time.time()
 
                         elif crosses.get("tp_hit") and not trade.get("tp_hit"):
@@ -78,6 +80,7 @@ async def sp_trading_monitor_loop(bot, add_log_line):
                                 pnl = _calc_pnl(direction, entry, tp_price)
                                 await _notify_close(bot, user_id, trade, price, tp, pnl, coin)
                                 _mark_tp_hit(user_id, trade_id, tp)
+                                close_trade(user_id, trade_id, "TP_HIT", pnl)
                                 last_notify[key] = time.time()
 
                         elif crosses.get("retrace") and trade.get("tp_hit"):
