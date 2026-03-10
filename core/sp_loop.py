@@ -56,10 +56,10 @@ def set_sp_sender(func):
 
 # ─── PARÁMETROS DEL BUCLE ────────────────────────────────────────────────────
 LOOP_INTERVAL_S   = 45    # Ciclo base del bucle
-MIN_SCORE_SIGNAL  = 4.5   # Puntuación mínima para emitir señal
-MIN_SCORE_STRONG  = 6.5   # Puntuación para señal "FUERTE"
+MIN_SCORE_SIGNAL  = 4     # Puntuación mínima para emitir señal (escala unificada 0-15)
+MIN_SCORE_STRONG  = 6     # Puntuación para señal FUERTE
 PRE_ALERT_SECS    = 35    # Umbral para pre-aviso (vela cierra en <N segundos)
-PRE_ALERT_MIN_SCORE = 5.5 # Score mínimo para activar pre-aviso
+PRE_ALERT_MIN_SCORE = 5   # Score mínimo para activar pre-aviso
 
 # Control de pre-avisos ya enviados (evitar spam)
 # {key: timestamp_unix} — se limpian entradas con >2h de antigüedad
@@ -145,35 +145,30 @@ class SPSignalEngine:
             sell_score = 0.0
             reasons    = []
 
-            # ── GRUPO 1: EMAs (Tendencia) ──────────────────────────────────
-            for span in [9, 20, 50]:
+            # GRUPO 1: EMAs (Tendencia) - 1pt cada uno, incluye 200
+            ma_bullish = 0
+            for span in [9, 20, 50, 200]:
                 ema_val = close_s.ewm(span=span, adjust=False).mean().iloc[-1]
                 if price > ema_val:
-                    buy_score  += 0.5
+                    buy_score  += 1
+                    ma_bullish += 1
                 else:
-                    sell_score += 0.5
-
-            # EMA 50 doble peso
-            ema50 = close_s.ewm(span=50, adjust=False).mean().iloc[-1]
-            if price > ema50:
-                buy_score += 0.5
-            else:
-                sell_score += 0.5
+                    sell_score += 1
 
             # ── GRUPO 2: RSI ───────────────────────────────────────────────
             rsi_series = ta.rsi(close_s, length=14)
             rsi = float(rsi_series.iloc[-1]) if rsi_series is not None else 50.0
 
             if rsi < 30:
-                buy_score += 1.5
+                buy_score += 1
                 reasons.append(f"RSI sobrevendido ({rsi:.1f})")
-            elif rsi < 45:
-                buy_score += 0.75
-            elif rsi > 70:
-                sell_score += 1.5
+            elif rsi < 50:
+                sell_score += 1          # RSI 30-50: presión bajista
+            elif rsi < 70:
+                buy_score += 1            # RSI 50-70: momentum alcista
+            else:
+                sell_score += 1
                 reasons.append(f"RSI sobrecomprado ({rsi:.1f})")
-            elif rsi > 55:
-                sell_score += 0.75
 
             # ── GRUPO 3: MACD ──────────────────────────────────────────────
             macd_df = ta.macd(close_s, fast=12, slow=26, signal=9)
@@ -189,9 +184,9 @@ class SPSignalEngine:
                     sell_score += 2.0
                     reasons.append("MACD cruzó a la baja")
                 elif hist_curr > 0:
-                    buy_score += 0.75
+                    buy_score += 1
                 else:
-                    sell_score += 0.75
+                    sell_score += 1
 
             # ── GRUPO 4: Stochastic ────────────────────────────────────────
             stoch = ta.stoch(high_s, low_s, close_s, k=14, d=3, smooth_k=3)
@@ -208,11 +203,11 @@ class SPSignalEngine:
                     sell_score += 1.0
                     reasons.append(f"Estocástico sobrecomprado ({k_curr:.1f})")
 
-                # Cruce de K sobre D (bullish)
+                # Cruce de K sobre D
                 if k_prev <= d_prev and k_curr > d_curr and k_curr < 50:
-                    buy_score += 0.75
+                    buy_score += 1
                 elif k_prev >= d_prev and k_curr < d_curr and k_curr > 50:
-                    sell_score += 0.75
+                    sell_score += 1
 
             # ── GRUPO 5: CCI ───────────────────────────────────────────────
             cci_series = ta.cci(high_s, low_s, close_s, length=20)
@@ -244,23 +239,46 @@ class SPSignalEngine:
             if mfi_series is not None:
                 mfi = float(mfi_series.iloc[-1])
                 if mfi < 20:
-                    buy_score += 0.75
+                    buy_score += 1
                 elif mfi > 80:
-                    sell_score += 0.75
+                    sell_score += 1
 
-            # ── CÁLCULO FINAL ──────────────────────────────────────────────
+            # GRUPO 8: Awesome Oscillator (AO)
+            ao_series = ta.ao(high_s, low_s)
+            if ao_series is not None:
+                ao_val = float(ao_series.iloc[-1])
+                if ao_val > 0:
+                    buy_score += 1
+                else:
+                    sell_score += 1
+
+            # GRUPO 9: ADX (fuerza de tendencia) - 2pts si tendencia fuerte
+            adx_df = ta.adx(high_s, low_s, close_s, length=14)
+            if adx_df is not None and len(adx_df.columns) >= 3:
+                adx_val = float(adx_df.iloc[-1, 0])
+                if adx_val > 25:
+                    if ma_bullish >= 3:
+                        buy_score += 2
+                        reasons.append(f"ADX fuerte ({adx_val:.1f}) confirma alza")
+                    elif ma_bullish <= 1:
+                        sell_score += 2
+                        reasons.append(f"ADX fuerte ({adx_val:.1f}) confirma baja")
+
+            # CÁLCULO FINAL
             net = buy_score - sell_score
             score_abs = abs(net)
 
+            # Umbrales unificados con _bt_analyze_signal
             direction = 'NEUTRAL'
-            if net > 0.5:
+            if net >= 2:
                 direction = 'BUY'
-            elif net < -0.5:
+            elif net <= -2:
                 direction = 'SELL'
 
-            if score_abs >= MIN_SCORE_STRONG:
+            # Umbrales unificados (escala 0-15 aprox)
+            if score_abs >= 6:
                 strength = 'STRONG'
-            elif score_abs >= MIN_SCORE_SIGNAL:
+            elif score_abs >= 4:
                 strength = 'MODERATE'
             else:
                 strength = 'WEAK'
@@ -317,6 +335,7 @@ class SPSignalEngine:
             'score_sell': 0, 'score_abs': 0, 'strength': 'WEAK',
             'price': price, 'stop': 0, 'target1': 0, 'target2': 0,
             'atr': 0, 'rsi': 50, 'reasons': [], 'open_time': 0,
+            'has_macd_cross': False,
         }
 
 

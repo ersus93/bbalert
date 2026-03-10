@@ -1058,7 +1058,7 @@ def _bt_analyze_signal(df_c: pd.DataFrame, price: float) -> dict:
         'score_buy':       round(buy_score, 2),
         'score_sell':      round(sell_score, 2),
         'score_abs':       round(score_abs, 2),
-        'strength':        'STRONG' if score_abs >= 6.5 else ('MODERATE' if score_abs >= 4.5 else 'WEAK'),
+        'strength':        'STRONG' if score_abs >= 6 else ('MODERATE' if score_abs >= 4 else 'WEAK'),
         'price':           round(price, 8),
         'atr':             round(atr, 8),
         'rsi':             round(rsi_val, 2),
