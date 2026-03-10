@@ -1476,7 +1476,7 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
             f"🎯 TP2: ${_fmt_price(tp2)}\n\n"
             f"🆔 ID: `{trade_id}`\n\n"
             f"ℹ️ Te notificaré al tocar SL o TP.\n"
-            f"Usa /sp_ops para ver operaciones.",
+            f"Usa /sp\_ops para ver operaciones.",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Volver", callback_data=f"sp_view|{symbol}|{tf}")]
