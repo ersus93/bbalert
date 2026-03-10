@@ -1392,12 +1392,16 @@ async def sp_strategy_document_handler(
 
 sp_handlers_list = [
     CommandHandler("sp", sp_command),
+    CommandHandler("sp_ops", sp_ops_command),
     # Navegación principal
     CallbackQueryHandler(sp_main_callback,      pattern=r"^sp_main$"),
     CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),
     CallbackQueryHandler(sp_toggle_callback,    pattern=r"^sp_toggle\|"),
     CallbackQueryHandler(sp_view_callback,      pattern=r"^sp_view\|"),
-    CallbackQueryHandler(sp_refresh_callback, sp_open_trade_callback,   pattern=r"^sp_refresh\|"),
+    CallbackQueryHandler(sp_refresh_callback, pattern=r"^sp_refresh\|"),
+    CallbackQueryHandler(sp_open_trade_callback,   pattern=r"^sp_open_trade\|"),
+    CallbackQueryHandler(sp_close_trade_callback,  pattern=r"^sp_close_trade\|"),
+    CallbackQueryHandler(sp_ops_callback,           pattern=r"^sp_ops$"),
     CallbackQueryHandler(sp_my_subs_callback,   pattern=r"^sp_my_subs$"),
     CallbackQueryHandler(sp_help_callback,      pattern=r"^sp_help$"),
     CallbackQueryHandler(sp_goto_shop_callback, pattern=r"^sp_goto_shop$"),
