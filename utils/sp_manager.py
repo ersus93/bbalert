@@ -14,6 +14,7 @@ SP_SUBS_PATH         = os.path.join(DATA_DIR, "sp_subs.json")
 SP_STATE_PATH        = os.path.join(DATA_DIR, "sp_state.json")
 SP_HIST_PATH         = os.path.join(DATA_DIR, "sp_history.json")
 SP_QUICK_NOTIFY_PATH = os.path.join(DATA_DIR, "sp_quick_notify.json")
+SP_TRADES_PATH       = os.path.join(DATA_DIR, "sp_trades.json")
 
 # ─── CONFIGURACIÓN DE MONEDAS SOPORTADAS ──────────────────────────────────────
 SP_SUPPORTED_COINS = [
@@ -304,3 +305,199 @@ def estimate_time_to_candle_close(open_time_ms: int, interval: str) -> int:
     elapsed_s = (now_ms - open_time_ms) / 1000
     remaining = interval_s - elapsed_s
     return max(0, int(remaining))
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OPERACIONES DE TRADING (SP TRADING)
+# Sistema de seguimiento de operaciones abiertas con SL/TP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def open_trade(
+    user_id: int,
+    symbol: str,
+    timeframe: str,
+    direction: str,
+    entry_price: float,
+    stop_loss: float,
+    tp1: float,
+    tp2: float,
+    tp3: float,
+    tp1_pct: int = 50,
+    tp2_pct: int = 30,
+    tp3_pct: int = 20,
+) -> str:
+    """Abre una nueva operación de trading. Devuelve el trade_id."""
+    import uuid
+    trades = _load(SP_TRADES_PATH)
+    uid = str(user_id)
+    
+    if uid not in trades:
+        trades[uid] = []
+    
+    trade_id = str(uuid.uuid4())[:8]
+    now = int(time.time())
+    
+    trade = {
+        "trade_id": trade_id,
+        "symbol": symbol,
+        "timeframe": timeframe,
+        "direction": direction,
+        "entry_price": entry_price,
+        "stop_loss": stop_loss,
+        "tp1": tp1,
+        "tp2": tp2,
+        "tp3": tp3,
+        "tp1_pct": tp1_pct,
+        "tp2_pct": tp2_pct,
+        "tp3_pct": tp3_pct,
+        "opened_at": now,
+        "opened_ts": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "status": "OPEN",
+        "close_reason": None,
+        "closed_at": None,
+        "pnl_pct": 0,
+        "current_price": entry_price,
+        "tp_hit": None,
+        "highest_price": entry_price,
+        "lowest_price": entry_price,
+    }
+    
+    trades[uid].append(trade)
+    _save(SP_TRADES_PATH, trades)
+    return trade_id
+
+
+def get_user_trades(user_id: int, status: str = None) -> list:
+    """Devuelve las operaciones del usuario. Si status es None, todas."""
+    trades = _load(SP_TRADES_PATH)
+    uid = str(user_id)
+    if uid not in trades:
+        return []
+    if status is None:
+        return trades[uid]
+    return [t for t in trades[uid] if t.get("status") == status]
+
+
+def get_open_trades(user_id: int) -> list:
+    """Devuelve solo operaciones abiertas."""
+    return get_user_trades(user_id, "OPEN")
+
+
+def get_trade_by_id(user_id: int, trade_id: str) -> dict | None:
+    """Devuelve una operación específica por su ID."""
+    trades = get_user_trades(user_id)
+    for t in trades:
+        if t.get("trade_id") == trade_id:
+            return t
+    return None
+
+
+def update_trade_price(user_id: int, trade_id: str, current_price: float) -> dict | None:
+    """Actualiza el precio actual de una operación."""
+    trades = _load(SP_TRADES_PATH)
+    uid = str(user_id)
+    
+    if uid not in trades:
+        return None
+    
+    for t in trades[uid]:
+        if t.get("trade_id") == trade_id and t.get("status") == "OPEN":
+            t["current_price"] = current_price
+            if current_price > t.get("highest_price", 0):
+                t["highest_price"] = current_price
+            if current_price < t.get("lowest_price", float("inf")):
+                t["lowest_price"] = current_price
+            _save(SP_TRADES_PATH, trades)
+            return t
+    return None
+
+
+def close_trade(
+    user_id: int,
+    trade_id: str,
+    reason: str,
+    pnl_pct: float = 0,
+) -> dict | None:
+    """Cierra una operación. reason: SL_HIT, TP_HIT, MANUAL, TP_RETRACE."""
+    trades = _load(SP_TRADES_PATH)
+    uid = str(user_id)
+    now = int(time.time())
+    
+    if uid not in trades:
+        return None
+    
+    for t in trades[uid]:
+        if t.get("trade_id") == trade_id:
+            t["status"] = "CLOSED"
+            t["close_reason"] = reason
+            t["closed_at"] = now
+            t["closed_ts"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            t["pnl_pct"] = pnl_pct
+            _save(SP_TRADES_PATH, trades)
+            return t
+    return None
+
+
+def delete_trade(user_id: int, trade_id: str) -> bool:
+    """Elimina una operación (solo si está cerrada)."""
+    trades = _load(SP_TRADES_PATH)
+    uid = str(user_id)
+    if uid not in trades:
+        return False
+    trades[uid] = [t for t in trades[uid] if t.get("trade_id") != trade_id]
+    _save(SP_TRADES_PATH, trades)
+    return True
+
+
+def check_trade_crosses(trade: dict, current_price: float) -> dict:
+    """Verifica si el precio actual ha cruzado SL o algún TP."""
+    direction = trade.get("direction", "BUY")
+    sl = trade.get("stop_loss", 0)
+    tp1 = trade.get("tp1", 0)
+    tp2 = trade.get("tp2", 0)
+    tp3 = trade.get("tp3", 0)
+    entry = trade.get("entry_price", 0)
+    
+    result = {"sl_hit": False, "tp_hit": None, "retrace": False, "all_tp_hit": False}
+    
+    if direction == "BUY":
+        if sl > 0 and current_price <= sl:
+            result["sl_hit"] = True
+        if tp3 > 0 and current_price >= tp3:
+            result["tp_hit"] = "TP3"
+            result["all_tp_hit"] = True
+        elif tp2 > 0 and current_price >= tp2:
+            result["tp_hit"] = "TP2"
+        elif tp1 > 0 and current_price >= tp1:
+            result["tp_hit"] = "TP1"
+        if entry > 0 and current_price <= entry:
+            result["retrace"] = True
+    else:  # SELL
+        if sl > 0 and current_price >= sl:
+            result["sl_hit"] = True
+        if tp3 > 0 and current_price <= tp3:
+            result["tp_hit"] = "TP3"
+            result["all_tp_hit"] = True
+        elif tp2 > 0 and current_price <= tp2:
+            result["tp_hit"] = "TP2"
+        elif tp1 > 0 and current_price <= tp1:
+            result["tp_hit"] = "TP1"
+        if entry > 0 and current_price >= entry:
+            result["retrace"] = True
+    
+    return result
+
+
+def get_all_open_trades() -> list:
+    """Devuelve todas las operaciones abiertas de todos los usuarios."""
+    trades = _load(SP_TRADES_PATH)
+    result = []
+    for uid, user_trades in trades.items():
+        for t in user_trades:
+            if t.get("status") == "OPEN":
+                result.append((int(uid), t))
+    return result
+
+
+def count_user_open_trades(user_id: int) -> int:
+    """Cuenta las operaciones abiertas del usuario."""
+    return len(get_open_trades(user_id))

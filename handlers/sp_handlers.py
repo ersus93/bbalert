@@ -264,22 +264,31 @@ def _get_coin_keyboard(user_id: int, symbol: str, current_tf: str = "5m") -> Inl
     return InlineKeyboardMarkup(keyboard)
 
 
-def _get_view_keyboard(user_id: int, symbol: str, tf: str) -> InlineKeyboardMarkup:
+def _get_view_keyboard(user_id: int, symbol: str, tf: str, direction: str = None) -> InlineKeyboardMarkup:
     """Teclado adjunto a la vista de señal (caption de foto)."""
     is_sub    = is_sp_subscribed(user_id, symbol, tf)
     sub_label = "🔕 Desactivar" if is_sub else "🔔 Activar alertas"
     coin      = symbol.replace('USDT', '')
 
-    return InlineKeyboardMarkup([
+    keyboard = [
         [
             InlineKeyboardButton(sub_label,       callback_data=f"sp_toggle|{symbol}|{tf}"),
             InlineKeyboardButton("🔄 Refrescar",  callback_data=f"sp_refresh|{symbol}|{tf}"),
         ],
-        [
-            InlineKeyboardButton("📊 Ver en TA",  callback_data=f"ta_switch|BINANCE|{coin}|USDT|{tf}"),
-            InlineKeyboardButton("🔙 Monedas",    callback_data=f"sp_coin|{symbol}"),
-        ],
+    ]
+    
+    # Botón ABRIR operación si hay señal válida
+    if direction in ('BUY', 'SELL'):
+        keyboard.append([
+            InlineKeyboardButton("🚀 Abrir Operación", callback_data=f"sp_open_trade|{symbol}|{tf}"),
+        ])
+    
+    keyboard.append([
+        InlineKeyboardButton("📊 Ver en TA",  callback_data=f"ta_switch|BINANCE|{coin}|USDT|{tf}"),
+        InlineKeyboardButton("🔙 Monedas",    callback_data=f"sp_coin|{symbol}"),
     ])
+    
+    return InlineKeyboardMarkup(keyboard)
 
 
 # ─── TEXTOS ───────────────────────────────────────────────────────────────────
@@ -487,7 +496,7 @@ async def _show_signal_view(
         )
 
         msg_text = build_signal_message(symbol, tf, sig) + strat_block
-        keyboard = _get_view_keyboard(user_id, symbol, tf)
+        keyboard = _get_view_keyboard(user_id, symbol, tf, sig.get('direction'))
 
         # Fix #10: límite de caption Telegram
         if chart_buf and len(msg_text) > 1024:
@@ -1388,7 +1397,7 @@ sp_handlers_list = [
     CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),
     CallbackQueryHandler(sp_toggle_callback,    pattern=r"^sp_toggle\|"),
     CallbackQueryHandler(sp_view_callback,      pattern=r"^sp_view\|"),
-    CallbackQueryHandler(sp_refresh_callback,   pattern=r"^sp_refresh\|"),
+    CallbackQueryHandler(sp_refresh_callback, sp_open_trade_callback,   pattern=r"^sp_refresh\|"),
     CallbackQueryHandler(sp_my_subs_callback,   pattern=r"^sp_my_subs$"),
     CallbackQueryHandler(sp_help_callback,      pattern=r"^sp_help$"),
     CallbackQueryHandler(sp_goto_shop_callback, pattern=r"^sp_goto_shop$"),
@@ -1405,3 +1414,237 @@ sp_handlers_list = [
         sp_strategy_document_handler
     ),
 ]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SP TRADING - OPERACIONES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Abre una operación desde el botón de señal."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("⚠️ Necesitas SmartSignals Pro.", show_alert=True)
+        return
+    
+    try:
+        _, raw_sym, raw_tf = query.data.split("|")
+    except ValueError:
+        await query.answer("❌ Error de datos.", show_alert=True)
+        return
+    
+    symbol = _validate_symbol(raw_sym)
+    tf = _validate_tf(raw_tf)
+    if not symbol or not tf:
+        await query.answer("❌ Parámetros no válidos.", show_alert=True)
+        return
+    
+    open_count = count_user_open_trades(user_id)
+    if open_count >= 5:
+        await query.answer("⚠️ Máximo 5 operaciones abiertas.", show_alert=True)
+        return
+    
+    await query.answer("⏳ Abriendo operación...")
+    
+    try:
+        loop = asyncio.get_running_loop()
+        df = await loop.run_in_executor(None, _get_klines, symbol, tf, 120)
+        if df is None or len(df) < 30:
+            await query.answer("❌ Sin datos suficientes.", show_alert=True)
+            return
+        
+        engine = SPSignalEngine()
+        sig = engine.analyze(df)
+        
+        direction = sig.get("direction")
+        if direction not in ("BUY", "SELL"):
+            await query.answer("❌ No hay señal válida.", show_alert=True)
+            return
+        
+        entry_price = sig.get("price", 0)
+        stop_loss = sig.get("stop", 0)
+        tp1 = sig.get("target1", 0)
+        tp2 = sig.get("target2", 0)
+        
+        trade_id = open_trade(
+            user_id=user_id,
+            symbol=symbol,
+            timeframe=tf,
+            direction=direction,
+            entry_price=entry_price,
+            stop_loss=stop_loss,
+            tp1=tp1,
+            tp2=tp2,
+            tp3=0,
+            tp1_pct=50,
+            tp2_pct=30,
+            tp3_pct=20,
+        )
+        
+        coin = symbol.replace("USDT", "")
+        dir_emoji = "🟢" if direction == "BUY" else "🔴"
+        
+        await query.edit_message_text(
+            f"✅ *Operación Abierta* {dir_emoji}\n"
+            f"────────────────────\n\n"
+            f"📡 *{coin}* ({tf}) · {direction}\n"
+            f"💰 Entrada: ${_fmt_price(entry_price)}\n"
+            f"🛡 SL: ${_fmt_price(stop_loss)}\n"
+            f"🎯 TP1: ${_fmt_price(tp1)}\n"
+            f"🎯 TP2: ${_fmt_price(tp2)}\n\n"
+            f"🆔 ID: `{trade_id}`\n\n"
+            f"ℹ️ Te notificaré al tocar SL o TP.\n"
+            f"Usa /sp_ops para ver operaciones.",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Volver", callback_data=f"sp_view|{symbol}|{tf}")]
+            ])
+        )
+    except Exception as e:
+        add_log_line(f"[SP Trading] Error open_trade: {e}")
+        await query.answer("❌ Error al abrir operación.", show_alert=True)
+
+
+async def sp_close_trade_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Cierra una operación manualmente."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("⚠️ Necesitas SmartSignals Pro.", show_alert=True)
+        return
+    
+    try:
+        _, trade_id = query.data.split("|", 1)
+    except ValueError:
+        await query.answer("❌ Error de datos.", show_alert=True)
+        return
+    
+    trade = get_trade_by_id(user_id, trade_id)
+    if not trade:
+        await query.answer("❌ Operación no encontrada.", show_alert=True)
+        return
+    
+    if trade.get("status") != "OPEN":
+        await query.answer("⚠️ La operación ya está cerrada.", show_alert=True)
+        return
+    
+    entry = trade.get("entry_price", 0)
+    current = trade.get("current_price", entry)
+    direction = trade.get("direction", "BUY")
+    
+    if direction == "BUY" and entry > 0:
+        pnl = ((current - entry) / entry) * 100
+    elif direction == "SELL" and entry > 0:
+        pnl = ((entry - current) / entry) * 100
+    else:
+        pnl = 0
+    
+    close_trade(user_id, trade_id, "MANUAL", pnl)
+    
+    coin = trade.get("symbol", "").replace("USDT", "")
+    pnl_emoji = "🟢" if pnl >= 0 else "🔴"
+    
+    await query.answer()
+    await query.edit_message_text(
+        f"✅ *Operación Cerrada* {pnl_emoji}\n"
+        f"────────────────────\n\n"
+        f"📡 {coin} · {trade.get('direction')}\n"
+        f"💰 Entry: ${_fmt_price(entry)} → Exit: ${_fmt_price(current)}\n"
+        f"PnL: {pnl_emoji} {pnl:+.2f}%\n\n"
+        f"Razón: *Cierre manual*",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Mis Operaciones", callback_data="sp_ops")]
+        ])
+    )
+
+
+async def sp_ops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Comando /sp_ops - Lista de operaciones."""
+    user_id = update.effective_user.id
+    registrar_uso_comando(user_id, "sp_ops")
+    
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await update.message.reply_text(
+            _build_preview_text(),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🛒 Ir a la Tienda", callback_data="sp_goto_shop"),
+            ]])
+        )
+        return
+    
+    open_trades = get_open_trades(user_id)
+    
+    if not open_trades:
+        await update.message.reply_text(
+            "📡 *SmartSignals — Operaciones*\n"
+            "────────────────────\n\n"
+            "No tienes operaciones abiertas.\n\n"
+            "Usa /sp para ver señales y abrir operaciones.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    lines = []
+    keyboard = []
+    
+    for t in open_trades:
+        coin = t.get("symbol", "").replace("USDT", "")
+        direction = t.get("direction", "?")
+        entry = t.get("entry_price", 0)
+        current = t.get("current_price", entry)
+        sl = t.get("stop_loss", 0)
+        tp1 = t.get("tp1", 0)
+        tp2 = t.get("tp2", 0)
+        
+        dir_emoji = "🟢" if direction == "BUY" else "🔴"
+        
+        if direction == "BUY" and entry > 0 and sl > 0:
+            dist_sl = ((entry - sl) / entry) * 100
+            dist_tp1 = ((tp1 - entry) / entry) * 100 if tp1 > 0 else 0
+        elif direction == "SELL" and entry > 0 and sl > 0:
+            dist_sl = ((sl - entry) / entry) * 100
+            dist_tp1 = ((entry - tp1) / entry) * 100 if tp1 > 0 else 0
+        else:
+            dist_sl = dist_tp1 = 0
+        
+        lines.append(
+            f"{dir_emoji} *{coin}* `{direction}`\n"
+            f"   Entry: ${_fmt_price(entry)} | Curr: ${_fmt_price(current)}\n"
+            f"   🛡 SL: ${_fmt_price(sl)} ({dist_sl:.1f}%)\n"
+            f"   🎯 TP1: ${_fmt_price(tp1)} (+{dist_tp1:.1f}%)"
+        )
+        
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🔒 Cerrar {coin}",
+                callback_data=f"sp_close_trade|{t.get('trade_id')}"
+            )
+        ])
+    
+    total = len(open_trades)
+    msg = (
+        f"📡 *SmartSignals — Operaciones*\n"
+        f"────────────────────\n\n"
+        f"Tienes *{total}* operación(es) abierta(s):\n\n"
+        + "\n\n".join(lines) +
+        "\n\n────────────────────\n"
+        "ℹ️ Te notifico cuando el precio toque SL o TP."
+    )
+    
+    await update.message.reply_text(
+        msg,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=InlineKeyboardMarkup(keyboard + [[InlineKeyboardButton("🔙 Menú Principal", callback_data="sp_main")]])
+    )
+
+
+async def sp_ops_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Callback para actualizar lista de operaciones."""
+    query = update.callb
