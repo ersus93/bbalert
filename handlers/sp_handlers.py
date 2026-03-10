@@ -1390,36 +1390,6 @@ async def sp_strategy_document_handler(
 
 # ─── REGISTRO DE HANDLERS ─────────────────────────────────────────────────────
 
-sp_handlers_list = [
-    CommandHandler("sp", sp_command),
-    CommandHandler("sp_ops", sp_ops_command),
-    # Navegación principal
-    CallbackQueryHandler(sp_main_callback,      pattern=r"^sp_main$"),
-    CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),
-    CallbackQueryHandler(sp_toggle_callback,    pattern=r"^sp_toggle\|"),
-    CallbackQueryHandler(sp_view_callback,      pattern=r"^sp_view\|"),
-    CallbackQueryHandler(sp_refresh_callback, pattern=r"^sp_refresh\|"),
-    CallbackQueryHandler(sp_open_trade_callback,   pattern=r"^sp_open_trade\|"),
-    CallbackQueryHandler(sp_close_trade_callback,  pattern=r"^sp_close_trade\|"),
-    CallbackQueryHandler(sp_ops_callback,           pattern=r"^sp_ops$"),
-    CallbackQueryHandler(sp_my_subs_callback,   pattern=r"^sp_my_subs$"),
-    CallbackQueryHandler(sp_help_callback,      pattern=r"^sp_help$"),
-    CallbackQueryHandler(sp_goto_shop_callback, pattern=r"^sp_goto_shop$"),
-    # SSS — Estrategias
-    CallbackQueryHandler(sp_strategies_callback,       pattern=r"^sp_strategies$"),
-    CallbackQueryHandler(sp_strat_detail_callback,     pattern=r"^sp_strat_detail\|"),
-    CallbackQueryHandler(sp_strat_activate_callback,   pattern=r"^sp_strat_activate\|"),
-    CallbackQueryHandler(sp_strat_deactivate_callback, pattern=r"^sp_strat_deactivate$"),
-    CallbackQueryHandler(sp_strat_test_callback,       pattern=r"^sp_strat_test\|"),
-    CallbackQueryHandler(sp_strat_upload_callback,     pattern=r"^sp_strat_upload$"),
-    # SSS — Subida de estrategias de usuario (documentos JSON)
-    MessageHandler(
-        filters.Document.MimeType("application/json") | filters.Document.FileExtension("json"),
-        sp_strategy_document_handler
-    ),
-]
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # SP TRADING - OPERACIONES
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1652,3 +1622,35 @@ async def sp_ops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def sp_ops_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Callback para actualizar lista de operaciones."""
     query = update.callb
+
+
+sp_handlers_list = [
+    CommandHandler("sp", sp_command),
+    CommandHandler("sp_ops", sp_ops_command),
+    # Navegación principal
+    CallbackQueryHandler(sp_main_callback,      pattern=r"^sp_main$"),
+    CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),
+    CallbackQueryHandler(sp_toggle_callback,    pattern=r"^sp_toggle\|"),
+    CallbackQueryHandler(sp_view_callback,      pattern=r"^sp_view\|"),
+    CallbackQueryHandler(sp_refresh_callback, pattern=r"^sp_refresh\|"),
+    CallbackQueryHandler(sp_open_trade_callback,   pattern=r"^sp_open_trade\|"),
+    CallbackQueryHandler(sp_close_trade_callback,  pattern=r"^sp_close_trade\|"),
+    CallbackQueryHandler(sp_ops_callback,           pattern=r"^sp_ops$"),
+    CallbackQueryHandler(sp_my_subs_callback,   pattern=r"^sp_my_subs$"),
+    CallbackQueryHandler(sp_help_callback,      pattern=r"^sp_help$"),
+    CallbackQueryHandler(sp_goto_shop_callback, pattern=r"^sp_goto_shop$"),
+    # SSS — Estrategias
+    CallbackQueryHandler(sp_strategies_callback,       pattern=r"^sp_strategies$"),
+    CallbackQueryHandler(sp_strat_detail_callback,     pattern=r"^sp_strat_detail\|"),
+    CallbackQueryHandler(sp_strat_activate_callback,   pattern=r"^sp_strat_activate\|"),
+    CallbackQueryHandler(sp_strat_deactivate_callback, pattern=r"^sp_strat_deactivate$"),
+    CallbackQueryHandler(sp_strat_test_callback,       pattern=r"^sp_strat_test\|"),
+    CallbackQueryHandler(sp_strat_upload_callback,     pattern=r"^sp_strat_upload$"),
+    # SSS — Subida de estrategias de usuario (documentos JSON)
+    MessageHandler(
+        filters.Document.MimeType("application/json") | filters.Document.FileExtension("json"),
+        sp_strategy_document_handler
+    ),
+]
+
+# ═══════════════════════════════════════════════════════════════════════════════
