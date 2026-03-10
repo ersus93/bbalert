@@ -60,6 +60,12 @@ from utils.sp_manager import (
     get_coin_info,
     estimate_time_to_candle_close,
     queue_quick_notify,
+    # SP Trading
+    open_trade,
+    get_open_trades,
+    get_trade_by_id,
+    close_trade,
+    count_user_open_trades,
 )
 from utils.sp_chart import generate_sp_chart
 from core.sp_loop import SPSignalEngine, _get_klines, build_signal_message, _fmt_price
@@ -1620,8 +1626,87 @@ async def sp_ops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def sp_ops_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Callback para actualizar lista de operaciones."""
-    query = update.callb
+    """Callback para actualizar lista de operaciones (inline desde menú)."""
+    query = update.callback_query
+    user_id = query.from_user.id
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("❌ Sin acceso.", show_alert=True)
+        return
+
+    await query.answer()
+
+    open_trades = get_open_trades(user_id)
+
+    if not open_trades:
+        await _safe_nav(
+            query,
+            "📡 *SmartSignals — Operaciones*\n"
+            "────────────────────\n\n"
+            "No tienes operaciones abiertas.\n\n"
+            "_Usa /sp para ver señales y abrir operaciones._",
+            InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔙 Menú Principal", callback_data="sp_main")
+            ]])
+        )
+        return
+
+    lines = []
+    keyboard = []
+
+    for t in open_trades:
+        coin = t.get("symbol", "").replace("USDT", "")
+        direction = t.get("direction", "?")
+        entry = t.get("entry_price", 0)
+        current = t.get("current_price", entry)
+        sl = t.get("stop_loss", 0)
+        tp1 = t.get("tp1", 0)
+        tp_hit = t.get("tp_hit", None)
+        dir_emoji = "🟢" if direction == "BUY" else "🔴"
+        tp_badge = f" ✅{tp_hit}" if tp_hit else ""
+
+        if direction == "BUY" and entry > 0:
+            dist_sl = ((entry - sl) / entry) * 100 if sl > 0 else 0
+            dist_tp1 = ((tp1 - entry) / entry) * 100 if tp1 > 0 else 0
+            pnl = ((current - entry) / entry) * 100
+        elif direction == "SELL" and entry > 0:
+            dist_sl = ((sl - entry) / entry) * 100 if sl > 0 else 0
+            dist_tp1 = ((entry - tp1) / entry) * 100 if tp1 > 0 else 0
+            pnl = ((entry - current) / entry) * 100
+        else:
+            dist_sl = dist_tp1 = pnl = 0
+
+        pnl_str = f"+{pnl:.2f}%" if pnl >= 0 else f"{pnl:.2f}%"
+        pnl_icon = "🟢" if pnl >= 0 else "🔴"
+
+        lines.append(
+            f"{dir_emoji} *{coin}* `{direction}`{tp_badge}\n"
+            f"   Entry: `${_fmt_price(entry)}` | Actual: `${_fmt_price(current)}`\n"
+            f"   PnL: {pnl_icon} `{pnl_str}` | SL: `${_fmt_price(sl)}` ({dist_sl:.1f}%)\n"
+            f"   🎯 TP1: `${_fmt_price(tp1)}` (+{dist_tp1:.1f}%)"
+        )
+        keyboard.append([InlineKeyboardButton(
+            f"🔒 Cerrar {coin} ({pnl_str})",
+            callback_data=f"sp_close_trade|{t.get('trade_id')}"
+        )])
+
+    total = len(open_trades)
+    msg = (
+        f"📡 *SmartSignals — Operaciones Abiertas*\n"
+        f"────────────────────\n\n"
+        f"Tienes *{total}* operación(es):\n\n"
+        + "\n\n".join(lines) +
+        "\n\n────────────────────\n"
+        "_Toca Cerrar para salir manualmente._"
+    )
+
+    await _safe_nav(
+        query, msg,
+        InlineKeyboardMarkup(keyboard + [[
+            InlineKeyboardButton("🔙 Menú Principal", callback_data="sp_main")
+        ]])
+    )
 
 
 sp_handlers_list = [

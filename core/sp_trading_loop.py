@@ -1,9 +1,17 @@
 # core/sp_trading_loop.py
 # Loop de monitoreo de operaciones de trading
+#
+# Lógica de cierre:
+#   SL hit       → cierra inmediatamente
+#   TP1/TP2 hit  → marca tp_hit, NO cierra (permite trailing)
+#   TP3 hit      → cierra con all_tp_hit
+#   Retrace      → notifica (precio regresa a entry tras TP1/TP2)
+#   Manual       → cierre por usuario vía /sp_ops
 
 import asyncio
 import time
 import requests
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 
 from utils.sp_manager import (
@@ -65,25 +73,37 @@ async def sp_trading_monitor_loop(bot, add_log_line):
                         coin = sym.replace("USDT", "")
 
                         if crosses.get("sl_hit"):
+                            # SL tocado: cierra inmediatamente
                             key = trade_id + ":SL"
                             if _should_notify(key, last_notify):
                                 pnl = _calc_pnl(direction, entry, trade.get("stop_loss", 0))
-                                await _notify_close(bot, user_id, trade, price, "SL", pnl, coin)
                                 close_trade(user_id, trade_id, "SL_HIT", pnl)
+                                await _notify_close(bot, user_id, trade, price, "SL", pnl, coin)
                                 last_notify[key] = time.time()
 
-                        elif crosses.get("tp_hit") and not trade.get("tp_hit"):
-                            tp = crosses.get("tp_hit")
+                        elif crosses.get("all_tp_hit"):
+                            # TP3 tocado: cierra con ganancia máxima
+                            key = trade_id + ":TP3"
+                            if _should_notify(key, last_notify):
+                                tp_price = trade.get("tp3", 0) or price
+                                pnl = _calc_pnl(direction, entry, tp_price)
+                                close_trade(user_id, trade_id, "TP3_HIT", pnl)
+                                await _notify_close(bot, user_id, trade, price, "TP3 ★", pnl, coin)
+                                last_notify[key] = time.time()
+
+                        elif crosses.get("tp_hit") and crosses["tp_hit"] != trade.get("tp_hit"):
+                            # TP1 o TP2 tocado: marca pero NO cierra (trailing)
+                            tp = crosses["tp_hit"]
                             key = trade_id + ":" + tp
                             if _should_notify(key, last_notify):
                                 tp_price = trade.get(tp.lower(), 0)
                                 pnl = _calc_pnl(direction, entry, tp_price)
-                                await _notify_close(bot, user_id, trade, price, tp, pnl, coin)
                                 _mark_tp_hit(user_id, trade_id, tp)
-                                close_trade(user_id, trade_id, "TP_HIT", pnl)
+                                await _notify_tp_partial(bot, user_id, trade, price, tp, pnl, coin)
                                 last_notify[key] = time.time()
 
                         elif crosses.get("retrace") and trade.get("tp_hit"):
+                            # Retrace a entrada tras haber tocado TP parcial
                             key = trade_id + ":RETRACE"
                             if _should_notify(key, last_notify):
                                 await _notify_retrace(bot, user_id, trade, price, coin)
@@ -113,35 +133,95 @@ def _calc_pnl(direction, entry, exit_price):
 
 
 async def _notify_close(bot, user_id, trade, price, reason, pnl, coin):
+    """Notificación de cierre de operación (SL o TP3)."""
     direction = trade.get("direction", "BUY")
     entry = trade.get("entry_price", 0)
-    pnl_str = "+%.2f" % pnl if pnl >= 0 else "%.2f" % pnl
-    msg = "OPERACION CERRADA (" + pnl_str + "%)" + chr(10)
-    msg = msg + "-------------------------" + chr(10) + chr(10)
-    msg = msg + coin + " | " + direction + chr(10)
-    msg = msg + "Entry: $%.4f | Exit: $%.4f" % (entry, price) + chr(10)
-    msg = msg + "Razon: " + reason + chr(10)
-    msg = msg + "PnL: " + pnl_str + "%" + chr(10) + chr(10)
-    msg = msg + "Usa /sp_ops para mas operaciones."
+    tf = trade.get("timeframe", "")
+    pnl_str = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
+    pnl_icon = "✅" if pnl >= 0 else "🚨"
+    dir_emoji = "🟢" if direction == "BUY" else "🔴"
+    msg = (
+        f"{pnl_icon} *Operación Cerrada*\n"
+        f"────────────────────\n\n"
+        f"{dir_emoji} *{coin}* `{direction}` ({tf})\n"
+        f"💰 Entry: `${entry:.4f}` → Exit: `${price:.4f}`\n"
+        f"🔵 Razón: *{reason}*\n"
+        f"PnL: *{pnl_str}%*\n\n"
+        f"_Usa /sp\_ops para ver operaciones._"
+    )
     try:
-        await bot.send_message(chat_id=user_id, text=msg, parse_mode=ParseMode.MARKDOWN)
-    except:
+        await bot.send_message(
+            chat_id=user_id, text=msg, parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception:
         pass
 
 
-async def _notify_retrace(bot, user_id, trade, price, coin):
+async def _notify_tp_partial(bot, user_id, trade, price, tp, pnl, coin):
+    """Notificación de TP1/TP2 alcanzado (la operación sigue abierta)."""
     direction = trade.get("direction", "BUY")
     entry = trade.get("entry_price", 0)
-    tp_hit = trade.get("tp_hit", "?")
-    msg = "ALERTA: Se toco " + tp_hit + " y retraceo" + chr(10)
-    msg = msg + "-------------------------" + chr(10) + chr(10)
-    msg = msg + coin + " | " + direction + chr(10)
-    msg = msg + "Entry: $%.4f | Actual: $%.4f" % (entry, price) + chr(10) + chr(10)
-    msg = msg + "Cerrar operacion?" + chr(10)
-    msg = msg + "Usa /sp_ops para decidir."
+    tf = trade.get("timeframe", "")
+    trade_id = trade.get("trade_id", "")
+    pnl_str = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
+    dir_emoji = "🟢" if direction == "BUY" else "🔴"
+    msg = (
+        f"🎯 *{tp} Alcanzado!*\n"
+        f"────────────────────\n\n"
+        f"{dir_emoji} *{coin}* `{direction}` ({tf})\n"
+        f"💰 Entry: `${entry:.4f}` | Precio: `${price:.4f}`\n"
+        f"Parcial: *{pnl_str}%*\n\n"
+        f"La operación *sigue abierta* esperando {_next_tp(tp)}.\n"
+        f"Cierra ahora si quieres asegurar ganancias."
+    )
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            f"🔒 Cerrar {coin} ahora",
+            callback_data=f"sp_close_trade|{trade_id}"
+        )
+    ]])
     try:
-        await bot.send_message(chat_id=user_id, text=msg, parse_mode=ParseMode.MARKDOWN)
-    except:
+        await bot.send_message(
+            chat_id=user_id, text=msg,
+            parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
+        )
+    except Exception:
+        pass
+
+
+def _next_tp(tp: str) -> str:
+    """Devuelve el siguiente objetivo tras el TP actual."""
+    return {"TP1": "TP2", "TP2": "TP3"}.get(tp, "TP3")
+
+
+async def _notify_retrace(bot, user_id, trade, price, coin):
+    """Notificación de retroceso al precio de entrada tras TP parcial."""
+    direction = trade.get("direction", "BUY")
+    entry = trade.get("entry_price", 0)
+    tf = trade.get("timeframe", "")
+    tp_hit = trade.get("tp_hit", "?")
+    trade_id = trade.get("trade_id", "")
+    dir_emoji = "🟢" if direction == "BUY" else "🔴"
+    msg = (
+        f"⚠️ *Retroceso a entrada tras {tp_hit}*\n"
+        f"────────────────────\n\n"
+        f"{dir_emoji} *{coin}* `{direction}` ({tf})\n"
+        f"💰 Entry: `${entry:.4f}` | Actual: `${price:.4f}`\n\n"
+        f"El precio regresó al punto de entrada después de tocar *{tp_hit}*.\n"
+        f"Cierra ahora para proteger las ganancias parciales."
+    )
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            f"🔒 Cerrar {coin} (proteger ganancias)",
+            callback_data=f"sp_close_trade|{trade_id}"
+        )
+    ]])
+    try:
+        await bot.send_message(
+            chat_id=user_id, text=msg,
+            parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
+        )
+    except Exception:
         pass
 
 
