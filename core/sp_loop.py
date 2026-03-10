@@ -405,7 +405,7 @@ def build_signal_message(symbol: str, tf: str, sig: dict) -> str:
 
     msg = (
         f"📡 *SmartSignals — {coin}* (`{tf}`)\n"
-        f"————————————————————\n\n"
+        f"—————————————————\n\n"
         f"{dir_emoji} *{dir_text}*\n"
         f"⚡ *Fuerza:* {strength_text}\n"
         f"📊 {score_label}\n\n"
@@ -430,7 +430,7 @@ def build_signal_message(symbol: str, tf: str, sig: dict) -> str:
 
     msg += ttc_text
     msg += (
-        f"————————————————————\n"
+        f"—————————————————\n"
         f"💡 _Señal informativa. Evalúa siempre el contexto._"
     )
     return msg
@@ -447,7 +447,7 @@ def build_pre_alert_message(symbol: str, tf: str, sig: dict) -> str:
 
     return (
         f"⚡ *BitBread · Pre-señal {coin}*\n"
-        f"────────────────────\n\n"
+        f"—————————————————\n\n"
         f"Una señal de {dir_emoji} *{dir_text}* se está formando en `{tf}`.\n"
         f"Cierre de vela en aprox. *{ttc}s*.\n\n"
         f"Score: `{abs(sig['score']):.1f}/8` — "

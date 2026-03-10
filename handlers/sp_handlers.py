@@ -289,7 +289,7 @@ def _build_main_menu_text(user_id: int) -> str:
     info = f"📊 Tienes *{n}* alerta(s) activa(s)." if n else "Sin alertas activas."
     return (
         "📡 *SmartSignals Pro*\n"
-        "————————————————————\n\n"
+        "—————————————————\n\n"
         "Señales de trading en tiempo real con análisis\n"
         "predictivo. Alertas *antes de que se confirmen*.\n\n"
         "🔹 Ciclo de análisis: cada *45 segundos*\n"
@@ -299,14 +299,14 @@ def _build_main_menu_text(user_id: int) -> str:
         f"{info}\n\n"
         "📌 Selecciona una moneda para ver su señal\n"
         "o activa/desactiva alertas automáticas:\n"
-        "────────────────────"
+        "—————————————————"
     )
 
 
 def _build_preview_text() -> str:
     return (
         "📡 *SmartSignals Pro*\n"
-        "————————————————————\n\n"
+        "—————————————————\n\n"
         "Detecta señales BUY/SELL con análisis\n"
         "multi-indicador y recibe alertas *10–30s*\n"
         "antes de que se confirmen.\n\n"
@@ -317,7 +317,7 @@ def _build_preview_text() -> str:
         "  • 13 monedas · 5 temporalidades\n"
         "  • Estrategias SSS personalizadas\n\n"
         "💰 *Precio: 200 ⭐ (30 días)*\n\n"
-        "————————————————————\n"
+        "—————————————————\n"
         "_Activa SmartSignals en la tienda._"
     )
 
@@ -350,11 +350,11 @@ def _build_coin_menu_text(user_id: int, symbol: str, display_tf: str) -> str:
 
     return (
         f"📡 *SmartSignals — {emoji} {label}*\n"
-        f"────────────────────\n\n"
+        f"—————————————————\n\n"
         f"{sub_status}{last_sig}\n\n"
         f"🔔 Toca un TF para activar/desactivar alertas.\n"
         f"👁 Toca *Ver TF* para ver señal sin suscribirte.\n"
-        f"────────────────────"
+        f"—————————————————"
     )
 
 
@@ -475,10 +475,10 @@ async def _show_signal_view(
                 elif not passes and sig['direction'] != 'NEUTRAL':
                     name = strat.get('name', '')[:20]
                     strat_block = (
-                        f"\n\n────────────────────\n"
+                        f"\n\n—————————————————\n"
                         f"🧠 *{name}* — filtro activo\n"
                         f"⚠️ _{reason}_\n"
-                        f"────────────────────"
+                        f"—————————————————"
                     )
         # ──────────────────────────────────────────────────────────────────────
 
@@ -741,7 +741,7 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not user_subs:
         text = (
             "📋 *Mis alertas SmartSignals*\n"
-            "────────────────────\n\n"
+            "—————————————————\n\n"
             "Sin alertas activas.\n\n"
             "_Selecciona una moneda y temporalidad\n"
             "para empezar a recibir alertas._"
@@ -769,7 +769,7 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         total = count_user_sp_subs(user_id)
         text  = (
             f"📋 *Mis alertas SmartSignals*\n"
-            f"────────────────────\n\n"
+            f"—————————————————\n\n"
             f"*{total}* alerta(s) activa(s):\n\n"
             + "\n".join(lines) +
             "\n\n_Toca 🔙 para volver._"
@@ -790,7 +790,7 @@ async def sp_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     text = (
         "📡 *SmartSignals — Ayuda*\n"
-        "————————————————————\n\n"
+        "—————————————————\n\n"
         "*¿Qué es SmartSignals?*\n"
         "Radar de trading que analiza el mercado\n"
         "cada 45s y avisa al detectar señales.\n\n"
@@ -862,7 +862,7 @@ async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TY
 def _build_strategies_text(active_name: str, active_emj: str) -> str:
     return (
         "🧠 *SmartSignals Strategy (SSS)*\n"
-        "————————————————————\n\n"
+        "—————————————————\n\n"
         "Aplica estrategias de trading sobre tus señales.\n"
         "Cada estrategia define *entrada, TP, SL\n"
         "y apalancamiento*. Se actualiza sin reiniciar.\n\n"
@@ -1130,7 +1130,7 @@ async def sp_strat_test_callback(update: Update, context: ContextTypes.DEFAULT_T
     try:
         await query.edit_message_text(
             f"🧪 *Backtest — {strat.get('emoji','')} {strat.get('name','')}*\n"
-            f"————————————————————\n\n"
+            f"—————————————————\n\n"
             f"⏳ _Analizando `{symbol}` · `{tf}`…_\n\n"
             f"Descargando 500 velas y aplicando la\n"
             f"estrategia sobre operaciones pasadas…",
@@ -1222,7 +1222,7 @@ _SSS_JSON_TEMPLATE = """{
 def _build_upload_text() -> str:
     return (
         "📤 *Subir mi Estrategia SSS*\n"
-        "————————————————————\n\n"
+        "—————————————————\n\n"
         "Puedes crear y subir tu propia estrategia\n"
         "en formato JSON. Se carga automáticamente\n"
         "*sin reiniciar el bot*.\n\n"
@@ -1242,7 +1242,7 @@ def _build_upload_text() -> str:
         "📐 *Referencia de R:R típicos:*\n"
         "  SL ×1.5 · TP1 ×2.0 → R:R 1:1.3\n"
         "  SL ×1.5 · TP2 ×3.5 → R:R 1:2.3\n\n"
-        "────────────────────\n"
+        "—————————————————\n"
         "⬇️ Envía el archivo `.json` directamente\n"
         "en este chat para subirlo."
     )
@@ -1354,7 +1354,7 @@ async def sp_strategy_document_handler(
 
     await update.message.reply_text(
         f"✅ *Estrategia guardada*\n"
-        f"────────────────────\n\n"
+        f"—————————————————\n\n"
         f"{emoji} *{name}*\n"
         f"TF: `{tfs}`\n\n"
         f"Disponible en *SmartSignals → Estrategias*.\n"
