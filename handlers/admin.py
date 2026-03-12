@@ -23,7 +23,7 @@ from utils.weather_manager import load_weather_subscriptions
 from utils.valerts_manager import get_active_symbols, get_valerts_subscribers
 from utils.btc_manager import load_btc_subs
 from collections import Counter
-from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history, migrate_user_timestamps
+from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history, migrate_user_timestamps, add_subscription_days
 from utils.ads_manager import load_ads, add_ad, delete_ad
 from utils.logger import LOG_FILE_PATH
 from utils.telemetry import (
@@ -957,3 +957,127 @@ async def ad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     else:
         await update.message.reply_text(_("⚠️ Comandos: `/ad`, `/ad add <txt>`, `/ad del <num>`", chat_id), parse_mode=ParseMode.MARKDOWN)
+
+
+async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando /free paraadmin para activar suscripciones gratuitas a usuarios.
+    
+    Formato:
+    - /free (sin args): muestra ayuda
+    - /free <días> <user_id> [filtro]: activa suscripción
+    
+    Filtros disponibles:
+    - sp -> sp_signals (SmartSignals Pro)
+    - tasa -> tasa_vip (Tasa VIP)
+    - ta -> ta_vip (TA Pro)
+    - bundle -> watchlist_bundle (Pack Control Total)
+    - coins -> coins_extra (Espacio extra de monedas)
+    - alerts -> alerts_extra (Alertas extra)
+    """
+    chat_id = update.effective_chat.id
+    
+    if chat_id not in ADMIN_CHAT_IDS:
+        await update.message.reply_text(_("🚫 Comando no autorizado.", chat_id))
+        return
+    
+    args = context.args
+    
+    if not args:
+        help_text = (
+            "🎁 *Comando /free - Activar Suscripciones Gratuitas*\n\n"
+            "📋 *Uso:*\n"
+            "• `/free <días> <user_id> [filtro]` - Activar suscripción\n\n"
+            "📌 *Argumentos:*\n"
+            "• `días` - Número de días a añadir\n"
+            "• `user_id` - ID del usuario destino\n"
+            "• `filtro` - (opcional) Tipo de suscripción\n\n"
+            "🔖 *Filtros disponibles:*\n"
+            "• `sp` → SmartSignals Pro\n"
+            "• `tasa` → Tasa VIP\n"
+            "• `ta` → TA Pro\n"
+            "• `bundle` → Pack Control Total\n"
+            "• `coins` → Espacio extra de monedas\n"
+            "• `alerts` → Alertas extra\n\n"
+            "💡 *Ejemplos:*\n"
+            "• `/free 30 123456789` → Activa TODAS por 30 días\n"
+            "• `/free 30 123456789 sp` → Solo SmartSignals Pro"
+        )
+        await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
+        return
+    
+    if len(args) < 2:
+        await update.message.reply_text(
+            "⚠️ Uso incorrecto.\nEjemplo: `/free 30 123456789` o `/free 30 123456789 sp`",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    try:
+        days = int(args[0])
+        user_id = int(args[1])
+    except ValueError:
+        await update.message.reply_text(
+            "⚠️ Los argumentos `días` y `user_id` deben ser números.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    filtro = args[2].lower() if len(args) > 2 else None
+    
+    filter_map = {
+        'sp': 'sp_signals',
+        'tasa': 'tasa_vip',
+        'ta': 'ta_vip',
+        'bundle': 'watchlist_bundle',
+        'coins': 'coins_extra',
+        'alerts': 'alerts_extra'
+    }
+    
+    sub_types = []
+    if filtro:
+        if filtro not in filter_map:
+            await update.message.reply_text(
+                f"⚠️ Filtro desconocido: `{filtro}`\n"
+                f"Filtros válidos: {', '.join(filter_map.keys())}",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return
+        sub_types = [filter_map[filtro]]
+    else:
+        sub_types = list(filter_map.values())
+    
+    usuarios = cargar_usuarios()
+    if str(user_id) not in usuarios:
+        await update.message.reply_text(
+            f"⚠️ Usuario `{user_id}` no encontrado.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    activated = []
+    for sub_type in sub_types:
+        if sub_type in ['coins_extra', 'alerts_extra']:
+            add_subscription_days(user_id, sub_type, days, quantity=days)
+        else:
+            add_subscription_days(user_id, sub_type, days)
+        activated.append(sub_type)
+    
+    filter_names = {
+        'sp_signals': '📡 SmartSignals Pro',
+        'tasa_vip': '💱 Tasa VIP',
+        'ta_vip': '📈 TA Pro',
+        'watchlist_bundle': '📦 Pack Control Total',
+        'coins_extra': '🪙 Espacio extra de monedas',
+        'alerts_extra': '🔔 Alertas extra'
+    }
+    
+    activated_names = "\n".join([f"• {filter_names[sub]}" for sub in activated])
+    
+    msg = (
+        f"✅ *Suscripción Activada*\n\n"
+        f"👤 Usuario: `{user_id}`\n"
+        f"📅 Días añadidos: `{days}`\n\n"
+        f"🔓 *Suscripciones activadas:*\n{activated_names}"
+    )
+    await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)

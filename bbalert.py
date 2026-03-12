@@ -23,7 +23,7 @@ from core.weather_loop_v2 import weather_alerts_loop, weather_daily_summary_loop
 from core.global_disasters_loop import global_disasters_loop
 from core.i18n import _ 
 from handlers.general import start, myid, ver, help_command
-from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command
+from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command, free_command
 from handlers.year_handlers import year_command, year_sub_callback
 from core.year_loop import year_progress_loop
 
@@ -260,6 +260,7 @@ def main():
     app.add_handler(CommandHandler("users", users))
     app.add_handler(CommandHandler("logs", logs_command))
     app.add_handler(CommandHandler("ad", ad_command))
+    app.add_handler(CommandHandler("free", free_command))
     
     # ============================================
     # Comandos de Trading/Cripto
