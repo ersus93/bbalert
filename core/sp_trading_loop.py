@@ -164,7 +164,7 @@ async def _notify_close(bot, user_id, trade, price, reason, pnl, coin):
         f"💰 Entry: `${entry:.4f}` → Exit: `${price:.4f}`\n"
         f"🔵 Razón: *{reason}*\n"
         f"PnL: *{pnl_str}%*\n\n"
-        f"_Usa /sp\_ops para ver operaciones._"
+        "_Usa /sp_ops para ver operaciones._"
     )
     try:
         await bot.send_message(
@@ -193,7 +193,7 @@ async def _notify_open(bot, user_id, trade, price, coin):
         f"💰 Entry: `${entry:.4f}`\n"
         f"🛡 SL: `${sl:.4f}`\n"
         f"🎯 TP1: `${tp1:.4f}` | TP2: `${tp2:.4f}` | TP3: `${tp3:.4f}`\n\n"
-        f"_Usa /sp\_ops para seguir la operación._"
+        "_Usa /sp_ops para seguir la operación._"
     )
     keyboard = InlineKeyboardMarkup([[
         InlineKeyboardButton(

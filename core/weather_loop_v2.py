@@ -217,7 +217,7 @@ async def weather_alerts_loop(bot: Bot):
                         if should_send:
                             desc = upcoming_rain['weather'][0]['description'].capitalize()
                             time_str = dt_rain.strftime('%H:%M')
-                            time_remaining = _format_time_remaining(dt_rain, local_now.replace(tzinfo=None), user_id)
+                            time_remaining = _format_time_remaining(dt_rain.replace(tzinfo=None), local_now.replace(tzinfo=None), user_id)
 
                             # Intensidad de lluvia basada en weather_id
                             wid_rain = _get_weather_id(upcoming_rain)
@@ -280,7 +280,7 @@ async def weather_alerts_loop(bot: Bot):
                         if should_send:
                             desc = upcoming_storm['weather'][0]['description'].capitalize()
                             time_str = dt_storm.strftime('%H:%M')
-                            time_remaining = _format_time_remaining(dt_storm, local_now.replace(tzinfo=None), user_id)
+                            time_remaining = _format_time_remaining(dt_storm.replace(tzinfo=None), local_now.replace(tzinfo=None), user_id)
 
                             # Severidad basada en weather_id de tormenta
                             wid_storm = _get_weather_id(upcoming_storm)
