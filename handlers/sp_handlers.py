@@ -1535,6 +1535,100 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.answer("❌ Parámetros no válidos.", show_alert=True)
         return
     
+    await _do_open_trade(update, context, query, user_id, symbol, tf, is_prealert=False)
+
+
+async def sp_preopen_trade_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Abre una operación desde el botón de prealerta.
+    Muestra confirmación previa porque la señal puede cambiar al cierre de vela.
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("⚠️ Necesitas SmartSignals Pro.", show_alert=True)
+        return
+    
+    try:
+        _, raw_sym, raw_tf = query.data.split("|")
+    except ValueError:
+        await query.answer("❌ Error de datos.", show_alert=True)
+        return
+    
+    symbol = _validate_symbol(raw_sym)
+    tf = _validate_tf(raw_tf)
+    if not symbol or not tf:
+        await query.answer("❌ Parámetros no válidos.", show_alert=True)
+        return
+    
+    coin = symbol.replace("USDT", "")
+    
+    confirm_text = (
+        f"⚠️ *Apertura desde prealerta*\n"
+        f"—————————————————\n\n"
+        f"Esta es una prealerta. *La señal puede cambiar*\n"
+        f"*al cierre de vela*.\n\n"
+        f"¿Estás seguro de que quieres abrir la operación\n"
+        f"al precio actual en `{coin}/{tf}`?"
+    )
+    
+    confirm_kb = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Sí, abrir", callback_data=f"sp_confirm_open|{symbol}|{tf}"),
+            InlineKeyboardButton("❌ Cancelar", callback_data=f"sp_view|{symbol}|{tf}"),
+        ]
+    ])
+    
+    try:
+        await query.edit_message_text(
+            text=confirm_text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=confirm_kb,
+        )
+    except Exception:
+        await query.answer("⚠️ No se pudo mostrar confirmación.", show_alert=True)
+
+
+async def sp_confirm_open_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Confirma y ejecuta la apertura de operación desde prealerta.
+    Callback: sp_confirm_open|SYMBOL|TF
+    """
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await query.answer("⚠️ Necesitas SmartSignals Pro.", show_alert=True)
+        return
+    
+    try:
+        _, raw_sym, raw_tf = query.data.split("|")
+    except ValueError:
+        await query.answer("❌ Error de datos.", show_alert=True)
+        return
+    
+    symbol = _validate_symbol(raw_sym)
+    tf = _validate_tf(raw_tf)
+    if not symbol or not tf:
+        await query.answer("❌ Parámetros no válidos.", show_alert=True)
+        return
+    
+    await _do_open_trade(update, context, query, user_id, symbol, tf, is_prealert=True)
+
+
+async def _do_open_trade(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    query,
+    user_id: int,
+    symbol: str,
+    tf: str,
+    is_prealert: bool = False
+) -> None:
+    """Función común para abrir una operación."""
     open_count = count_user_open_trades(user_id)
     if open_count >= 5:
         await query.answer("⚠️ Máximo 5 operaciones abiertas.", show_alert=True)
@@ -1580,6 +1674,11 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
         coin = symbol.replace("USDT", "")
         dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
         
+        prealert_note = (
+            "\n⚠️ *Nota:* Operación abierta desde prealerta.\n"
+            "La señal puede variar al cierre de vela."
+        ) if is_prealert else ""
+        
         trade_text = (
             f"✅ *Operación Abierta* {dir_emoji}\n"
             f"────────────────────\n\n"
@@ -1588,7 +1687,7 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
             f"🛡 SL: `${_fmt_price(stop_loss)}`\n"
             f"🎯 TP1: `${_fmt_price(tp1)}`\n"
             f"🎯 TP2: `${_fmt_price(tp2)}`\n\n"
-            f"🆔 ID: `{trade_id}`\n\n"
+            f"🆔 ID: `{trade_id}`{prealert_note}\n\n"
             f"ℹ️ Te notificaré al tocar SL o TP.\n"
             "Usa /sp_ops para ver operaciones."
         )
@@ -1597,7 +1696,6 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
             [InlineKeyboardButton("🔙 Volver", callback_data=f"sp_view|{symbol}|{tf}")]
         ])
         
-        # El mensaje puede ser foto (caption) o texto — manejar ambos casos
         try:
             await query.edit_message_caption(
                 caption=trade_text,
@@ -1605,7 +1703,6 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
                 reply_markup=trade_kb,
             )
         except Exception:
-            # Fallback: borrar foto y enviar mensaje de texto
             try:
                 await query.message.delete()
             except Exception:
@@ -1855,6 +1952,8 @@ sp_handlers_list = [
     CallbackQueryHandler(sp_view_callback,      pattern=r"^sp_view\|"),
     CallbackQueryHandler(sp_refresh_callback, pattern=r"^sp_refresh\|"),
     CallbackQueryHandler(sp_open_trade_callback,   pattern=r"^sp_open_trade\|"),
+    CallbackQueryHandler(sp_preopen_trade_callback, pattern=r"^sp_preopen_trade\|"),
+    CallbackQueryHandler(sp_confirm_open_callback, pattern=r"^sp_confirm_open\|"),
     CallbackQueryHandler(sp_close_trade_callback,  pattern=r"^sp_close_trade\|"),
     CallbackQueryHandler(sp_ops_callback,           pattern=r"^sp_ops$"),
     CallbackQueryHandler(sp_my_subs_callback,   pattern=r"^sp_my_subs$"),

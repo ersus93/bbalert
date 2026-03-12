@@ -491,7 +491,7 @@ def build_pre_alert_message(symbol: str, tf: str, sig: dict) -> tuple[str, Inlin
 
 
 def _get_pre_alert_keyboard(symbol: str, tf: str, direction: str) -> InlineKeyboardMarkup:
-    """Teclado inline para pre-aviso. Botón 'Abrir Operación' si BUY o SELL."""
+    """Teclado inline para pre-aviso. Botón 'Abrir en prealerta' si BUY o SELL."""
     if direction not in ('BUY', 'SELL', 'BUY_STRONG', 'SELL_STRONG'):
         return InlineKeyboardMarkup([])
 
@@ -499,8 +499,8 @@ def _get_pre_alert_keyboard(symbol: str, tf: str, direction: str) -> InlineKeybo
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(
-                "🚀 Abrir Operación",
-                callback_data=f"sp_open_trade|{symbol}|{tf}"
+                "⚡ Abrir en prealerta",
+                callback_data=f"sp_preopen_trade|{symbol}|{tf}"
             )
         ]
     ])
