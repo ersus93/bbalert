@@ -48,8 +48,7 @@ def get_translator(lang_code: str):
             DOMAIN,
             localedir=LOCALE_DIR,
             languages=[lang_code],
-            fallback=True,  # Fallback a texto original si hay problemas
-            codeset='utf-8'
+            fallback=True
         )
         
         # Verificar que no sea una traducción nula (fallback)
