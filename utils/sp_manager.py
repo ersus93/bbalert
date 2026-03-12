@@ -7,6 +7,7 @@ import os
 import time
 import threading
 from datetime import datetime
+from typing import Callable, Any
 from core.config import DATA_DIR
 
 # ─── PATHS ────────────────────────────────────────────────────────────────────
@@ -327,8 +328,14 @@ def open_trade(
     tp1_pct: int = 50,
     tp2_pct: int = 30,
     tp3_pct: int = 20,
+    notify_callback: Callable[[int, dict, float, str], Any] = None,
 ) -> str:
-    """Abre una nueva operación de trading. Devuelve el trade_id."""
+    """Abre una nueva operación de trading. Devuelve el trade_id.
+    
+    Args:
+        notify_callback: Función opcional (async) que se llama tras abrir
+                        la operación con argumentos (user_id, trade, price, coin).
+    """
     import uuid
     trades = _load(SP_TRADES_PATH)
     uid = str(user_id)
@@ -366,6 +373,19 @@ def open_trade(
     
     trades[uid].append(trade)
     _save(SP_TRADES_PATH, trades)
+
+    if notify_callback:
+        coin = symbol.replace('USDT', '')
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(notify_callback(user_id, trade, entry_price, coin))
+            else:
+                loop.run_until_complete(notify_callback(user_id, trade, entry_price, coin))
+        except Exception as e:
+            print(f"[SP Manager] Error en notify_callback: {e}")
+
     return trade_id
 
 

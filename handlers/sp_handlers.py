@@ -222,7 +222,11 @@ def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         keyboard.append(row)
 
     keyboard.append([
+        InlineKeyboardButton("📈 Operaciones", callback_data="sp_ops"),
         InlineKeyboardButton("📋 Mis alertas", callback_data="sp_my_subs"),
+    ])
+
+    keyboard.append([
         InlineKeyboardButton("❓ Ayuda",        callback_data="sp_help"),
     ])
 
@@ -268,6 +272,9 @@ def _get_coin_keyboard(user_id: int, symbol: str, current_tf: str = "5m") -> Inl
     # Navegación (fix #8: Refrescar usa current_tf real)
     keyboard.append([
         InlineKeyboardButton("🔄 Refrescar", callback_data=f"sp_view|{symbol}|{current_tf}"),
+        InlineKeyboardButton("📈 Operaciones", callback_data="sp_ops"),
+    ])
+    keyboard.append([
         InlineKeyboardButton("🔙 Lista",      callback_data="sp_main"),
     ])
     return InlineKeyboardMarkup(keyboard)
@@ -304,7 +311,9 @@ def _get_view_keyboard(user_id: int, symbol: str, tf: str, direction: str = None
 
 def _build_main_menu_text(user_id: int) -> str:
     n    = count_user_sp_subs(user_id)
-    info = f"📊 Tienes *{n}* alerta(s) activa(s)." if n else "Sin alertas activas."
+    ops  = count_user_open_trades(user_id)
+    ops_info = f" | 📈 *{ops}* operación(nes) abierta(s)" if ops else ""
+    info = f"📊 Tienes *{n}* alerta(s) activa(s){ops_info}." if n else "Sin alertas activas."
     return (
         "📡 *SmartSignals Pro*\n"
         "—————————————————\n\n"
