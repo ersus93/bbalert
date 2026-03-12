@@ -66,6 +66,9 @@ from utils.sp_manager import (
     get_trade_by_id,
     close_trade,
     count_user_open_trades,
+    get_trades_stats,
+    cleanup_closed_trades,
+    TRADE_CLEANUP_DAYS,
 )
 from utils.sp_chart import generate_sp_chart
 from core.sp_loop import SPSignalEngine, _get_klines, build_signal_message, _fmt_price
@@ -440,6 +443,78 @@ async def sp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     )
 
 
+async def sp_alertas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    /sp_alertas - Muestra las alertas activas del usuario como comando.
+    Similar a sp_my_subs_callback pero como comando independiente.
+    """
+    user_id = update.effective_user.id
+    registrar_uso_comando(user_id, 'sp_alertas')
+
+    has_access, _ = _check_sp_access(user_id)
+    if not has_access:
+        await update.message.reply_text(
+            "❌ Sin acceso.\n\nUsa /sp para ver el menú principal.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+
+    text, keyboard = _build_my_subs_content(user_id)
+
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def sp_cleanup_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    /sp_cleanup - Muestra estadísticas y limpia operaciones cerradas (solo admin).
+    Sin args: muestra estadísticas.
+    Con 'run': ejecuta cleanup.
+    """
+    user_id = update.effective_user.id
+
+    if user_id not in ADMIN_CHAT_IDS:
+        await update.message.reply_text("❌ Solo admin.")
+        return
+
+    args = context.args
+    do_run = len(args) > 0 and args[0].lower() == "run"
+
+    stats = get_trades_stats()
+
+    text = (
+        "🧹 *SP Trading Cleanup*\n"
+        "────────────────────\n\n"
+        f"📊 *Estadísticas actuales:*\n"
+        f"  • Usuarios con trades: *{stats['total_users']}*\n"
+        f"  • Operaciones abiertas: *{stats['open_trades']}*\n"
+        f"  • Operaciones cerradas: *{stats['closed_trades']}*\n"
+        f"  • Umbral de limpieza: *{TRADE_CLEANUP_DAYS} días*\n\n"
+    )
+
+    if do_run:
+        result = cleanup_closed_trades()
+        text += (
+            f"✅ *Cleanup ejecutado:*\n"
+            f"  • Eliminados: *{result['deleted_count']}* trades\n"
+            f"  • Restantes: *{result['remaining_count']}* trades\n"
+            f"  • Usuarios afectados: *{result['users_affected']}*\n\n"
+            f"_Los trades cerrados hace más de {TRADE_CLEANUP_DAYS} días fueron eliminados._"
+        )
+    else:
+        text += (
+            "ℹ️ *Comandos:*\n"
+            "  `/sp_cleanup` — Ver estadísticas\n"
+            "  `/sp_cleanup run` — Ejecutar limpieza\n\n"
+            "_El cleanup también se ejecuta automáticamente cada ~50 minutos._"
+        )
+
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+
+
 # ─── VISTA DE SEÑAL ───────────────────────────────────────────────────────────
 
 async def _show_signal_view(
@@ -737,9 +812,8 @@ async def sp_refresh_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
-    Suscripciones activas del usuario.
+    Suscripciones activas del usuario con botones interactivos.
     Callback: sp_my_subs
-    Fix #3: acceso verificado ANTES de query.answer().
     """
     query   = update.callback_query
     user_id = query.from_user.id
@@ -751,6 +825,19 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await query.answer()
 
+    text, keyboard = _build_my_subs_content(user_id)
+
+    await _safe_nav(
+        query, text,
+        InlineKeyboardMarkup(keyboard)
+    )
+
+
+def _build_my_subs_content(user_id: int) -> tuple[str, list[list[InlineKeyboardButton]]]:
+    """
+    Construye el contenido de Mis alertas: texto y teclado.
+    Devuelve (texto, keyboard) para usar tanto en callback como en comando.
+    """
     user_subs = get_user_sp_subscriptions(user_id)
 
     if not user_subs:
@@ -761,41 +848,59 @@ async def sp_my_subs_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             "_Selecciona una moneda y temporalidad\n"
             "para empezar a recibir alertas._"
         )
-    else:
-        lines = []
-        for sym, tfs in user_subs.items():
-            if not tfs:
-                continue
-            coin_info  = get_coin_info(sym) or {"label": sym, "emoji": "📡"}
-            emoji      = coin_info.get('emoji', '📡')
-            label_full = coin_info.get('label', sym)
-            label      = label_full.split(' ', 1)[-1] if ' ' in label_full else label_full
-            tfs_str    = " · ".join(sorted(tfs))
+        keyboard = [[InlineKeyboardButton("🔙 Lista de monedas", callback_data="sp_main")]]
+        return text, keyboard
 
-            state     = get_sp_state(sym, tfs[0])
-            last_info = ""
-            if state:
-                dir_text  = state.get('last_signal', '')
-                dir_emoji = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
-                last_info = f" — {dir_emoji}"
+    lines = []
+    keyboard = []
 
-            lines.append(f"{emoji} *{label}* · `{tfs_str}`{last_info}")
+    for sym in sorted(user_subs.keys()):
+        tfs = user_subs.get(sym, [])
+        if not tfs:
+            continue
 
-        total = count_user_sp_subs(user_id)
-        text  = (
-            f"📋 *Mis alertas SmartSignals*\n"
-            f"—————————————————\n\n"
-            f"*{total}* alerta(s) activa(s):\n\n"
-            + "\n".join(lines) +
-            "\n\n_Toca 🔙 para volver._"
-        )
+        coin_info = get_coin_info(sym) or {"label": sym, "emoji": "📡"}
+        emoji = coin_info.get('emoji', '📡')
+        label_full = coin_info.get('label', sym)
+        label = label_full.split(' ', 1)[-1] if ' ' in label_full else label_full
 
-    await _safe_nav(
-        query, text,
-        InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔙 Lista de monedas", callback_data="sp_main"),
-        ]])
+        tf_buttons = []
+        for tf in sorted(tfs):
+            state = get_sp_state(sym, tf)
+
+            score = state.get('last_signal_score', 0) if state else 0
+            dir_text = state.get('last_signal', '') if state else ''
+            dir_emoji = "🟢" if dir_text == 'BUY' else "🔴" if dir_text == 'SELL' else "⚖️"
+            
+            score_str = f"_{score:.1f}_" if score else "_-_-"
+            lines.append(f"{emoji} *{label}* `{tf}` · {score_str} {dir_emoji}")
+
+            tf_buttons.append(InlineKeyboardButton(
+                f"👁 {tf}",
+                callback_data=f"sp_view|{sym}|{tf}"
+            ))
+            tf_buttons.append(InlineKeyboardButton(
+                f"🔕",
+                callback_data=f"sp_toggle|{sym}|{tf}"
+            ))
+
+        for i in range(0, len(tf_buttons), 2):
+            row = tf_buttons[i:i+2]
+            keyboard.append(row)
+
+    total = count_user_sp_subs(user_id)
+    text = (
+        f"📋 *Mis alertas SmartSignals*\n"
+        f"—————————————————\n\n"
+        f"*{total}* alerta(s) activa(s):\n\n"
+        + "\n".join(lines) +
+        "\n\n_Toca 👁 para ver la señal.\n"
+        "Toca 🔕 para desactivar._"
     )
+
+    keyboard.append([InlineKeyboardButton("🔙 Lista de monedas", callback_data="sp_main")])
+
+    return text, keyboard
 
 
 async def sp_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -1464,7 +1569,7 @@ async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
         
         coin = symbol.replace("USDT", "")
-        dir_emoji = "🟢" if direction == "BUY" else "🔴"
+        dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
         
         trade_text = (
             f"✅ *Operación Abierta* {dir_emoji}\n"
@@ -1536,9 +1641,9 @@ async def sp_close_trade_callback(update: Update, context: ContextTypes.DEFAULT_
     current = trade.get("current_price", entry)
     direction = trade.get("direction", "BUY")
     
-    if direction == "BUY" and entry > 0:
+    if direction in ("BUY", "BUY_STRONG") and entry > 0:
         pnl = ((current - entry) / entry) * 100
-    elif direction == "SELL" and entry > 0:
+    elif direction in ("SELL", "SELL_STRONG") and entry > 0:
         pnl = ((entry - current) / entry) * 100
     else:
         pnl = 0
@@ -1603,12 +1708,12 @@ async def sp_ops_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         tp1 = t.get("tp1", 0)
         tp2 = t.get("tp2", 0)
         
-        dir_emoji = "🟢" if direction == "BUY" else "🔴"
+        dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
         
-        if direction == "BUY" and entry > 0 and sl > 0:
+        if direction in ("BUY", "BUY_STRONG") and entry > 0 and sl > 0:
             dist_sl = ((entry - sl) / entry) * 100
             dist_tp1 = ((tp1 - entry) / entry) * 100 if tp1 > 0 else 0
-        elif direction == "SELL" and entry > 0 and sl > 0:
+        elif direction in ("SELL", "SELL_STRONG") and entry > 0 and sl > 0:
             dist_sl = ((sl - entry) / entry) * 100
             dist_tp1 = ((entry - tp1) / entry) * 100 if tp1 > 0 else 0
         else:
@@ -1683,14 +1788,14 @@ async def sp_ops_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         sl = t.get("stop_loss", 0)
         tp1 = t.get("tp1", 0)
         tp_hit = t.get("tp_hit", None)
-        dir_emoji = "🟢" if direction == "BUY" else "🔴"
+        dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
         tp_badge = f" ✅{tp_hit}" if tp_hit else ""
 
-        if direction == "BUY" and entry > 0:
+        if direction in ("BUY", "BUY_STRONG") and entry > 0:
             dist_sl = ((entry - sl) / entry) * 100 if sl > 0 else 0
             dist_tp1 = ((tp1 - entry) / entry) * 100 if tp1 > 0 else 0
             pnl = ((current - entry) / entry) * 100
-        elif direction == "SELL" and entry > 0:
+        elif direction in ("SELL", "SELL_STRONG") and entry > 0:
             dist_sl = ((sl - entry) / entry) * 100 if sl > 0 else 0
             dist_tp1 = ((entry - tp1) / entry) * 100 if tp1 > 0 else 0
             pnl = ((entry - current) / entry) * 100
@@ -1732,6 +1837,8 @@ async def sp_ops_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 sp_handlers_list = [
     CommandHandler("sp", sp_command),
     CommandHandler("sp_ops", sp_ops_command),
+    CommandHandler("sp_alertas", sp_alertas_command),
+    CommandHandler("sp_cleanup", sp_cleanup_command),
     # Navegación principal
     CallbackQueryHandler(sp_main_callback,      pattern=r"^sp_main$"),
     CallbackQueryHandler(sp_coin_callback,      pattern=r"^sp_coin\|"),

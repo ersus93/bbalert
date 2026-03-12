@@ -366,7 +366,7 @@ def apply_strategy_filter(strategy: dict, sig: dict, df_ext: pd.DataFrame) -> tu
     if direction == 'NEUTRAL':
         return False, "Señal neutral"
 
-    is_long = direction == 'BUY'
+    is_long = direction in ('BUY', 'BUY_STRONG')
 
     # ── Score mínimo ──────────────────────────────────────────────────────────
     min_score = ef.get('min_score', 4.5)
@@ -493,7 +493,7 @@ def enrich_signal(strategy: dict, sig: dict, df_ext: pd.DataFrame) -> dict:
     risk     = strategy.get('risk', {})
     lev_cfg  = strategy.get('leverage', {})
     direction = sig.get('direction', 'NEUTRAL')
-    is_long   = direction == 'BUY'
+    is_long   = direction in ('BUY', 'BUY_STRONG')
     price     = sig.get('price', 0)
     atr       = sig.get('atr', price * 0.002)
 
@@ -1138,7 +1138,7 @@ def _bt_apply_filter(strategy: dict, sig: dict, df_ext: pd.DataFrame) -> tuple[b
     if direction == 'NEUTRAL':
         return False, "NEUTRAL"
 
-    is_long = direction == 'BUY'
+    is_long = direction in ('BUY', 'BUY_STRONG')
 
     # ── Score mínimo ──────────────────────────────────────────────────────────
     # Para reversal: score_abs confirma actividad en el mercado (sin importar dirección)
@@ -1250,7 +1250,7 @@ def _bt_sim_trade(
     max_bars: int = 80,
 ) -> dict:
     """Simula operación avanzando vela a vela. Detecta SL/TP1/TP2/TP3."""
-    is_long     = direction == 'BUY'
+    is_long     = direction in ('BUY', 'BUY_STRONG')
     n           = len(df)
     best_tp     = 0
     sl_hit      = False
