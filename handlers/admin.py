@@ -961,11 +961,14 @@ async def ad_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Comando /free paraadmin para activar suscripciones gratuitas a usuarios.
+    Comando /free para admin para activar suscripciones gratuitas a usuarios.
     
     Formato:
     - /free (sin args): muestra ayuda
-    - /free <días> <user_id> [filtro]: activa suscripción
+    - /free <días>: activa TODAS las suscripciones a TODOS los usuarios
+    - /free <días> <user_id>: activa TODAS al usuario específico
+    - /free <días> <filtro>: activa filtro específico a TODOS los usuarios
+    - /free <días> <user_id> <filtro>: activa filtro específico al usuario
     
     Filtros disponibles:
     - sp -> sp_signals (SmartSignals Pro)
@@ -987,11 +990,14 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         help_text = (
             "🎁 *Comando /free - Activar Suscripciones Gratuitas*\n\n"
             "📋 *Uso:*\n"
-            "• `/free <días> <user_id> [filtro]` - Activar suscripción\n\n"
+            "• `/free <días>` - Activar TODAS a TODOS\n"
+            "• `/free <días> <user_id>` - Activar TODAS a usuario\n"
+            "• `/free <días> <filtro>` - Activar filtro a TODOS\n"
+            "• `/free <días> <user_id> <filtro>` - Activar filtro a usuario\n\n"
             "📌 *Argumentos:*\n"
             "• `días` - Número de días a añadir\n"
-            "• `user_id` - ID del usuario destino\n"
-            "• `filtro` - (opcional) Tipo de suscripción\n\n"
+            "• `user_id` - ID del usuario destino (número)\n"
+            "• `filtro` - Tipo de suscripción (texto)\n\n"
             "🔖 *Filtros disponibles:*\n"
             "• `sp` → SmartSignals Pro\n"
             "• `tasa` → Tasa VIP\n"
@@ -1000,30 +1006,13 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• `coins` → Espacio extra de monedas\n"
             "• `alerts` → Alertas extra\n\n"
             "💡 *Ejemplos:*\n"
-            "• `/free 30 123456789` → Activa TODAS por 30 días\n"
-            "• `/free 30 123456789 sp` → Solo SmartSignals Pro"
+            "• `/free 30` → Activa TODAS por 30 días a TODOS\n"
+            "• `/free 30 123456789` → Activa TODAS por 30 días a usuario\n"
+            "• `/free 30 sp` → Activa SmartSignals a TODOS\n"
+            "• `/free 30 123456789 sp` → Activa SmartSignals a usuario"
         )
         await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
         return
-    
-    if len(args) < 2:
-        await update.message.reply_text(
-            "⚠️ Uso incorrecto.\nEjemplo: `/free 30 123456789` o `/free 30 123456789 sp`",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-    
-    try:
-        days = int(args[0])
-        user_id = int(args[1])
-    except ValueError:
-        await update.message.reply_text(
-            "⚠️ Los argumentos `días` y `user_id` deben ser números.",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-    
-    filtro = args[2].lower() if len(args) > 2 else None
     
     filter_map = {
         'sp': 'sp_signals',
@@ -1034,34 +1023,82 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         'alerts': 'alerts_extra'
     }
     
-    sub_types = []
-    if filtro:
-        if filtro not in filter_map:
+    try:
+        days = int(args[0])
+    except ValueError:
+        await update.message.reply_text(
+            "⚠️ El primer argumento debe ser un número (días).",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    target_user_id = None
+    filtro = None
+    apply_to_all = False
+    
+    if len(args) == 1:
+        apply_to_all = True
+    elif len(args) == 2:
+        second_arg = args[1]
+        if second_arg.isdigit():
+            target_user_id = int(second_arg)
+        else:
+            filtro = second_arg.lower()
+            apply_to_all = True
+    elif len(args) == 3:
+        try:
+            target_user_id = int(args[1])
+            filtro = args[2].lower()
+        except ValueError:
             await update.message.reply_text(
-                f"⚠️ Filtro desconocido: `{filtro}`\n"
-                f"Filtros válidos: {', '.join(filter_map.keys())}",
+                "⚠️ Formato incorrecto. Uso: `/free 30 123456789 sp` o `/free 30 sp`",
                 parse_mode=ParseMode.MARKDOWN
             )
             return
+    else:
+        await update.message.reply_text(
+            "⚠️ Demasiados argumentos.\nEjemplos: `/free 30`, `/free 30 123456789`, `/free 30 sp`, `/free 30 123456789 sp`",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    if filtro and filtro not in filter_map:
+        await update.message.reply_text(
+            f"⚠️ Filtro desconocido: `{filtro}`\n"
+            f"Filtros válidos: {', '.join(filter_map.keys())}",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    sub_types = []
+    if filtro:
         sub_types = [filter_map[filtro]]
     else:
         sub_types = list(filter_map.values())
     
     usuarios = cargar_usuarios()
-    if str(user_id) not in usuarios:
-        await update.message.reply_text(
-            f"⚠️ Usuario `{user_id}` no encontrado.",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
+    
+    if apply_to_all:
+        target_users = list(usuarios.keys())
+    else:
+        if str(target_user_id) not in usuarios:
+            await update.message.reply_text(
+                f"⚠️ Usuario `{target_user_id}` no encontrado.",
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return
+        target_users = [str(target_user_id)]
     
     activated = []
-    for sub_type in sub_types:
-        if sub_type in ['coins_extra', 'alerts_extra']:
-            add_subscription_days(user_id, sub_type, days, quantity=days)
-        else:
-            add_subscription_days(user_id, sub_type, days)
-        activated.append(sub_type)
+    for user_id in target_users:
+        for sub_type in sub_types:
+            if sub_type in ['coins_extra', 'alerts_extra']:
+                add_subscription_days(int(user_id), sub_type, days, quantity=days)
+            else:
+                add_subscription_days(int(user_id), sub_type, days)
+            activated.append(sub_type)
+    
+    activated = list(set(activated))
     
     filter_names = {
         'sp_signals': '📡 SmartSignals Pro',
@@ -1074,10 +1111,13 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     activated_names = "\n".join([f"• {filter_names[sub]}" for sub in activated])
     
+    target_text = "TODOS los usuarios" if apply_to_all else f"usuario `{target_user_id}`"
+    
     msg = (
         f"✅ *Suscripción Activada*\n\n"
-        f"👤 Usuario: `{user_id}`\n"
+        f"👤 Destino: {target_text}\n"
         f"📅 Días añadidos: `{days}`\n\n"
-        f"🔓 *Suscripciones activadas:*\n{activated_names}"
+        f"🔓 *Suscripciones activadas:*\n{activated_names}\n\n"
+        f"📊 Total de usuarios afectados: `{len(target_users)}`"
     )
     await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
