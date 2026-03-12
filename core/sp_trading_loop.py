@@ -22,10 +22,12 @@ from utils.sp_manager import (
     _load,
     _save,
     SP_TRADES_PATH,
+    cleanup_closed_trades,
 )
 
 TRADE_CHECK_INTERVAL = 30
 NOTIFY_COOLDOWN = 300
+CLEANUP_INTERVAL_CYCLES = 100  # Cleanup cada ~50 minutos (100 * 30s)
 
 
 def _get_binance_price(symbol):
@@ -42,9 +44,24 @@ def _get_binance_price(symbol):
 async def sp_trading_monitor_loop(bot, add_log_line):
     add_log_line("[Trading] Iniciando monitor de operaciones (cada 30s)")
     last_notify = {}
+    cycle_count = 0
 
     while True:
         try:
+            # Cleanup periódico cada CLEANUP_INTERVAL_CYCLES
+            cycle_count += 1
+            if cycle_count >= CLEANUP_INTERVAL_CYCLES:
+                cycle_count = 0
+                try:
+                    result = cleanup_closed_trades()
+                    if result['deleted_count'] > 0:
+                        add_log_line(
+                            f"[Trading] Cleanup: {result['deleted_count']} trades eliminados, "
+                            f"{result['users_affected']} usuarios afectados"
+                        )
+                except Exception as e:
+                    add_log_line(f"[Trading] Cleanup error: {e}")
+
             open_trades = get_all_open_trades()
             if not open_trades:
                 await asyncio.sleep(TRADE_CHECK_INTERVAL)
@@ -125,9 +142,9 @@ def _should_notify(key, cache):
 
 
 def _calc_pnl(direction, entry, exit_price):
-    if direction == "BUY" and entry > 0:
+    if direction in ("BUY", "BUY_STRONG") and entry > 0:
         return ((exit_price - entry) / entry) * 100
-    elif direction == "SELL" and entry > 0:
+    elif direction in ("SELL", "SELL_STRONG") and entry > 0:
         return ((entry - exit_price) / entry) * 100
     return 0
 
@@ -139,7 +156,7 @@ async def _notify_close(bot, user_id, trade, price, reason, pnl, coin):
     tf = trade.get("timeframe", "")
     pnl_str = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
     pnl_icon = "✅" if pnl >= 0 else "🚨"
-    dir_emoji = "🟢" if direction == "BUY" else "🔴"
+    dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
     msg = (
         f"{pnl_icon} *Operación Cerrada*\n"
         f"────────────────────\n\n"
@@ -164,7 +181,7 @@ async def _notify_tp_partial(bot, user_id, trade, price, tp, pnl, coin):
     tf = trade.get("timeframe", "")
     trade_id = trade.get("trade_id", "")
     pnl_str = f"+{pnl:.2f}" if pnl >= 0 else f"{pnl:.2f}"
-    dir_emoji = "🟢" if direction == "BUY" else "🔴"
+    dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
     msg = (
         f"🎯 *{tp} Alcanzado!*\n"
         f"────────────────────\n\n"
@@ -201,7 +218,7 @@ async def _notify_retrace(bot, user_id, trade, price, coin):
     tf = trade.get("timeframe", "")
     tp_hit = trade.get("tp_hit", "?")
     trade_id = trade.get("trade_id", "")
-    dir_emoji = "🟢" if direction == "BUY" else "🔴"
+    dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
     msg = (
         f"⚠️ *Retroceso a entrada tras {tp_hit}*\n"
         f"────────────────────\n\n"

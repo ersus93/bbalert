@@ -268,12 +268,18 @@ class SPSignalEngine:
             net = buy_score - sell_score
             score_abs = abs(net)
 
-            # Umbrales unificados con _bt_analyze_signal
-            direction = 'NEUTRAL'
-            if net >= 2:
+            # Umbrales unificados con BTCAdvancedAnalyzer
+            # net >= 6 → BUY_STRONG, net >= 2 → BUY, -2 < net < 2 → NEUTRAL, net <= -2 → SELL, net <= -6 → SELL_STRONG
+            if net >= 6:
+                direction = 'BUY_STRONG'
+            elif net >= 2:
                 direction = 'BUY'
-            elif net <= -2:
+            elif net > -2:
+                direction = 'NEUTRAL'
+            elif net > -6:
                 direction = 'SELL'
+            else:
+                direction = 'SELL_STRONG'
 
             # Umbrales unificados (escala 0-15 aprox)
             if score_abs >= 6:
@@ -288,11 +294,11 @@ class SPSignalEngine:
             atr = float(atr_series.iloc[-1]) if atr_series is not None else price * 0.002
 
             # ── NIVELES ────────────────────────────────────────────────────
-            if direction == 'BUY':
+            if direction in ('BUY', 'BUY_STRONG'):
                 stop_loss = price - atr * 1.5
                 target1   = price + atr * 2.0
                 target2   = price + atr * 3.5
-            elif direction == 'SELL':
+            elif direction in ('SELL', 'SELL_STRONG'):
                 stop_loss = price + atr * 1.5
                 target1   = price - atr * 2.0
                 target2   = price - atr * 3.5
@@ -364,19 +370,29 @@ def build_signal_message(symbol: str, tf: str, sig: dict) -> str:
     direction = sig['direction']
     strength  = sig['strength']
 
-    # FIX #9 y #11: tres ramas independientes, score_label siempre definido
-    if direction == 'BUY':
-        dir_emoji   = "🟢"
+    # Emojis unificados con BTCAdvancedAnalyzer
+    # BUY_STRONG → 🚀, BUY (MODERATE) → 📈, NEUTRAL → ⚖️, SELL (MODERATE) → 📉, SELL_STRONG → 💀
+    if direction == 'BUY_STRONG':
+        dir_emoji   = "🚀"
+        dir_text    = "COMPRA FUERTE"
+    elif direction == 'BUY':
+        dir_emoji   = "📈"
         dir_text    = "SEÑAL DE COMPRA"
-        score_label = f"Score: `{sig['score_buy']:.1f} BUY` vs `{sig['score_sell']:.1f} SELL`"
+    elif direction == 'SELL_STRONG':
+        dir_emoji   = "💀"
+        dir_text    = "VENTA FUERTE"
     elif direction == 'SELL':
-        dir_emoji   = "🔴"
+        dir_emoji   = "📉"
         dir_text    = "SEÑAL DE VENTA"
-        score_label = f"Score: `{sig['score_sell']:.1f} SELL` vs `{sig['score_buy']:.1f} BUY`"
     else:
-        # FIX #9: NEUTRAL tiene su propia representación
         dir_emoji   = "⚖️"
         dir_text    = "SIN SEÑAL CLARA"
+
+    if direction in ('BUY_STRONG', 'BUY'):
+        score_label = f"Score: `{sig['score_buy']:.1f} BUY` vs `{sig['score_sell']:.1f} SELL`"
+    elif direction in ('SELL_STRONG', 'SELL'):
+        score_label = f"Score: `{sig['score_sell']:.1f} SELL` vs `{sig['score_buy']:.1f} BUY`"
+    else:
         score_label = (
             f"Score: `{sig.get('score_buy', 0):.1f} BUY`"
             f" vs `{sig.get('score_sell', 0):.1f} SELL`"
@@ -438,12 +454,26 @@ def build_signal_message(symbol: str, tf: str, sig: dict) -> str:
 def build_pre_alert_message(symbol: str, tf: str, sig: dict) -> str:
     """Mensaje corto de pre-aviso (sin gráfico)."""
     direction = sig['direction']
-    is_buy    = direction == 'BUY'
+    is_buy    = direction in ('BUY', 'BUY_STRONG')
+    is_sell   = direction in ('SELL', 'SELL_STRONG')
     coin      = symbol.replace('USDT', '')
     ttc       = sig.get('time_to_close', 0)
 
-    dir_emoji = "🟢" if is_buy else "🔴"
-    dir_text  = "COMPRA" if is_buy else "VENTA"
+    if direction == 'BUY_STRONG':
+        dir_emoji = "🚀"
+        dir_text  = "COMPRA FUERTE"
+    elif direction == 'BUY':
+        dir_emoji = "📈"
+        dir_text  = "COMPRA"
+    elif direction == 'SELL_STRONG':
+        dir_emoji = "💀"
+        dir_text  = "VENTA FUERTE"
+    elif direction == 'SELL':
+        dir_emoji = "📉"
+        dir_text  = "VENTA"
+    else:
+        dir_emoji = "⚖️"
+        dir_text  = "NEUTRAL"
 
     return (
         f"⚡ *BitBread · Pre-señal {coin}*\n"

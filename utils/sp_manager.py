@@ -49,6 +49,9 @@ SP_TIMEFRAMES = {
     "4h":  {"label": "4 horas","min_gap": 7200, "max_day": 4,  "interval_s": 14400},
 }
 
+# Cleanup config
+TRADE_CLEANUP_DAYS = 7  # Días después de cerrar para eliminar
+
 # ─── HELPERS JSON ─────────────────────────────────────────────────────────────
 
 # Lock por archivo para evitar race conditions en acceso concurrente
@@ -459,7 +462,7 @@ def check_trade_crosses(trade: dict, current_price: float) -> dict:
     
     result = {"sl_hit": False, "tp_hit": None, "retrace": False, "all_tp_hit": False}
     
-    if direction == "BUY":
+    if direction in ("BUY", "BUY_STRONG"):
         if sl > 0 and current_price <= sl:
             result["sl_hit"] = True
         if tp3 > 0 and current_price >= tp3:
@@ -471,7 +474,7 @@ def check_trade_crosses(trade: dict, current_price: float) -> dict:
             result["tp_hit"] = "TP1"
         if entry > 0 and current_price <= entry:
             result["retrace"] = True
-    else:  # SELL
+    else:  # SELL or SELL_STRONG
         if sl > 0 and current_price >= sl:
             result["sl_hit"] = True
         if tp3 > 0 and current_price <= tp3:
@@ -501,3 +504,57 @@ def get_all_open_trades() -> list:
 def count_user_open_trades(user_id: int) -> int:
     """Cuenta las operaciones abiertas del usuario."""
     return len(get_open_trades(user_id))
+
+
+def get_trades_stats() -> dict:
+    """Devuelve estadísticas de trades."""
+    trades = _load(SP_TRADES_PATH)
+    open_count = 0
+    closed_count = 0
+
+    for uid, user_trades in trades.items():
+        for t in user_trades:
+            if t.get('status') == 'OPEN':
+                open_count += 1
+            else:
+                closed_count += 1
+
+    return {
+        'total_users': len(trades),
+        'open_trades': open_count,
+        'closed_trades': closed_count,
+    }
+
+
+def cleanup_closed_trades(days_threshold: int = TRADE_CLEANUP_DAYS) -> dict:
+    """
+    Elimina operaciones cerradas hace más de 'days_threshold' días.
+    Devuelve stats: {deleted_count, remaining_count, users_affected}
+    """
+    trades = _load(SP_TRADES_PATH)
+
+    cutoff_time = int(time.time()) - (days_threshold * 86400)
+    deleted_count = 0
+    users_affected = set()
+
+    for uid in list(trades.keys()):
+        original_count = len(trades[uid])
+        trades[uid] = [t for t in trades[uid]
+                      if t.get('status') != 'CLOSED'
+                      or t.get('closed_at', 0) > cutoff_time]
+        deleted = original_count - len(trades[uid])
+        if deleted > 0:
+            deleted_count += deleted
+            users_affected.add(uid)
+
+    if deleted_count > 0:
+        for uid in list(trades.keys()):
+            if not trades[uid]:
+                del trades[uid]
+        _save(SP_TRADES_PATH, trades)
+
+    return {
+        'deleted_count': deleted_count,
+        'remaining_count': sum(len(t) for t in trades.values()),
+        'users_affected': len(users_affected)
+    }

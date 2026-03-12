@@ -146,7 +146,7 @@ def generate_sp_chart(
         stop_loss  = signal.get('stop', 0)
         time_to_close = signal.get('time_to_close', 0)
 
-        is_buy  = direction == 'BUY'
+        is_buy  = direction in ('BUY', 'BUY_STRONG')
         sig_color = TV_THEME['signal_buy'] if is_buy else TV_THEME['signal_sell']
         zone_color = TV_THEME['zone_buy']  if is_buy else TV_THEME['zone_sell']
 
@@ -334,8 +334,10 @@ def generate_sp_chart(
         strength_labels = {'STRONG': '🔥 FUERTE', 'MODERATE': '⚡ MODERADA', 'WEAK': '👀 DÉBIL'}
         strength_text = strength_labels.get(strength, '👀 DÉBIL')
 
-        direction_label = ('COMPRA' if is_buy else
-                           'VENTA'  if direction == 'SELL' else
+        direction_label = ('COMPRA FUERTE' if direction == 'BUY_STRONG' else
+                           'COMPRA'        if is_buy else
+                           'VENTA FUERTE'  if direction == 'SELL_STRONG' else
+                           'VENTA'         if direction in ('SELL', 'SELL_STRONG') else
                            'NEUTRAL')
 
         # Título símbolo y TF
