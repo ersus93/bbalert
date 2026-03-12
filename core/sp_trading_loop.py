@@ -174,6 +174,42 @@ async def _notify_close(bot, user_id, trade, price, reason, pnl, coin):
         pass
 
 
+async def _notify_open(bot, user_id, trade, price, coin):
+    """Notificación cuando se abre una operación."""
+    direction = trade.get("direction", "BUY")
+    entry = trade.get("entry_price", 0)
+    tf = trade.get("timeframe", "")
+    sl = trade.get("stop_loss", 0)
+    tp1 = trade.get("tp1", 0)
+    tp2 = trade.get("tp2", 0)
+    tp3 = trade.get("tp3", 0)
+    trade_id = trade.get("trade_id", "")
+    dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
+
+    msg = (
+        f"🚀 *Operación Abierta*\n"
+        f"────────────────────\n\n"
+        f"{dir_emoji} *{coin}* `{direction}` ({tf})\n"
+        f"💰 Entry: `${entry:.4f}`\n"
+        f"🛡 SL: `${sl:.4f}`\n"
+        f"🎯 TP1: `${tp1:.4f}` | TP2: `${tp2:.4f}` | TP3: `${tp3:.4f}`\n\n"
+        f"_Usa /sp\_ops para seguir la operación._"
+    )
+    keyboard = InlineKeyboardMarkup([[
+        InlineKeyboardButton(
+            f"🔒 Cerrar {coin}",
+            callback_data=f"sp_close_trade|{trade_id}"
+        )
+    ]])
+    try:
+        await bot.send_message(
+            chat_id=user_id, text=msg,
+            parse_mode=ParseMode.MARKDOWN, reply_markup=keyboard
+        )
+    except Exception:
+        pass
+
+
 async def _notify_tp_partial(bot, user_id, trade, price, tp, pnl, coin):
     """Notificación de TP1/TP2 alcanzado (la operación sigue abierta)."""
     direction = trade.get("direction", "BUY")

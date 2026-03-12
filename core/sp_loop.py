@@ -451,8 +451,8 @@ def build_signal_message(symbol: str, tf: str, sig: dict) -> str:
     )
     return msg
 
-def build_pre_alert_message(symbol: str, tf: str, sig: dict) -> str:
-    """Mensaje corto de pre-aviso (sin gráfico)."""
+def build_pre_alert_message(symbol: str, tf: str, sig: dict) -> tuple[str, InlineKeyboardMarkup]:
+    """Mensaje corto de pre-aviso (sin gráfico). Devuelve (mensaje, teclado)."""
     direction = sig['direction']
     is_buy    = direction in ('BUY', 'BUY_STRONG')
     is_sell   = direction in ('SELL', 'SELL_STRONG')
@@ -475,7 +475,7 @@ def build_pre_alert_message(symbol: str, tf: str, sig: dict) -> str:
         dir_emoji = "⚖️"
         dir_text  = "NEUTRAL"
 
-    return (
+    msg = (
         f"⚡ *BitBread · Pre-señal {coin}*\n"
         f"—————————————————\n\n"
         f"Una señal de {dir_emoji} *{dir_text}* se está formando en `{tf}`.\n"
@@ -484,6 +484,26 @@ def build_pre_alert_message(symbol: str, tf: str, sig: dict) -> str:
         f"Precio: `${_fmt_price(sig['price'])}`\n\n"
         f"_Espera confirmación al cierre de vela._"
     )
+
+    keyboard = _get_pre_alert_keyboard(symbol, tf, direction)
+
+    return msg, keyboard
+
+
+def _get_pre_alert_keyboard(symbol: str, tf: str, direction: str) -> InlineKeyboardMarkup:
+    """Teclado inline para pre-aviso. Botón 'Abrir Operación' si BUY o SELL."""
+    if direction not in ('BUY', 'SELL', 'BUY_STRONG', 'SELL_STRONG'):
+        return InlineKeyboardMarkup([])
+
+    coin = symbol.replace('USDT', '')
+    return InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(
+                "🚀 Abrir Operación",
+                callback_data=f"sp_open_trade|{symbol}|{tf}"
+            )
+        ]
+    ])
 
 def _get_signal_keyboard(symbol: str, tf: str) -> InlineKeyboardMarkup:
     """Teclado inline adjunto al mensaje de señal."""
@@ -512,10 +532,9 @@ async def sp_monitor_loop(bot):
 
     while True:
         try:
-            pairs = get_active_sp_pairs()
-
-            # Limpieza periódica de pre-avisos expirados
             _cleanup_pre_alerts()
+
+            pairs = get_active_sp_pairs()
 
             if not pairs:
                 await asyncio.sleep(30)
@@ -726,7 +745,6 @@ async def _check_pre_alert(bot, symbol: str, tf: str, sig: dict, df: pd.DataFram
     if time_to_close > PRE_ALERT_SECS:
         return
 
-    # Evitar pre-avisos duplicados para la misma vela
     pre_key = f"{symbol}_{tf}_{open_time_ms}"
     if pre_key in _pre_alerts_sent:
         return
@@ -736,7 +754,7 @@ async def _check_pre_alert(bot, symbol: str, tf: str, sig: dict, df: pd.DataFram
         return
 
     sig['time_to_close'] = time_to_close
-    msg = build_pre_alert_message(symbol, tf, sig)
+    msg, keyboard = build_pre_alert_message(symbol, tf, sig)
 
     sent = 0
     for uid in subscribers:
@@ -745,6 +763,7 @@ async def _check_pre_alert(bot, symbol: str, tf: str, sig: dict, df: pd.DataFram
                 chat_id=int(uid),
                 text=msg,
                 parse_mode=ParseMode.MARKDOWN,
+                reply_markup=keyboard,
             )
             sent += 1
             await asyncio.sleep(0.05)
@@ -753,10 +772,6 @@ async def _check_pre_alert(bot, symbol: str, tf: str, sig: dict, df: pd.DataFram
 
     if sent > 0:
         _pre_alerts_sent[pre_key] = time.time()
-        # Limpiar entradas expiradas (>2h) periódicamente
-        if len(_pre_alerts_sent) > 100:
-            _cleanup_pre_alerts()
-
         coin = symbol.replace('USDT', '')
         add_log_line(f"⚡ SP pre-aviso {sig['direction']} {coin}/{tf} — "
                      f"{time_to_close}s para cierre — {sent} usuarios")
