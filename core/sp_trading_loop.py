@@ -82,7 +82,12 @@ async def sp_trading_monitor_loop(bot, add_log_line):
                 for user_id, trade in trades_list:
                     try:
                         trade_id = trade.get("trade_id")
-                        update_trade_price(user_id, trade_id, price)
+                        
+                        # Update price in file AND get updated trade
+                        trade = update_trade_price(user_id, trade_id, price)
+                        if not trade:
+                            continue
+                        
                         crosses = check_trade_crosses(trade, price)
 
                         direction = trade.get("direction", "BUY")

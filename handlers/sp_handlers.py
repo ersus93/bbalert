@@ -294,7 +294,7 @@ def _get_view_keyboard(user_id: int, symbol: str, tf: str, direction: str = None
     ]
     
     # Botón ABRIR operación si hay señal válida
-    if direction in ('BUY', 'SELL'):
+    if direction in ('BUY', 'SELL', 'BUY_STRONG', 'SELL_STRONG'):
         keyboard.append([
             InlineKeyboardButton("🚀 Abrir Operación", callback_data=f"sp_open_trade|{symbol}|{tf}"),
         ])
