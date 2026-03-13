@@ -23,7 +23,8 @@ from utils.weather_manager import load_weather_subscriptions
 from utils.valerts_manager import get_active_symbols, get_valerts_subscribers
 from utils.btc_manager import load_btc_subs
 from collections import Counter
-from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history, migrate_user_timestamps, add_subscription_days
+from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history, migrate_user_timestamps, add_subscription_days, registrar_uso_comando
+from utils.sp_manager import get_trades_stats, get_active_sp_pairs
 from utils.ads_manager import load_ads, add_ad, delete_ad
 from utils.logger import LOG_FILE_PATH
 from utils.telemetry import (
@@ -364,6 +365,9 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     chat_id_str = str(chat_id)
     
+    # Track command usage
+    registrar_uso_comando(chat_id, "users")
+    
     # 1. CARGA DE DATOS (Centralizada)
     usuarios = cargar_usuarios()
     all_alerts = load_price_alerts()
@@ -582,8 +586,15 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     valerts_unique_users.add(uid)
                 
     valerts_total_users = len(valerts_unique_users)
+    
+    # --- D. SP (SMARTSIGNALS PRO) ---
+    sp_pairs = get_active_sp_pairs()
+    sp_pairs_count = len(sp_pairs)
+    sp_trades_stats = get_trades_stats()
+    sp_users = sp_trades_stats['total_users']
+    sp_trades_today = sp_trades_stats['open_trades']
 
-    # --- D. CÁLCULOS DE RECURSOS (RAM, CPU, Uptime) ---
+    # --- E. CÁLCULOS DE RECURSOS (RAM, CPU, Uptime) ---
     # BUG-5 FIX: Eliminar doble instanciación de psutil.Process — reusar proc_global
     # 1. Uso de Memoria y CPU
     mem_usage = proc_global.memory_info().rss / 1024 / 1024 # MB
@@ -671,6 +682,9 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weather_subscribers_esc = _clean_markdown(weather_subscribers)
     valerts_total_users_esc = _clean_markdown(valerts_total_users)
     valerts_symbols_esc = _clean_markdown(valerts_active_symbols_count)
+    sp_pairs_esc = _clean_markdown(sp_pairs_count)
+    sp_users_esc = _clean_markdown(sp_users)
+    sp_trades_today_esc = _clean_markdown(sp_trades_today)
     top_coins_str_esc = _clean_markdown(top_coins_str)
     VERSION_esc = _clean_markdown(VERSION)
     now_str_esc = _clean_markdown(now.strftime('%d/%m/%Y %H:%M'))
@@ -724,6 +738,11 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"├ 🐝 Monitor HBD: `{hbd_subscribers_esc}` usuarios\n"
         f"├ 🌦️ Monitor Clima: `{weather_subscribers_esc}` usuarios\n"
         f"└ 🚀 Valerts: `{valerts_total_users_esc}` usuarios en `{valerts_symbols_esc}` monedas\n\n"
+
+        f"🚀 *SMARTSIGNALS PRO*\n"
+        f"├ Pares Activos: `{sp_pairs_esc}`\n"
+        f"├ Usuarios Suscritos: `{sp_users_esc}`\n"
+        f"└ Trades Hoy: `{sp_trades_today_esc}`\n\n"
 
         f"🏆 *TENDENCIAS DE MERCADO*\n"
         f"🔥 Top Monedas Vigiladas:\n"
