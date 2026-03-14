@@ -825,3 +825,32 @@ def get_hbd_alert_recipients() -> list:
         if data.get('hbd_alerts', False):
             recipients.append(chat_id)
     return recipients
+
+
+# === UX Metrics Helper Functions ===
+
+def get_user_meta(user_id: int, key: str, default=None):
+    """
+    Get user metadata value for a specific key.
+    Used for UX metrics tracking and feature flags.
+    """
+    usuarios = cargar_usuarios()
+    user_id_str = str(user_id)
+    if user_id_str in usuarios:
+        return usuarios[user_id_str].get(key, default)
+    return default
+
+
+def set_user_meta(user_id: int, key: str, value):
+    """
+    Set user metadata value for a specific key.
+    Used for UX metrics tracking and feature flags.
+    """
+    usuarios = cargar_usuarios()
+    user_id_str = str(user_id)
+    if user_id_str not in usuarios:
+        # Create new user entry if doesn't exist
+        usuarios[user_id_str] = {'registered_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+    
+    usuarios[user_id_str][key] = value
+    guardar_usuarios(usuarios)

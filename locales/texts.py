@@ -2,6 +2,98 @@
 
 HELP_MSG = {
     "es": (
+        "📚 *Ayuda Rápida*\n\n"
+        "Selecciona una categoría:\n\n"
+        "_Usa /help completo para ver todos los comandos_"
+    ),
+    "en": (
+        "📚 *Quick Help*\n\n"
+        "Select a category:\n\n"
+        "_Use /help full to see all commands_"
+    )
+}
+
+HELP_CATEGORIES = {
+    "es": {
+        "help_alerts": (
+            "🚨 *Alertas*\n\n"
+            "/alerta MONEDA PRECIO - Crear alerta\n"
+            "/misalertas - Ver tus alertas\n"
+            "/monedas BTC,ETH - Configurar lista\n"
+            "/temp 2.5 - Intervalo de alertas\n"
+            "/parar - Detener alertas\n\n"
+            "[← Volver]"
+        ),
+        "help_trading": (
+            "📊 *Trading*\n\n"
+            "/p BTC - Ver precio\n"
+            "/ta BTCUSDT - Análisis técnico\n"
+            "/graf BTC 1h - Gráfico\n"
+            "/mk - Mercados globales\n"
+            "/sp BTC 4h - SmartSignals\n\n"
+            "[← Volver]"
+        ),
+        "help_weather": (
+            "🌤️ *Clima*\n\n"
+            "/w Madrid - Clima actual\n"
+            "/weather_settings - Configurar alertas\n\n"
+            "[← Volver]"
+        ),
+        "help_settings": (
+            "⚙️ *Ajustes*\n\n"
+            "/lang - Cambiar idioma\n"
+            "/shop - Tienda\n"
+            "/myid - Tu ID de Telegram\n\n"
+            "[← Volver]"
+        ),
+        "help_all": (
+            "📋 *Todos los Comandos*\n\n"
+            "Usa /help para ver ayuda por categorías.\n\n"
+            "[← Volver a categorías]"
+        )
+    },
+    "en": {
+        "help_alerts": (
+            "🚨 *Alerts*\n\n"
+            "/alerta SYMBOL PRICE - Create alert\n"
+            "/misalertas - View your alerts\n"
+            "/monedas BTC,ETH - Set watchlist\n"
+            "/temp 2.5 - Alert interval\n"
+            "/parar - Stop alerts\n\n"
+            "[← Back]"
+        ),
+        "help_trading": (
+            "📊 *Trading*\n\n"
+            "/p BTC - Check price\n"
+            "/ta BTCUSDT - Technical analysis\n"
+            "/graf BTC 1h - Chart\n"
+            "/mk - Global markets\n"
+            "/sp BTC 4h - SmartSignals\n\n"
+            "[← Back]"
+        ),
+        "help_weather": (
+            "🌤️ *Weather*\n\n"
+            "/w Madrid - Current weather\n"
+            "/weather_settings - Configure alerts\n\n"
+            "[← Back]"
+        ),
+        "help_settings": (
+            "⚙️ *Settings*\n\n"
+            "/lang - Change language\n"
+            "/shop - Store\n"
+            "/myid - Your Telegram ID\n\n"
+            "[← Back]"
+        ),
+        "help_all": (
+            "📋 *All Commands*\n\n"
+            "Use /help for category-based help.\n\n"
+            "[← Back to categories]"
+        )
+    }
+}
+
+HELP_FULL = {
+    "es": (
         "📚 *Menú de Ayuda*\n"
         "—————————————————\n"
         "🚀 *Alertas Periódicas (Monitor)*\n"
@@ -12,27 +104,27 @@ HELP_MSG = {
         "  • `/mismonedas`: Muestra tu lista de monedas configuradas.\n\n"
         "🚨 *Alertas por Cruce de Precio*\n"
         "  • `/alerta <SÍMBOLO> <PRECIO>`: Crea una alerta de precio (ej. `/alerta HIVE 0.35`).\n"
-        "  • `/misalertas`: Muestra y borra tus alertas de cruce activas.\n\n"
+        "  • `/misalertas`: Muestra y borra tus alertas activas.\n\n"
         "📈 *Comandos de Consulta*\n"
         "  • `/p <MONEDA>`: Precio detallado de una moneda (ej. `/p HIVE`).\n"
         "  • `/graf <MONEDA> [PAR] <TIEMPO>`: Gráfico (ej. `/graf BTC 1h`).\n"
         "  • `/tasa`: Tasas de cambio de ElToque (CUP).\n"
-        "  • `/mk`: Consulta el estado (abierto/cerrado) de los principales mercados globales.\n"
-        "  • `/ta <MONEDA> [PAR] [TIEMPO]`: Análisis técnico detallado (RSI, MACD, S/R).\n"
+        "  • `/mk`: Estado de mercados globales.\n"
+        "  • `/ta <MONEDA> [PAR] [TIEMPO]`: Análisis técnico (RSI, MACD, S/R).\n"
         "  • `/ver`: Consulta rápida de precios de tu lista.\n"
-        "  • `/w`: Gestion de alertas del cima\n\n"
+        "  • `/w`: Gestión de alertas de clima\n\n"
         "⚙️ *Configuración y Varios*\n"
-        "  • `/hbdalerts [add/del/run/stop]`: Administra umbrales HBD. (Ej: `/hbdalerts add 0.9950`).\n"
-        "  • `/btcalerts`: Alertas y análisis de colatilidad de  BTC. (Ej: `/btcalerts`).\n"
-        "  • `/valerts`: Alertas y análisis de volatilidad multi-moneda. (Ej: `/valerts`).\n"
-        "  • `/lang`: Cambia el idioma del bot.\n"
-        "  • `/myid`: Muestra tu ID de Telegram.\n"
-        "  • `/start`: Mensaje de bienvenida.\n"
-        "  • `/help`: Muestra este menú.\n\n—————————————————\n\n"
+        "  • `/hbdalerts [add/del/run/stop]`: Administra umbrales HBD.\n"
+        "  • `/btcalerts`: Alertas y análisis de volatilidad BTC.\n"
+        "  • `/valerts`: Alertas y análisis multi-moneda.\n"
+        "  • `/lang`: Cambia idioma.\n"
+        "  • `/myid`: Tu ID de Telegram.\n"
+        "  • `/start`: Bienvenida.\n"
+        "  • `/help`: Este menú.\n\n—————————————————\n\n"
         "🔑 *Comandos de Administrador*\n"
         "  • `/users`: Muestra estadísticas y lista de usuarios.\n"
         "  • `/logs [N]`: Muestra las últimas líneas del log.\n"
-        "  • `/ms`: Enviar mensaje masivo a todos los usuarios.\n" 
+        "  • `/ms`: Enviar mensaje masivo a todos los usuarios.\n"
         "  • `/ad`: Gestionar anuncios (listar, añadir, borrar).\n"
     ),
     "en": (
@@ -66,7 +158,7 @@ HELP_MSG = {
         "🔑 *Admin Commands*\n"
         "  • `/users`: Shows statistics and user list.\n"
         "  • `/logs [N]`: Shows the last lines of the log.\n"
-        "  • `/ms`: Send mass message to all users.\n" 
+        "  • `/ms`: Send mass message to all users.\n"
         "  • `/ad`: Manage ads (list, add, delete).\n"
     )
 }

@@ -37,14 +37,15 @@ from handlers.user_settings import (
 )
 from handlers.alerts import (
     alerta_command,
-    misalertas, 
-    borrar_alerta_callback, 
+    misalertas,
+    borrar_alerta_callback,
     borrar_todas_alertas_callback,
 )
 from handlers.trading import graf_command, graf_timeframe_callback, p_command, refresh_command_callback, mk_command, ta_quick_callback
 from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback, graf_from_ta_callback
 from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
+from handlers.general import start, myid, ver, help_command, start_button_callback, help_category_callback, help_back_callback
 
 from handlers.valerts_handlers import valerts_handlers_list
 from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
@@ -318,7 +319,14 @@ def main():
     # ============================================
     # CallbackQueryHandlers (DEBEN IR AL FINAL)
     # ============================================
-    
+
+    # Callbacks de /start buttons
+    app.add_handler(CallbackQueryHandler(start_button_callback, pattern="^start_"))
+
+    # Callbacks de /help categories
+    app.add_handler(CallbackQueryHandler(help_category_callback, pattern="^help_"))
+    app.add_handler(CallbackQueryHandler(help_back_callback, pattern="^help_back$"))
+
     # Callbacks de Clima
     if weather_callback_handlers:
         if isinstance(weather_callback_handlers, list):

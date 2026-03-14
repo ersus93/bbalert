@@ -1,49 +1,86 @@
-# handlers/general.py 
+# handlers/general.py
 
 import asyncio
 from datetime import datetime
-from telegram import Update
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 from utils.file_manager import (
-    registrar_usuario, 
-    obtener_monedas_usuario, 
+    registrar_usuario,
+    obtener_monedas_usuario,
     load_last_prices_status,
     obtener_datos_usuario,
     check_feature_access,
-    registrar_uso_comando
+    registrar_uso_comando,
+    get_user_meta,
+    set_user_meta
 )
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text
 from core.config import ADMIN_CHAT_IDS
 from locales.texts import HELP_MSG
 from core.i18n import _
+from handlers.trading import p_command
 
-#  Telegram comando /start 
+#  Telegram comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /start. Registra al usuario."""
-
+    """Comando /start. Versión simplificada con CTA buttons."""
     user = update.effective_user
     user_id = user.id
     user_lang = user.language_code
-    
+
     registrar_usuario(user_id, user_lang)
-    
-    nombre_usuario = update.effective_user.first_name
 
+    # Mensaje corto (< 30 palabras)
     mensaje = _(
-    "*Hola👋 {nombre_usuario}!* Bienvenido a BitBreadAlert.\n————————————————————\n\n"
-    "Para recibir alertas periódicas con los precios de tu lista de monedas, "
-    "usa el comando `/monedas` seguido de los símbolos separados por comas. "
-    "Puedes usar *cualquier* símbolo de criptomoneda listado en CoinMarketCap. Ejemplo:\n\n"
-    "`/monedas BTC, ETH, TRX, HIVE, ADA`\n\n"
-    "Puedes modificar la temporalidad de esta alerta en cualquier momento con el comando /temp seguido de las horas (entre 0.5 y 24.0).\n"
-    "Ejemplo: /temp 2.5 (para 2 horas y 30 minutos)\n\n"
-    "Usa /help para ver todos los comandos disponibles.",
-    user_id
-    ).format(nombre_usuario=nombre_usuario) 
+        "👋 ¡Hola {nombre}!\n\n"
+        "¿Qué quieres hacer?",
+        user_id
+    ).format(nombre=user.first_name)
 
-    await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+    # Botones CTA claros
+    keyboard = [
+        [InlineKeyboardButton("🚨 Crear Alerta", callback_data="start_create_alert")],
+        [InlineKeyboardButton("📊 Ver Precios", callback_data="start_check_price")],
+        [InlineKeyboardButton("📚 Ayuda", callback_data="start_help")]
+    ]
+
+    await update.message.reply_text(
+        mensaje,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def start_button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle callbacks from /start buttons."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user_id = query.from_user.id
+    
+    if data == "start_create_alert":
+        await query.edit_message_text(
+            _(
+                "🚨 *Crear Alerta*\n\n"
+                "Usa: /alerta MONEDA PRECIO\n\n"
+                "Ejemplo: /alerta BTC 50000",
+                user_id
+            ),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    elif data == "start_check_price":
+        await query.edit_message_text(
+            _(
+                "📊 *Ver Precios*\n\n"
+                "Usa: /p MONEDA\n\n"
+                "Ejemplo: /p BTC",
+                user_id
+            ),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    elif data == "start_help":
+        await help_command(update, context)
 
 # COMANDO /ver REFACTORIZADO
 async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -154,28 +191,93 @@ async def myid(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # COMANDO /help
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra el menú de ayuda unificado."""
+    """Muestra el menú de ayuda simplificado (nivel 1)."""
     user = update.effective_user
     user_id = user.id
-    
-    # 1. Obtener los datos del usuario del JSON
+
+    # Check if user wants full help
+    args = context.args
+    if args and args[0].lower() in ['completo', 'full', 'all']:
+        await show_full_help(update, context)
+        return
+
+    # Level 1: Category navigation
+    keyboard = [
+        [InlineKeyboardButton("🚨 Alertas", callback_data="help_alerts")],
+        [InlineKeyboardButton("📊 Trading", callback_data="help_trading")],
+        [InlineKeyboardButton("🌤️ Clima", callback_data="help_weather")],
+        [InlineKeyboardButton("⚙️ Ajustes", callback_data="help_settings")],
+        [InlineKeyboardButton("📋 Ver TODOS los comandos", callback_data="help_all")]
+    ]
+
+    # Get localized message
     datos_usuario = obtener_datos_usuario(user_id)
-    
-    # 2. Obtener el idioma (por defecto español)
-    # Nota: Asegúrate de usar 'language', que es como se guarda en file_manager.py
-    lang = datos_usuario.get('language', 'es') 
-    
-    # 3. Validación extra por seguridad
+    lang = datos_usuario.get('language', 'es')
     if lang not in ['es', 'en']:
-        lang = 'es' 
+        lang = 'es'
     
-    # 4. Obtener el texto directamente del diccionario HELP_MSG
-    # Si por alguna razón falla el idioma, usa español como respaldo
     texto = HELP_MSG.get(lang, HELP_MSG['es'])
 
-    # 5. Enviar mensaje
     await update.message.reply_text(
         text=texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN,
+        disable_web_page_preview=True
+    )
+
+
+async def help_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle callbacks from help category buttons."""
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+    user_id = query.from_user.id
+    
+    # Get localized category content
+    datos_usuario = obtener_datos_usuario(user_id)
+    lang = datos_usuario.get('language', 'es')
+    if lang not in ['es', 'en']:
+        lang = 'es'
+    
+    help_categories = HELP_CATEGORIES.get(lang, HELP_CATEGORIES['es'])
+    content = help_categories.get(data, "❌ Opción no válida")
+    
+    # Add back button
+    keyboard = [[InlineKeyboardButton("← Volver", callback_data="help_back")]]
+    
+    await query.edit_message_text(
+        content,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
+async def help_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Return to main help menu."""
+    query = update.callback_query
+    await query.answer()
+    # Re-show main help
+    await help_command(update, context)
+
+
+async def show_full_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Show full help menu (all commands)."""
+    user = update.effective_user
+    user_id = user.id
+
+    datos_usuario = obtener_datos_usuario(user_id)
+    lang = datos_usuario.get('language', 'es')
+    if lang not in ['es', 'en']:
+        lang = 'es'
+    
+    texto = HELP_FULL.get(lang, HELP_FULL['es'])
+    
+    # Add back button
+    keyboard = [[InlineKeyboardButton("← Volver a categorías", callback_data="help_back")]]
+
+    await update.message.reply_text(
+        text=texto,
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.MARKDOWN,
         disable_web_page_preview=True
     )
