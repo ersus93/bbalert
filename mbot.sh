@@ -928,13 +928,46 @@ git_switch_branch() {
         _warn "Cambios sin committear:"; git status --short
         read -rp "  ¿Descartarlos? [s/N]: " yn; [[ ! "$yn" =~ ^[sS]$ ]] && return 0; git checkout -- .
     fi
-    printf "\n"; local branches=("main" "testing" "dev"); local i=1
+    
+    # DETECTAR RAMAS REMOTAS DISPONIBLES (excluyendo HEAD y duplicados)
+    printf "\n  ${DIM}Detectando ramas remotas...${NC}\n"
+    local -a branches=()
+    while IFS= read -r branch; do
+        # Limpiar nombre de rama (quitar 'origin/' y espacios)
+        branch=$(echo "$branch" | sed 's/origin\///' | tr -d ' ')
+        # Excluir HEAD y ramas vacías
+        [[ -n "$branch" && "$branch" != "HEAD" ]] && branches+=("$branch")
+    done < <(git branch -r 2>/dev/null | grep -v "HEAD" | sort -u)
+    
+    # Si no hay ramas remotas, usar locales
+    if [[ ${#branches[@]} -eq 0 ]]; then
+        while IFS= read -r branch; do
+            branch=$(echo "$branch" | sed 's/^[ *]*//' | tr -d ' ')
+            [[ -n "$branch" ]] && branches+=("$branch")
+        done < <(git branch 2>/dev/null)
+    fi
+    
+    # Mostrar ramas disponibles
+    printf "\n"
+    local i=1
     for b in "${branches[@]}"; do
-        [[ "$b" = "$cur" ]] && printf "  ${GB}  *${NC}  ${WB}%s${NC} ${DIM}(actual)${NC}\n" "$b" || printf "  ${CB}%3d)${NC}  %s\n" "$i" "$b"; ((i++))
+        if [[ "$b" = "$cur" ]]; then
+            printf "  ${GB}  *${NC}  ${WB}%s${NC} ${DIM}(actual)${NC}\n" "$b"
+        else
+            printf "  ${CB}%3d)${NC}  %s\n" "$i" "$b"
+        fi
+        ((i++))
     done
-    printf "  ${YB}  0)${NC}  Cancelar\n"; printf "\n"; read -rp "  Rama: " sel; [[ "$sel" = "0" ]] && return 0
+    printf "  ${YB}  0)${NC}  Cancelar\n"
+    printf "\n"
+    read -rp "  Rama: " sel
+    
+    [[ "$sel" = "0" ]] && return 0
     local tgt="${branches[$((sel-1))]}"; [[ -z "$tgt" ]] && { _err "Inválido."; return 1; }
-    _spin_start "Cambiando"; git checkout "$tgt" && git pull origin "$tgt"; _spin_stop
+    
+    _spin_start "Cambiando"
+    git checkout "$tgt" && git pull origin "$tgt" 2>/dev/null || git checkout "$tgt"
+    _spin_stop
     _ok "Ahora en: ${CB}${tgt}${NC}"
     read -rp "  ¿Actualizar deps? [S/n]: " yn; [[ ! "$yn" =~ ^[nN]$ ]] && install_dependencies; _pause
 }
@@ -958,17 +991,61 @@ git_show_history() {
 }
 manage_environments() {
     _header; _center "GESTIÓN DE ENTORNOS" "${YB}"; printf "\n"
-    _item 1 "🧪" "Staging"    "rama: testing"; _item 2 "🚀" "Producción" "rama: main"; _item 0 "✕"  "Volver"     ""
+    
+    # DETECTAR RAMAS DISPONIBLES DINÁMICAMENTE
+    local -a branches=()
+    local -a display_names=()
+    local -a dirs=()
+    
+    # Obtener ramas remotas
+    while IFS= read -r branch; do
+        branch=$(echo "$branch" | sed 's/origin\///' | tr -d ' ')
+        if [[ -n "$branch" && "$branch" != "HEAD" ]]; then
+            branches+=("$branch")
+            # Nombre para mostrar (simplificado)
+            local dname="$branch"
+            [[ "$branch" == "main" ]] && dname="Producción"
+            [[ "$branch" == "test" ]] && dname="Staging"
+            [[ "$branch" == "dev" ]] && dname="Desarrollo"
+            display_names+=("$dname")
+            dirs+=("$HOME/bbalert-$branch")
+        fi
+    done < <(git branch -r 2>/dev/null | grep -v "HEAD" | sort -u)
+    
+    # Mostrar opciones
+    local i=1
+    for idx in "${!branches[@]}"; do
+        _item "$i" "🔧" "${display_names[$idx]}" "rama: ${branches[$idx]}"
+        ((i++))
+    done
+    _item 0 "✕" "Volver" ""
+    
     printf "\n"; read -rp "  Entorno: " ec
-    local en="" ed="" eb=""
-    case $ec in 1) en="staging" ed="$HOME/bbalert-staging" eb="testing";; 2) en="producción" ed="$HOME/bbalert-prod" eb="main";; *) return 0;; esac
+    
+    [[ "$ec" = "0" ]] && return 0
+    local sel=$((ec - 1))
+    [[ $sel -lt 0 || $sel -ge ${#branches[@]} ]] && { _err "Inválido."; _pause; return 1; }
+    
+    local ed="${dirs[$sel]}" eb="${branches[$sel]}"
+    
     if [[ ! -d "$ed" ]]; then
         _warn "No existe."; read -rp "  ¿Crear? [S/n]: " yn
-        [[ ! "$yn" =~ ^[nN]$ ]] && { detect_python; git clone https://github.com/ersus93/bbalert.git "$ed"; cd "$ed"; git checkout "$eb"; $TARGET_PYTHON -m venv venv; source venv/bin/activate; pip install -r requirements.txt --quiet; _ok "Entorno creado."; }
+        [[ ! "$yn" =~ ^[nN]$ ]] && { 
+            detect_python
+            git clone https://github.com/ersus93/bbalert.git "$ed"
+            cd "$ed" && git checkout "$eb"
+            $TARGET_PYTHON -m venv venv
+            source venv/bin/activate
+            pip install -r requirements.txt --quiet
+            _ok "Entorno creado."
+        }
         _pause; return 0
     fi
-    local es; es=$(basename "$ed"); _info "Dir: $ed | Rama: $eb"
-    systemctl is-active --quiet "$es" 2>/dev/null && _ok "Activo" || _warn "Detenido"; printf "\n"
+    
+    local es; es=$(basename "$ed")
+    _info "Dir: $ed | Rama: $eb"
+    systemctl is-active --quiet "$es" 2>/dev/null && _ok "Activo" || _warn "Detenido"
+    printf "\n"
     _item 1 "⬇ " "git pull"; _item 2 "▶ " "Iniciar"; _item 3 "⏹ " "Detener"; _item 4 "🔄" "Reiniciar"; _item 5 "📋" "Logs"
     read -rp "  Acción: " ac
     case $ac in
