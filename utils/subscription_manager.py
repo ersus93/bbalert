@@ -132,6 +132,22 @@ def check_feature_access(chat_id: int, feature_type: str, current_count: int = N
             )
         return True, "OK"
 
+    # REGLA 7: Comando /prices (unificado)
+    if feature_type == 'prices_limit':
+        limit = 8  # Mismo límite que /ver
+        if is_active('watchlist_bundle'):
+            limit = 48
+
+        if daily.get('prices', 0) >= limit:
+            return False, (
+                f"🔒 *Límite Diario Alcanzado ({limit}/{limit})*\n"
+                "—————————————————\n\n"
+                f"Has usado tus {limit} consultas gratuitas de /prices por hoy.\n\n"
+                "—————————————————\n"
+                "Adquiere el 'Pack Control Total' en /shop para aumentar a 48 consultas diarias"
+            )
+        return True, "OK"
+
     return True, "OK"
 
 
@@ -148,7 +164,7 @@ def registrar_uso_comando(chat_id: int, comando: str) -> None:
     if 'daily_usage' not in usuarios[chat_id_str]:
         usuarios[chat_id_str]['daily_usage'] = {
             'date': datetime.now().strftime('%Y-%m-%d'),
-            'ver': 0, 'tasa': 0, 'ta': 0,
+            'ver': 0, 'prices': 0, 'tasa': 0, 'ta': 0,
             'temp_changes': 0, 'reminders': 0,
             'weather': 0, 'btc': 0,
         }
@@ -156,7 +172,8 @@ def registrar_uso_comando(chat_id: int, comando: str) -> None:
     # Map comando to daily_usage key
     command_map = {
         'ver': 'ver',
-        'tasa': 'tasa', 
+        'prices': 'prices',  # Nuevo comando unificado
+        'tasa': 'tasa',
         'ta': 'ta',
         'temp': 'temp_changes',
         'rec': 'reminders',
