@@ -39,7 +39,7 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     # Obtener precios
     try:
-        precios = obtener_precios_control(moneda)
+        precios = obtener_precios_control(monedas)
     except Exception as e:
         await msg.edit_text(
             f"⚠️ *Error al consultar precios*\n\n"
