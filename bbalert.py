@@ -302,7 +302,14 @@ def main():
     # Aliases de compatibilidad (redirigen a /prices)
     app.add_handler(CommandHandler("ver", prices_command))
     app.add_handler(CommandHandler("monedas", prices_add_start))
-    app.add_handler(CommandHandler("mismonedas", prices_callback_handler, pattern="^prices_list"))
+    
+    # Alias para /mismonedas → necesita función wrapper
+    async def mismonedas_alias(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Alias: /mismonedas → muestra lista de precios"""
+        # Simular callback query para mostrar lista
+        await prices_command(update, context)
+    
+    app.add_handler(CommandHandler("mismonedas", mismonedas_alias))
     
     # ============================================
     # Comandos de Admin
