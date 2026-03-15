@@ -1,62 +1,12 @@
 # handlers/precios.py
-"""
-Handler unificado para comandos de precios.
-Unifica: /p, /ver, /mismonedas
-
-Sintaxis:
-  /precios              - Ver precios de mi lista
-  /precios BTC          - Ver precio específico
-  /precios add BTC,ETH - Añadir a lista
-  /precios remove BTC  - Quitar de lista
-  /precios lista        - Ver mi lista
-"""
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-
-from utils.file_manager import (
-    obtener_monedas_usuario,
-    actualizar_monedas,
-    registrar_usuario,
-    obtener_datos_usuario
-)
+from telegram.ext import ContextTypes
+from utils.user_data import obtener_monedAS_usuario, actualizar_monedAS
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text
-from utils.logger import logger
 from core.i18n import _
-
-
-async def precios_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """
-    Comando unificado /precios.
-    Maneja: ver precios, añadir, quitar, lista.
-    """
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    args = context.args
-    
-    registrar_usuario(user_id, update.effective_user.language_code)
-    
-    action = args[0].lower() if args else None
-    
-    if action == "add":
-        await add_prices(update, context, args[1:] if len(args) > 1 else [])
-        return
-    
-    if action == "remove" or action == "del":
-        await remove_prices(update, context, args[1:] if len(args) > 1 else [])
-        return
-    
-    if action == "lista" or action == "list":
-        await show_price_list(update, context)
-        return
-    
-    if action and action not in ["add", "remove", "del", "lista", "list"]:
-        await show_specific_price(update, context, action.upper())
-        return
-    
-    await show_prices(update, context)
 
 
 async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -64,7 +14,8 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
-    monedas = obtener_monedas_usuario(chat_id)
+    # Obtener monedas del usuario
+    monedas = obtener_monedAS_usuario(chat_id)
     
     if not monedas:
         await update.message.reply_text(
@@ -80,32 +31,51 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
         return
     
+    # Notificar que estamos cargando - PROGRESS FEEDBACK
     msg = await update.message.reply_text(
-        _("⏳ Consultando precios...", user_id)
+        "⏳ *Consultando precios...*",
+        parse_mode=ParseMode.MARKDOWN
     )
     
-    precios = obtener_precios_control(monedas)
-    
-    if not precios:
+    # Obtener precios
+    try:
+        precios = obtener_precios_control(moneda)
+    except Exception as e:
         await msg.edit_text(
-            _("❌ No se pudieron obtener los precios.", user_id)
+            f"⚠️ *Error al consultar precios*\n\n"
+            f"Detalles: {str(e)[:100]}\n\n"
+            f"Intenta de nuevo en unos segundos.",
+            parse_mode=ParseMode.MARKDOWN
         )
         return
     
+    if not precios:
+        await msg.edit_text(
+            "❌ *Sin datos disponibles*\n\n"
+            "No se pudieron obtener los precios en este momento.\n\n"
+            "Intenta de nuevo más tarde.",
+            parse_mode=ParseMode.MARKDOWN
+        )
+        return
+    
+    # Construir mensaje con indicadores visuales
     from datetime import datetime
-    mensaje = _("📊 *Precios Actuales:*\n━━━━━━━━━━━━━━━━━━━━\n\n", user_id)
+    mensaje = "📊 *Precios Actuales:*\n" + "─" * 20 + "\n\n"
     
     for moneda in monedas:
         p = precios.get(moneda)
         if p:
-            mensaje += f"*{moneda}*: ${p:,.4f}\n"
+            # Indicador de precio (flecha hacia arriba, abajo, o estable)
+            emoji = "📈"  # default up
+            mensaje += f"{emoji} *{moneda}*: `${p:,.4f}`\n"
         else:
-            mensaje += f"*{moneda}*: N/A\n"
+            mensaje += f"⚠️ *{moneda}*: N/A\n"
     
-    mensaje += f"\n━━━━━━━━━━━━━━━━━━━━\n"
-    mensaje += f"_📅 {datetime.now().strftime('%Y-%m-%d %H:%M')}_\n"
+    mensaje += "\n" + "─" * 20 + "\n"
+    mensaje += f"_🕐 {datetime.now().strftime('%H:%M')}_\n"
     mensaje += get_random_ad_text()
     
+    # Añadir botones de acción
     keyboard = [
         [InlineKeyboardButton("➕ Añadir", callback_data="precios_add")],
         [InlineKeyboardButton("📋 Mi Lista", callback_data="precios_lista")]
@@ -146,7 +116,7 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
-    monedas = obtener_monedas_usuario(chat_id)
+    monedas = obtener_monedAS_usuario(chat_id)
     
     if not monedas:
         await update.message.reply_text(
@@ -160,7 +130,7 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     mensaje = _("📋 *Tu Lista de Monedas:*\n\n", user_id)
-    mensaje += " • ".join(monedas)
+    mensaje += " • ".join(moneda)
     mensaje += f"\n\n_Edita con: /precios add/rem_"
     
     await update.message.reply_text(
@@ -189,7 +159,7 @@ async def add_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coins: 
     for coin_arg in coins:
         nuevas.extend([c.strip().upper() for c in coin_arg.split(",") if c.strip()])
     
-    actuales = obtener_monedas_usuario(chat_id)
+    actuales = obtener_monedAS_usuario(chat_id)
     
     añadidas = []
     for m in nuevas:
@@ -197,7 +167,7 @@ async def add_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coins: 
             actuales.append(m)
             añadidas.append(m)
     
-    actualizar_monedas(chat_id, actuales)
+    actualizar_monedAS(chat_id, actuales)
     
     if añadidas:
         await update.message.reply_text(
@@ -234,7 +204,7 @@ async def remove_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coin
     for coin_arg in coins:
         quitar.extend([c.strip().upper() for c in coin_arg.split(",") if c.strip()])
     
-    actuales = obtener_monedas_usuario(chat_id)
+    actuales = obtener_monedAS_usuario(chat_id)
     
     eliminadas = []
     for m in quitar:
@@ -242,7 +212,7 @@ async def remove_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coin
             actuales.remove(m)
             eliminadas.append(m)
     
-    actualizar_monedas(chat_id, actuales)
+    actualizar_monedAS(chat_id, actuales)
     
     if eliminadas:
         await update.message.reply_text(

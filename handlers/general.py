@@ -24,26 +24,33 @@ from handlers.trading import p_command
 
 #  Telegram comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Comando /start. Versión simplificada con CTA buttons."""
+    """Comando /start. Versión simplificada con wizard de onboarding."""
     user = update.effective_user
     user_id = user.id
     user_lang = user.language_code
+    first_name = user.first_name or ""
 
     registrar_usuario(user_id, user_lang)
 
-    # Mensaje corto (< 30 palabras)
-    mensaje = _(
-        "👋 ¡Hola {nombre}!\n\n"
-        "¿Qué quieres hacer?",
-        user_id
-    ).format(nombre=user.first_name)
+    # Mensaje de bienvenida con wizard
+    mensaje = (
+        f"👋 ¡Hola{', ' + first_name if first_name else ''}!\n\n"
+        "Soy BBAlert, tu asistente de crypto y trading.\n\n"
+        "¿Qué quieres hacer?"
+    )
 
-    # Botones CTA claros
+    # Botones CTA claros - menú principal
     keyboard = [
-        [InlineKeyboardButton("🚨 Crear Alerta", callback_data="start_create_alert")],
-        [InlineKeyboardButton("📊 Ver Precios", callback_data="start_check_price")],
-        [InlineKeyboardButton("📚 Ayuda", callback_data="start_help")]
+        [InlineKeyboardButton("📊 Ver Precios", callback_data="start_prices")],
+        [InlineKeyboardButton("🚨 Crear Alerta", callback_data="start_alerts")],
+        [InlineKeyboardButton("📈 Trading", callback_data="start_trading")],
     ]
+    
+    # Añadir botón de clima si tiene sentido
+    keyboard.append([InlineKeyboardButton("🌤️ Clima", callback_data="start_weather")])
+    
+    # Añadir ayuda
+    keyboard.append([InlineKeyboardButton("❓ Ayuda", callback_data="start_help")])
 
     await update.message.reply_text(
         mensaje,
@@ -59,24 +66,36 @@ async def start_button_callback(update: Update, context: ContextTypes.DEFAULT_TY
     data = query.data
     user_id = query.from_user.id
     
-    if data == "start_create_alert":
+    if data == "start_prices":
         await query.edit_message_text(
-            _(
-                "🚨 *Crear Alerta*\n\n"
-                "Usa: /alerta MONEDA PRECIO\n\n"
-                "Ejemplo: /alerta BTC 50000",
-                user_id
-            ),
+            "📊 *Ver Precios*\n\n"
+            "Usa: `/precios` para ver tu lista\n"
+            "O: `/precios BTC` para ver una moneda específica\n\n"
+            "_Tip: Añade monedas con /precios add BTC,ETH_",
             parse_mode=ParseMode.MARKDOWN
         )
-    elif data == "start_check_price":
+    elif data == "start_alerts":
         await query.edit_message_text(
-            _(
-                "📊 *Ver Precios*\n\n"
-                "Usa: /p MONEDA\n\n"
-                "Ejemplo: /p BTC",
-                user_id
-            ),
+            "🚨 *Crear Alerta*\n\n"
+            "Usa: `/alertas add BTC 50000`\n\n"
+            "Ejemplo: `/alertas add ETH 3500`\n\n"
+            "_Recibirás notificación cuando el precio llegue._",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    elif data == "start_trading":
+        await query.edit_message_text(
+            "📈 *Trading*\n\n"
+            "Usa: `/trading ta BTC` para análisis técnico\n"
+            "O: `/trading graf BTC 1h` para gráfico\n\n"
+            "_Otros comandos: /ta, /graf, /mk_",
+            parse_mode=ParseMode.MARKDOWN
+        )
+    elif data == "start_weather":
+        await query.edit_message_text(
+            "🌤️ *Clima*\n\n"
+            "Usa: `/w Madrid` para ver el clima\n"
+            "O: `/weather_settings` para configurar alertas\n\n"
+            "_Recibe alertas de lluvia, tormenta, etc._",
             parse_mode=ParseMode.MARKDOWN
         )
     elif data == "start_help":
