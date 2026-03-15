@@ -69,7 +69,7 @@ async def prices_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     # Construir mensaje con precios
-    mensaje = await _build_prices_message(monedas, precios, user_id)
+    mensaje = await _build_prices_message(monedas, precios, chat_id, user_id)
 
     # Crear botones inline
     keyboard = [
@@ -80,6 +80,9 @@ async def prices_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         [
             InlineKeyboardButton(_("📋 Ver Lista", user_id), callback_data="prices_list"),
             InlineKeyboardButton(_("⚙️ Configurar", user_id), callback_data="prices_settings"),
+        ],
+        [
+            InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back"),
         ],
     ]
 
@@ -113,12 +116,12 @@ async def _show_empty_list(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
 
-async def _build_prices_message(monedas: list, precios: dict, user_id: int) -> str:
+async def _build_prices_message(monedas: list, precios: dict, chat_id: int, user_id: int) -> str:
     """Construye el mensaje de precios con indicadores."""
     from utils.file_manager import load_last_prices_status
 
     todos_precios_anteriores = load_last_prices_status()
-    chat_id_str = str(user_id)
+    chat_id_str = str(chat_id)
     precios_anteriores = todos_precios_anteriores.get(chat_id_str, {})
 
     mensaje = _("📊 *Precios Actuales*\n—————————————————\n\n", user_id)
@@ -159,6 +162,7 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     data = query.data
+    chat_id = query.message.chat.id
     user_id = query.from_user.id
 
     if data == "prices_add":
@@ -257,7 +261,6 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
     mensaje = _("📋 *Tu Lista de Monedas*\n—————————————————\n\n", user_id)
     mensaje += "\n".join([f"• {m}" for m in monedas])
     mensaje += f"\n\n_Total: {len(monedas)} monedas_\n"
-    mensaje += _("\n\n[ ← Volver ](/prices)", user_id)
     
     keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
     
