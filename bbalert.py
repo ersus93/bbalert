@@ -69,7 +69,7 @@ from handlers.weather import (
     weather_callback_handlers
 )
 
-from handlers.precios import precios_command, precios_callback
+from handlers.precios import show_prices as precios_command, precios_callback
 from handlers.alertas import alertas_command
 from handlers.ajustes import ajustes_command
 
