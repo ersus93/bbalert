@@ -495,9 +495,11 @@ async def prices_master_command(update: Update, context: ContextTypes.DEFAULT_TY
     
     if subcommand == "add":
         # /prices add BTC,ETH,HIVE
+        context.args = remaining_args
         await prices_add_command(update, context)
     elif subcommand == "remove" or subcommand == "del":
         # /prices remove BTC
+        context.args = remaining_args
         await prices_remove_command(update, context)
     elif subcommand == "list" or subcommand == "ls":
         # /prices list
