@@ -309,6 +309,14 @@ def main():
     app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
 
     # ============================================
+    # Comandos de Trading/Cripto
+    # ============================================
+    app.add_handler(CommandHandler("p", p_command))
+    app.add_handler(CommandHandler("graf", graf_command))
+    app.add_handler(CommandHandler("mk", mk_command))
+    app.add_handler(CommandHandler("ta", ta_command))
+
+    # ============================================
     # Comandos de Alertas
     # ============================================
     app.add_handler(CommandHandler("alerta", alerta_command))
