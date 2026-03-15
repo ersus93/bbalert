@@ -199,44 +199,34 @@ async def _safe_nav(query, text: str, reply_markup: InlineKeyboardMarkup) -> Non
 # ─── TECLADOS ─────────────────────────────────────────────────────────────────
 
 def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Lista de monedas con estado de suscripción (3 por fila)."""
+    """
+    Menú principal simplificado de SmartSignals.
+    Máximo 5 opciones principales.
+    """
     keyboard = []
-    row      = []
-
-    for coin in SP_SUPPORTED_COINS:
-        sym   = coin['symbol']
-        key   = coin['key']
-        emoji = coin['emoji']
-        subs  = get_user_sp_subscriptions(user_id)
-        icon  = "🔔" if subs.get(sym) else "○"
-
-        row.append(InlineKeyboardButton(
-            f"{icon} {emoji}{key}",
-            callback_data=f"sp_coin|{sym}"
-        ))
-        if len(row) == 3:
-            keyboard.append(row)
-            row = []
-
-    if row:
-        keyboard.append(row)
-
+    subs = get_user_sp_subscriptions(user_id)
+    
+    # Fila 1: Principales monedas (2 por fila para más espacio)
     keyboard.append([
-        InlineKeyboardButton("📈 Operaciones", callback_data="sp_ops"),
-        InlineKeyboardButton("📋 Mis alertas", callback_data="sp_my_subs"),
+        InlineKeyboardButton("₿ BTC", callback_data="sp_coin|BTCUSDT"),
+        InlineKeyboardButton("Ξ ETH", callback_data="sp_coin|ETHUSDT"),
     ])
-
     keyboard.append([
-        InlineKeyboardButton("❓ Ayuda",        callback_data="sp_help"),
+        InlineKeyboardButton("◎ SOL", callback_data="sp_coin|SOLUSDT"),
+        InlineKeyboardButton("⚡ XMR", callback_data="sp_coin|XMRUSDT"),
     ])
-
-    if _SSS_OK:
-        active_strat = get_user_strategy(user_id)
-        strat_label  = f"🧠 {active_strat['name'][:18]}" if active_strat else "🧠 Estrategias"
-        keyboard.append([
-            InlineKeyboardButton(strat_label, callback_data="sp_strategies"),
-        ])
-
+    
+    # Fila 2: Mis suscripciones
+    sub_count = sum(1 for s in subs.values() if s)
+    sub_text = f"📋 Mis Señales ({sub_count})"
+    keyboard.append([InlineKeyboardButton(sub_text, callback_data="sp_my_subs")])
+    
+    # Fila 3: Ayuda y Tienda
+    keyboard.append([
+        InlineKeyboardButton("❓ Ayuda", callback_data="sp_help"),
+        InlineKeyboardButton("🛒 Tienda", callback_data="sp_goto_shop"),
+    ])
+    
     return InlineKeyboardMarkup(keyboard)
 
 
@@ -310,24 +300,25 @@ def _get_view_keyboard(user_id: int, symbol: str, tf: str, direction: str = None
 # ─── TEXTOS ───────────────────────────────────────────────────────────────────
 
 def _build_main_menu_text(user_id: int) -> str:
-    n    = count_user_sp_subs(user_id)
-    ops  = count_user_open_trades(user_id)
-    ops_info = f" | 📈 *{ops}* operación(nes) abierta(s)" if ops else ""
-    info = f"📊 Tienes *{n}* alerta(s) activa(s){ops_info}." if n else "Sin alertas activas."
-    return (
-        "📡 *SmartSignals Pro*\n"
-        "—————————————————\n\n"
-        "Señales de trading en tiempo real con análisis\n"
-        "predictivo. Alertas *antes de que se confirmen*.\n\n"
-        "🔹 Ciclo de análisis: cada *45 segundos*\n"
-        "🔹 Pre-aviso: *10–30s* antes del cierre de vela\n"
-        "🔹 Gráfico predictivo con zonas de entrada\n"
-        "🔹 BTC + 12 altcoins · 5 temporalidades\n\n"
-        f"{info}\n\n"
-        "📌 Selecciona una moneda para ver su señal\n"
-        "o activa/desactiva alertas automáticas:\n"
-        "—————————————————"
+    """
+    Texto simplificado del menú principal.
+    """
+    subs = get_user_sp_subscriptions(user_id)
+    active_count = sum(1 for s in subs.values() if s)
+    
+    text = (
+        "📊 *SmartSignals*\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"Tus suscripciones activas: *{active_count}*\n\n"
+        "Selecciona una moneda para ver señales.\n"
+        "Usa /sp help para más opciones."
     )
+    
+    # Añadir sugerencia contextual
+    if active_count == 0:
+        text += "\n\n💡 *Tip:* Activa notificaciones para recibir alertas cuando haya señales."
+    
+    return text
 
 
 def _build_preview_text() -> str:
@@ -586,6 +577,14 @@ async def _show_signal_view(
         )
 
         msg_text = build_signal_message(symbol, tf, sig) + strat_block
+        
+        # Añadir sugerencia de siguientes pasos
+        msg_text += "\n\n━━━━━━━━━━━━━━━━━━━━\n"
+        msg_text += "📌 *Otras opciones:*\n"
+        msg_text += "• /sp mis señales - Ver todas\n"
+        msg_text += "• /sp tienda - Suscribirse\n"
+        msg_text += "• /help - Otros comandos"
+        
         keyboard = _get_view_keyboard(user_id, symbol, tf, sig.get('direction'))
 
         # Fix #10: límite de caption Telegram
