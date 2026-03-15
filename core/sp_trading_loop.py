@@ -64,8 +64,11 @@ async def sp_trading_monitor_loop(bot, add_log_line):
 
             open_trades = get_all_open_trades()
             if not open_trades:
+                add_log_line("[DEBUG] No hay operaciones abiertas, esperando...")
                 await asyncio.sleep(TRADE_CHECK_INTERVAL)
                 continue
+
+            add_log_line(f"[DEBUG] Hay {len(open_trades)} operaciones abiertas")
 
             symbols = {}
             for user_id, trade in open_trades:
@@ -82,6 +85,7 @@ async def sp_trading_monitor_loop(bot, add_log_line):
                 for user_id, trade in trades_list:
                     try:
                         trade_id = trade.get("trade_id")
+                        add_log_line(f"[DEBUG] Procesando trade {trade_id} para user {user_id} @ ${price:.4f}")
                         
                         # Update price in file AND get updated trade
                         trade = update_trade_price(user_id, trade_id, price)
@@ -89,6 +93,7 @@ async def sp_trading_monitor_loop(bot, add_log_line):
                             continue
                         
                         crosses = check_trade_crosses(trade, price)
+                        add_log_line(f"[DEBUG] crosses para {trade_id}: {crosses}")
 
                         direction = trade.get("direction", "BUY")
                         entry = trade.get("entry_price", 0)
@@ -96,25 +101,28 @@ async def sp_trading_monitor_loop(bot, add_log_line):
 
                         if crosses.get("sl_hit"):
                             # SL tocado: cierra inmediatamente
+                            add_log_line(f"[DEBUG] SL HIT para {trade_id}, user {user_id}")
                             key = trade_id + ":SL"
                             if _should_notify(key, last_notify):
                                 pnl = _calc_pnl(direction, entry, trade.get("stop_loss", 0))
                                 close_trade(user_id, trade_id, "SL_HIT", pnl)
-                                await _notify_close(bot, user_id, trade, price, "SL", pnl, coin)
+                                await _notify_close(bot, user_id, trade, price, "SL", pnl, coin, add_log_line)
                                 last_notify[key] = time.time()
 
                         elif crosses.get("all_tp_hit"):
                             # TP3 tocado: cierra con ganancia máxima
+                            add_log_line(f"[DEBUG] TP3 HIT para {trade_id}, user {user_id}")
                             key = trade_id + ":TP3"
                             if _should_notify(key, last_notify):
                                 tp_price = trade.get("tp3", 0) or price
                                 pnl = _calc_pnl(direction, entry, tp_price)
                                 close_trade(user_id, trade_id, "TP3_HIT", pnl)
-                                await _notify_close(bot, user_id, trade, price, "TP3 ★", pnl, coin)
+                                await _notify_close(bot, user_id, trade, price, "TP3 ★", pnl, coin, add_log_line)
                                 last_notify[key] = time.time()
 
                         elif crosses.get("tp_hit") and crosses["tp_hit"] != trade.get("tp_hit"):
                             # TP1 o TP2 tocado: marca pero NO cierra (trailing)
+                            add_log_line(f"[DEBUG] {crosses['tp_hit']} HIT para {trade_id}, user {user_id}")
                             tp = crosses["tp_hit"]
                             key = trade_id + ":" + tp
                             if _should_notify(key, last_notify):
@@ -154,8 +162,9 @@ def _calc_pnl(direction, entry, exit_price):
     return 0
 
 
-async def _notify_close(bot, user_id, trade, price, reason, pnl, coin):
+async def _notify_close(bot, user_id, trade, price, reason, pnl, coin, add_log_line):
     """Notificación de cierre de operación (SL o TP3)."""
+    add_log_line(f"[DEBUG] _notify_close: user_id={user_id}, reason={reason}, pnl={pnl:.2f}%, coin={coin}")
     direction = trade.get("direction", "BUY")
     entry = trade.get("entry_price", 0)
     tf = trade.get("timeframe", "")
@@ -175,8 +184,9 @@ async def _notify_close(bot, user_id, trade, price, reason, pnl, coin):
         await bot.send_message(
             chat_id=user_id, text=msg, parse_mode=ParseMode.MARKDOWN
         )
-    except Exception:
-        pass
+        add_log_line(f"[DEBUG] Notificación de cierre enviada a user {user_id}")
+    except Exception as e:
+        add_log_line(f"[DEBUG] Error enviando notificación a user {user_id}: {e}")
 
 
 async def _notify_open(bot, user_id, trade, price, coin):
