@@ -157,7 +157,7 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     """Maneja los callbacks de los botones inline."""
     query = update.callback_query
     await query.answer()
-    
+
     data = query.data
     user_id = query.from_user.id
 
@@ -170,24 +170,35 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     elif data == "prices_settings":
         await _handle_settings_button(update, context)
     elif data == "prices_back":
+        # Si estamos en un diálogo, primero terminarlo
+        if context.user_data.get('in_prices_dialog'):
+            context.user_data['in_prices_dialog'] = False
         await prices_command(update, context)
+    elif data == "prices_cancel":
+        # Cancelar diálogo y volver
+        return await prices_add_cancel(update, context)
 
 
 async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja click en botón 'Añadir'."""
     user_id = update.effective_user.id
-    
+
     mensaje = _(
         "➕ *Añadir Monedas*\n—————————————————\n\n"
         "Escribe los símbolos separados por comas.\n\n"
         "*Ejemplo:*\n"
         "`BTC, ETH, HIVE, SOL`\n\n"
-        "Envía /cancel para cancelar.",
+        "También puedes usar /cancel para cancelar.",
         user_id
     )
-    
+
+    keyboard = [
+        [InlineKeyboardButton(_("❌ Cancelar", user_id), callback_data="prices_cancel")]
+    ]
+
     await update.callback_query.edit_message_text(
         mensaje,
+        reply_markup=InlineKeyboardMarkup(keyboard),
         parse_mode=ParseMode.MARKDOWN
     )
 
@@ -215,8 +226,8 @@ async def _handle_remove_button(update: Update, context: ContextTypes.DEFAULT_TY
             )
         ])
     
-    keyboard.append([InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")])
-    
+    keyboard.append([InlineKeyboardButton(_("❌ Cancelar", user_id), callback_data="prices_cancel")])
+
     mensaje = _(
         "🗑️ *Eliminar Monedas*\n—————————————————\n\n"
         "Haz click en una moneda para eliminarla:\n\n",

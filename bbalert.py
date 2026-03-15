@@ -339,6 +339,7 @@ def main():
     app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
     
     # ConversationHandlers para diálogos interactivos
+    # Nota: El CallbackQueryHandler para prices_back debe ir ANTES para tener prioridad
     app.add_handler(
         ConversationHandler(
             entry_points=[CommandHandler("prices", prices_add_start, has_args=False)],
@@ -346,12 +347,17 @@ def main():
                 ADD_COIN: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, prices_add_receive),
                     CommandHandler("done", prices_add_done),
+                    # Permitir cancelar con botón también
+                    CallbackQueryHandler(prices_add_cancel, pattern="^prices_cancel$"),
                 ],
             },
-            fallbacks=[CommandHandler("cancel", prices_add_cancel)],
+            fallbacks=[
+                CommandHandler("cancel", prices_add_cancel),
+                CallbackQueryHandler(prices_add_cancel, pattern="^prices_back$"),
+            ],
         )
     )
-    
+
     app.add_handler(
         ConversationHandler(
             entry_points=[CommandHandler("prices", prices_remove_start, has_args=False)],
@@ -359,9 +365,13 @@ def main():
                 REMOVE_COIN: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, prices_remove_receive),
                     CommandHandler("done", prices_remove_done),
+                    CallbackQueryHandler(prices_add_cancel, pattern="^prices_cancel$"),
                 ],
             },
-            fallbacks=[CommandHandler("cancel", prices_add_cancel)],
+            fallbacks=[
+                CommandHandler("cancel", prices_add_cancel),
+                CallbackQueryHandler(prices_add_cancel, pattern="^prices_back$"),
+            ],
         )
     )
     
