@@ -254,12 +254,21 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     texto = HELP_MSG.get(lang, HELP_MSG['es'])
 
-    await update.message.reply_text(
-        text=texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN,
-        disable_web_page_preview=True
-    )
+    # Handle both message and callback query
+    if update.message:
+        await update.message.reply_text(
+            text=texto,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True
+        )
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(
+            text=texto,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True
+        )
 
 
 async def help_category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -311,9 +320,18 @@ async def show_full_help(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Add back button
     keyboard = [[InlineKeyboardButton("← Volver a categorías", callback_data="help_back")]]
 
-    await update.message.reply_text(
-        text=texto,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN,
-        disable_web_page_preview=True
-    )
+    # Handle both message and callback query
+    if update.message:
+        await update.message.reply_text(
+            text=texto,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True
+        )
+    elif update.callback_query:
+        await update.callback_query.edit_message_text(
+            text=texto,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True
+        )

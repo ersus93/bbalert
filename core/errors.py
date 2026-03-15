@@ -18,9 +18,8 @@ from telegram.error import (
     RetryAfter, 
     BadRequest, 
     TelegramError,
-    ChatNotFound,
-    BotBlocked,
-    UserIsBot,
+    ChatMigrated,
+    Forbidden,
     InvalidToken
 )
 
