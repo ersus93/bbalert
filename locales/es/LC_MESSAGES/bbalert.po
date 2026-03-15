@@ -1573,3 +1573,15 @@ msgstr "¡No olvides el paraguas!"
 #: core/weather_loop_v2.py:244
 msgid "Toma precauciones."
 msgstr "Toma precauciones."
+
+#: core/sp_loop.py:544
+msgid "🚀 Abrir Operación"
+msgstr "🚀 Abrir Operación"
+
+#: core/sp_loop.py:545
+msgid "📈 Mis Operaciones"
+msgstr "📈 Mis Operaciones"
+
+#: core/sp_loop.py:552
+msgid "📊 Ver Gráfico TA"
+msgstr "📊 Ver Gráfico TA"
