@@ -36,9 +36,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Mensaje de bienvenida con wizard
     mensaje = (
-        f"👋 ¡Hola{', ' + first_name if first_name else ''}!\n\n"
-        "Soy BBAlert, tu asistente de crypto y trading.\n\n"
-        "¿Qué quieres hacer?"
+        f"👋 ¡Hola{', ' + first_name if first_name else ''}! 👋\n\n"
+        "Soy BBAlert, tu bot de alertas y un buen asistente para trading y seguimiento de mercado, la verdad soy bastante funcional.\n\n"
+        "¿Qué te ayudo para empezar?"
     )
 
     # Botones CTA claros - menú principal
