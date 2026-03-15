@@ -50,6 +50,7 @@ from handlers.general import start, myid, ver, help_command, start_button_callba
 from handlers.valerts_handlers import valerts_handlers_list
 from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
+from handlers.health import health_command
 
 # ── SmartSignals (/sp) ────────────────────────────────────────────────────────
 from handlers.sp_handlers import sp_handlers_list
@@ -262,6 +263,7 @@ def main():
     app.add_handler(CommandHandler("logs", logs_command))
     app.add_handler(CommandHandler("ad", ad_command))
     app.add_handler(CommandHandler("free", free_command))
+    app.add_handler(CommandHandler("health", health_command))
     
     # ============================================
     # Comandos de Trading/Cripto
@@ -368,24 +370,50 @@ def main():
     async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
         """
         Captura excepciones no manejadas y las loguea limpiamente.
-        - NetworkError / TimedOut / ReadError: errores transitorios de red,
-          PTB los reintenta solo → solo un WARNING sin traceback completo.
-        - RetryAfter: flood control de Telegram → espera el tiempo indicado.
-        - Resto: log completo para debugging.
+        - Categoriza errores para mejor debugging
+        - Envía feedback friendly al usuario
+        - Maneja errores transitorios automáticamente
         """
+        from core.errors import (
+            categorize_error, 
+            ErrorCategory, 
+            get_user_message,
+            log_error_with_context,
+            send_error_message
+        )
+        from utils.file_manager import obtener_datos_usuario
+        
         err = context.error
+        category = categorize_error(err)
+        
+        # Obtener idioma del usuario si está disponible
+        user_lang = "es"
+        if update and hasattr(update, 'effective_user') and update.effective_user:
+            try:
+                user_data = obtener_datos_usuario(update.effective_user.id)
+                user_lang = user_data.get('language', 'es')
+            except Exception:
+                pass
+        
+        # Manejar errores transitorios
+        from telegram.error import RetryAfter, NetworkError, TimedOut
+        
         if isinstance(err, (NetworkError, TimedOut)):
-            # Errores de red esperados durante el polling — ignorar silenciosamente
-            logger.debug(f"🌐 Error de red transitorio (auto-retry): {err}")
+            # Errores de red esperados - solo log
+            logger.debug(f"🌐 Error de red transitorio: {err}")
             return
+            
         if isinstance(err, RetryAfter):
+            # Flood control - esperar y reintentar
             logger.warning(f"⏳ Flood control: esperando {err.retry_after}s")
             await asyncio.sleep(err.retry_after)
             return
-        # Para cualquier otro error, loguear con contexto
-        logger.error(f"❌ Excepción no manejada: {err}", exc_info=context.error)
-        if update:
-            logger.error(f"   Update causante: {update}")
+        
+        # Loguear error categorizado
+        log_error_with_context(category, err, update, context=context.bot)
+        
+        # Enviar mensaje friendly al usuario
+        await send_error_message(update, category, user_lang)
 
     app.add_error_handler(error_handler)
     # ─────────────────────────────────────────────────────────────────────────

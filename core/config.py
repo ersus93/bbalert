@@ -54,3 +54,25 @@ except Exception as e:
     print(f"⚠️ No se pudo leer version.txt: {e}")
     VERSION = "0.0.0"
     
+# --- Configuración de Timeouts (segundos) ---
+# Timeouts globales para llamadas a APIs externas
+TIMEOUTS = {
+    "default": 10,           # Timeout por defecto
+    "price_api": 5,          # APIs de precios (CoinMarketCap, etc)
+    "chart_generation": 30, # Generación de gráficos
+    "weather": 8,            # OpenWeatherMap API
+    "tradingview": 15,      # TradingView
+    "telegram": 10,          # Llamadas a Telegram API
+    "scraper": 15,          # Web scraping
+}
+
+# --- Configuración de Reintentos ---
+# Configuración para retry logic automático
+RETRY_CONFIG = {
+    "max_retries": 3,           # Máximo de reintentos
+    "initial_delay": 1.0,        # Delay inicial en segundos
+    "backoff_factor": 2.0,      # Factor de backoff exponencial
+    "retry_on_timeout": True,   # Reintentar en timeouts
+    "retry_on_connection": True, # Reintentar en errores de conexión
+}
+    
