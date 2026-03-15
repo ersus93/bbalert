@@ -347,9 +347,9 @@ def main():
     # Callbacks de /start buttons
     app.add_handler(CallbackQueryHandler(start_button_callback, pattern="^start_"))
 
-    # Callbacks de /help categories
-    app.add_handler(CallbackQueryHandler(help_category_callback, pattern="^help_"))
+    # Callbacks de /help categories - help_back DEBE ir primero porque ^help_ también captura help_back
     app.add_handler(CallbackQueryHandler(help_back_callback, pattern="^help_back$"))
+    app.add_handler(CallbackQueryHandler(help_category_callback, pattern="^help_"))
 
     # Callbacks de Clima
     if weather_callback_handlers:

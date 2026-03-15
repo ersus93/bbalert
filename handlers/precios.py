@@ -10,7 +10,27 @@ from core.i18n import _
 
 
 async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Muestra precios de la lista del usuario."""
+    """Muestra precios de la lista del usuario o procesa comandos."""
+    args = context.args
+    
+    if args:
+        first_arg = args[0].lower()
+        
+        if first_arg == "add":
+            await add_prices(update, context, args[1:])
+            return
+        
+        if first_arg in ("remove", "rem"):
+            await remove_prices(update, context, args[1:])
+            return
+        
+        if first_arg in ("lista", "list"):
+            await show_price_list(update, context)
+            return
+        
+        await show_specific_price(update, context, args[0].upper())
+        return
+    
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
@@ -60,19 +80,19 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     # Construir mensaje con indicadores visuales
     from datetime import datetime
-    mensaje = "📊 *Precios Actuales:*\n" + "─" * 20 + "\n\n"
+    mensaje = "📊 Precios Actuales:\n"
+    mensaje += "────────────────────\n\n"
     
     for moneda in monedas:
         p = precios.get(moneda)
         if p:
-            # Indicador de precio (flecha hacia arriba, abajo, o estable)
-            emoji = "📈"  # default up
-            mensaje += f"{emoji} *{moneda}*: `${p:,.4f}`\n"
+            emoji = "📈"
+            mensaje += f"{emoji} {moneda}: ${p:,.4f}\n"
         else:
-            mensaje += f"⚠️ *{moneda}*: N/A\n"
+            mensaje += f"⚠️ {moneda}: N/A\n"
     
-    mensaje += "\n" + "─" * 20 + "\n"
-    mensaje += f"_🕐 {datetime.now().strftime('%H:%M')}_\n"
+    mensaje += "\n—————————————————\n"
+    mensaje += f"📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
     mensaje += get_random_ad_text()
     
     # Añadir botones de acción
@@ -91,6 +111,7 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def show_specific_price(update: Update, context: ContextTypes.DEFAULT_TYPE, symbol: str) -> None:
     """Muestra el precio de una moneda específica."""
     user_id = update.effective_user.id
+    from datetime import datetime
     
     msg = await update.message.reply_text(
         _(f"⏳ Consultando {symbol}...", user_id)
@@ -100,10 +121,13 @@ async def show_specific_price(update: Update, context: ContextTypes.DEFAULT_TYPE
     precio = precios.get(symbol) if precios else None
     
     if precio:
-        await msg.edit_text(
-            f"💰 *{symbol}/USD*: ${precio:,.4f}",
-            parse_mode=ParseMode.MARKDOWN
-        )
+        mensaje = "📊 Precios Actuales:\n"
+        mensaje += "────────────────────\n\n"
+        mensaje += f"📈 {symbol}: ${precio:,.4f}\n"
+        mensaje += "\n—————————————————\n"
+        mensaje += f"📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+        
+        await msg.edit_text(mensaje)
     else:
         await msg.edit_text(
             _(f"❌ No se pudo obtener el precio de {symbol}", user_id),
@@ -129,9 +153,11 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
     
-    mensaje = _("📋 *Tu Lista de Monedas:*\n\n", user_id)
-    mensaje += " • ".join(moneda)
-    mensaje += f"\n\n_Edita con: /precios add/rem_"
+    mensaje = "📋 *Tu Lista de Monedas:*\n"
+    mensaje += "────────────────────\n\n"
+    mensaje += " • ".join(monedas)
+    mensaje += "\n\n—————————————————\n"
+    mensaje += "_Edita con: /precios add/rem_"
     
     await update.message.reply_text(
         mensaje,
