@@ -14,9 +14,18 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-# Importar funciones existentes de los handlers originales
-from handlers.ta import ta_command
-from handlers.trading import graf_command, mk_command
+# Importar funciones existentes - manejar si no están disponibles
+try:
+    from handlers.ta import ta_command
+except ImportError:
+    ta_command = None
+
+try:
+    from handlers.trading import graf_command, mk_command
+except ImportError:
+    graf_command = None
+    mk_command = None
+
 from utils.logger import logger
 from core.i18n import _
 
@@ -35,17 +44,26 @@ async def trading_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     action = args[0].lower()
     
     if action == "ta":
-        # /trading ta BTC
-        # Reutilizar lógica de ta_command pero con args correctos
+        if ta_command is None:
+            await update.message.reply_text(
+                "⚠️ Análisis técnico no disponible. Instala las dependencias.",
+                parse_mode="Markdown"
+            )
+            return
         if len(args) > 1:
-            context.args = args[1:]  # Pasar el símbolo como argumento
+            context.args = args[1:]
         else:
             context.args = []
         await ta_command(update, context)
         return
     
     if action == "graf" or action == "chart":
-        # /trading graf BTC 1h
+        if graf_command is None:
+            await update.message.reply_text(
+                "⚠️ Gráficos no disponibles. Instala las dependencias.",
+                parse_mode="Markdown"
+            )
+            return
         if len(args) > 1:
             context.args = args[1:]
         else:
@@ -54,7 +72,12 @@ async def trading_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     
     if action == "mk" or action == "mercados":
-        # /trading mk
+        if mk_command is None:
+            await update.message.reply_text(
+                "⚠️ Mercados no disponibles. Instala las dependencias.",
+                parse_mode="Markdown"
+            )
+            return
         await mk_command(update, context)
         return
     
