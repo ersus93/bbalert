@@ -7,7 +7,17 @@ import warnings
 from telegram.warnings import PTBUserWarning
 from telegram import Update
 from telegram.error import BadRequest, NetworkError, TimedOut, RetryAfter
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler,
+    ContextTypes,
+    PreCheckoutQueryHandler,
+    ConversationHandler,
+)
 from telegram.constants import ParseMode
 from utils.logger import logger
 from utils.file_manager import cargar_usuarios, guardar_usuarios, add_log_line
@@ -24,7 +34,7 @@ from core.loops import (
 from core.weather_loop_v2 import weather_alerts_loop, weather_daily_summary_loop
 from core.global_disasters_loop import global_disasters_loop
 from core.i18n import _ 
-from handlers.general import start, myid, ver, help_command
+from handlers.general import start, myid, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command, free_command
 from handlers.year_handlers import year_command, year_sub_callback
 from core.year_loop import year_progress_loop
@@ -34,7 +44,7 @@ from core.reminders_loop import reminders_monitor_loop
 
 
 from handlers.user_settings import (
-    mismonedas, parar, cmd_temp, set_monedas_command,
+    parar, cmd_temp,
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
 )
 from handlers.alerts import (
@@ -48,7 +58,7 @@ from handlers.trading_unified import trading_command
 from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback, graf_from_ta_callback
 from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
-from handlers.general import start, myid, ver, help_command, start_button_callback, help_category_callback, help_back_callback
+from handlers.general import start, myid, help_command, start_button_callback, help_category_callback, help_back_callback
 
 from handlers.valerts_handlers import valerts_handlers_list
 from core.valerts_loop import valerts_monitor_loop, set_valerts_sender
@@ -71,6 +81,22 @@ from handlers.weather import (
 from handlers.precios import show_prices as precios_command, precios_callback
 from handlers.alertas import alertas_command
 from handlers.ajustes import ajustes_command
+from handlers.prices import (
+    prices_command,
+    prices_callback_handler,
+    prices_add_command,
+    prices_remove_command,
+    prices_delete_callback,
+    prices_add_start,
+    prices_add_receive,
+    prices_add_done,
+    prices_add_cancel,
+    prices_remove_start,
+    prices_remove_receive,
+    prices_remove_done,
+    ADD_COIN,
+    REMOVE_COIN,
+)
 
 # Ignorar advertencias específicas de PTB sobre CallbackQueryHandler en ConversationHandler
 warnings.filterwarnings("ignore", category=PTBUserWarning, message=".*CallbackQueryHandler.*")
@@ -271,8 +297,12 @@ def main():
     # ============================================
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid))
-    app.add_handler(CommandHandler("ver", ver))
     app.add_handler(CommandHandler("help", help_command))
+    
+    # Aliases de compatibilidad (redirigen a /prices)
+    app.add_handler(CommandHandler("ver", prices_command))
+    app.add_handler(CommandHandler("monedas", prices_add_start))
+    app.add_handler(CommandHandler("mismonedas", prices_callback_handler, pattern="^prices_list"))
     
     # ============================================
     # Comandos de Admin
@@ -292,18 +322,41 @@ def main():
     app.add_handler(CommandHandler("p", p_command))
     app.add_handler(CommandHandler("tasa", eltoque_command))
     app.add_handler(CommandHandler("ta", ta_command))
-    app.add_handler(CommandHandler("precios", precios_command))
     
     # ============================================
-    # Comandos de Usuario
+    # Comandos de Precios (UNIFICADO /prices)
     # ============================================
-    app.add_handler(CommandHandler("mismonedas", mismonedas))
-    app.add_handler(CommandHandler("monedas", set_monedas_command))
-    app.add_handler(CommandHandler("parar", parar))
-    app.add_handler(CommandHandler("temp", cmd_temp))
-    app.add_handler(CommandHandler("ajustes", ajustes_command))
-    app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
-    app.add_handler(CommandHandler("lang", lang_command))
+    app.add_handler(CommandHandler("prices", prices_command))
+    app.add_handler(CommandHandler("prices", prices_add_command, has_args=True))  # /prices add
+    app.add_handler(CallbackQueryHandler(prices_callback_handler, pattern="^prices_"))
+    app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
+    
+    # ConversationHandlers para diálogos interactivos
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler("prices", prices_add_start, has_args=False)],
+            states={
+                ADD_COIN: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, prices_add_receive),
+                    CommandHandler("done", prices_add_done),
+                ],
+            },
+            fallbacks=[CommandHandler("cancel", prices_add_cancel)],
+        )
+    )
+    
+    app.add_handler(
+        ConversationHandler(
+            entry_points=[CommandHandler("prices", prices_remove_start, has_args=False)],
+            states={
+                REMOVE_COIN: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, prices_remove_receive),
+                    CommandHandler("done", prices_remove_done),
+                ],
+            },
+            fallbacks=[CommandHandler("cancel", prices_add_cancel)],
+        )
+    )
     
     # ============================================
     # Comandos de Alertas
