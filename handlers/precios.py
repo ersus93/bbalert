@@ -59,7 +59,7 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     # Obtener precios
     try:
-        precios = obtener_precios_control(monedas)
+        precios = obtener_precios_control(monedAS)
     except Exception as e:
         await msg.edit_text(
             f"⚠️ *Error al consultar precios*\n\n"
@@ -91,8 +91,8 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             mensaje += f"⚠️ {moneda}: N/A\n"
     
-    mensaje += "\n—————————————————\n"
-    mensaje += f"📅 Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+    mensaje += "\n—————————————————\n📅 "
+    mensaje += f"Fecha: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} "
     mensaje += get_random_ad_text()
     
     # Añadir botones de acción
@@ -140,29 +140,33 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
+    query = update.callback_query
+    es_callback = query is not None
+    
     monedas = obtener_monedAS_usuario(chat_id)
     
     if not monedas:
-        await update.message.reply_text(
-            _(
-                "📝 *Tu lista está vacía*\n\n"
-                "Usa `/precios add BTC,ETH` para añadir",
-                user_id
-            ),
-            parse_mode=ParseMode.MARKDOWN
+        texto = _(
+            "📝 *Tu lista está vacía*\n\n"
+            "Usa `/precios add BTC,ETH` para añadir",
+            user_id
         )
+        if es_callback:
+            await query.edit_message_text(texto, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(texto, parse_mode=ParseMode.MARKDOWN)
         return
     
     mensaje = "📋 *Tu Lista de Monedas:*\n"
     mensaje += "────────────────────\n\n"
-    mensaje += " • ".join(monedas)
+    mensaje += " • ".join(moneda)
     mensaje += "\n\n—————————————————\n"
     mensaje += "_Edita con: /precios add/rem_"
     
-    await update.message.reply_text(
-        mensaje,
-        parse_mode=ParseMode.MARKDOWN
-    )
+    if es_callback:
+        await query.edit_message_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+    else:
+        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
 
 async def add_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coins: list) -> None:
