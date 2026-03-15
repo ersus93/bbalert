@@ -17,7 +17,7 @@ HELP_CATEGORIES = {
     "es": {
         "help_alerts": (
             "🚨 *Alertas*\n\n"
-            "/alerta MONEDA PRECIO - Crear alerta\n"
+            "/alerta MONEDA PRECIO - Crear\\nalerta\n"
             "/misalertas - Ver tus alertas\n"
             "/monedas BTC,ETH - Configurar lista\n"
             "/temp 2.5 - Intervalo de alertas\n"
@@ -55,7 +55,7 @@ HELP_CATEGORIES = {
     "en": {
         "help_alerts": (
             "🚨 *Alerts*\n\n"
-            "/alerta SYMBOL PRICE - Create alert\n"
+            "/alerta SYMBOL PRICE - Create\\nalert\n"
             "/misalertas - View your alerts\n"
             "/monedas BTC,ETH - Set watchlist\n"
             "/temp 2.5 - Alert interval\n"

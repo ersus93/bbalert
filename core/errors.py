@@ -8,7 +8,7 @@ import asyncio
 import functools
 import time
 from enum import Enum
-from typing import Callable, Any, Optional, TypeVar, Coroutine
+from typing import Callable, Any, Optional, TypeVar, Coroutine, T
 from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logger import logger
