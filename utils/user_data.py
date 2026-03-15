@@ -141,14 +141,29 @@ def obtener_datos_usuario_seguro(chat_id: int) -> Dict[str, Any]:
 
 # === Registro de Usuario ===
 
+def _normalizar_lang(code: str) -> str:
+    """
+    Normaliza el código de idioma del usuario.
+    Maneja None, códigos regionales (es-419 → es), y valores no soportados.
+    """
+    if not code:
+        return 'es'
+    # Extraer base del código regional (ej: 'es-419' → 'es', 'zh-hans' → 'zh')
+    base = code.split('-')[0].lower()
+    # Solo es y en están completamente soportados
+    return base if base in ('es', 'en') else 'es'
+
 def registrar_usuario(chat_id: int, user_lang_code: str = 'es') -> None:
     """Registra un nuevo usuario o actualiza existente."""
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
-    
+
+    # Normalizar idioma
+    lang_normalizado = _normalizar_lang(user_lang_code)
+
     if chat_id_str not in usuarios:
         usuarios[chat_id_str] = {
-            'language': user_lang_code,
+            'language': lang_normalizado,
             'registered_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'monedas': [],
             'intervalo_alerta_h': 2.5,
@@ -156,7 +171,10 @@ def registrar_usuario(chat_id: int, user_lang_code: str = 'es') -> None:
         }
     else:
         usuarios[chat_id_str]['last_seen'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    
+        # Actualizar idioma si es diferente
+        if usuarios[chat_id_str].get('language') != lang_normalizado:
+            usuarios[chat_id_str]['language'] = lang_normalizado
+
     guardar_usuarios(usuarios)
 
 # === Monedas/Lista ===

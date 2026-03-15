@@ -3,12 +3,10 @@
 
 import asyncio
 import os
-import uuid
-import openpyxl 
 from datetime import datetime
 from telegram import Update
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
+from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYTHON_VERSION, LOG_LINES, USUARIOS_PATH
 from utils.file_manager import(

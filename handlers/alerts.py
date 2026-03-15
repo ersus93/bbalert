@@ -2,16 +2,14 @@
 
 import asyncio
 import os
-import uuid
-import openpyxl 
 from datetime import datetime
 from telegram import Update, Bot
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
+from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYTHON_VERSION, LOG_LINES, USUARIOS_PATH
 from core.api_client import obtener_precios_control
-from core.loops import set_custom_alert_history_util # Nueva importación
+from core.loops import set_custom_alert_history_util
 from utils.file_manager import delete_all_alerts, add_log_line
 from utils.user_data import (
     cargar_usuarios, guardar_usuarios, registrar_usuario,
@@ -27,15 +25,6 @@ from core.i18n import _
 #  HISTORIAL EN MEMORIA DE PRECIOS (para comparar cruces)
 # ------------------------------------------------------------------
 CUSTOM_ALERT_HISTORY: dict[str, float] = {}
-COIN, TARGET_PRICE = range(2) # Estados de la conversación
-    
-# Variable para almacenar la función de envío asíncrono (inyectada)
-_enviar_mensaje_telegram_async_ref = None
-
-def set_admin_util(func):
-    """Permite a bbalert inyectar la función de envío masivo para romper la dependencia circular."""
-    global _enviar_mensaje_telegram_async_ref
-    _enviar_mensaje_telegram_async_ref = func
 
 
 # COMANDO /alerta

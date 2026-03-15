@@ -51,8 +51,7 @@ from handlers.pay import shop_command, shop_callback, precheckout_callback, succ
 from handlers.general import start, myid, ver, help_command, start_button_callback, help_category_callback, help_back_callback
 
 from handlers.valerts_handlers import valerts_handlers_list
-from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
-from core.btc_advanced_analysis import BTCAdvancedAnalyzer
+from core.valerts_loop import valerts_monitor_loop, set_valerts_sender
 from handlers.health import health_command
 from core.rate_limiter import check_rate_limit, get_user_stats, cleanup_rate_limits
 
@@ -318,6 +317,7 @@ def main():
     # ============================================
     app.add_handler(CommandHandler("w", weather_command))
     app.add_handler(CommandHandler("weather_settings", weather_settings_command))
+    app.add_handler(CommandHandler("wsub", weather_subscribe_command))
     
     # ============================================
     # Comandos de PAGO

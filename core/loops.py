@@ -245,13 +245,14 @@ async def alerta_loop(bot: Bot):
 
                 if precio_anterior_hbd:
                     # --- INICIO DE LA MODIFICACIÓN (I18N) ---
+                    # get_hbd_alert_recipients() returns list of int
                     recipients = get_hbd_alert_recipients()
                     if recipients:
                         log_msg_to_send = None
                         trigger_detected = False
-                        
-                        for user_id_str in recipients:
-                            user_id = int(user_id_str)
+
+                        for user_id in recipients:
+                            # user_id is already int, convert to str for message sending
                             alerta_msg, log_msg = generar_alerta(precios_actuales, precio_anterior_hbd, user_id)
 
                             if alerta_msg:
@@ -261,16 +262,16 @@ async def alerta_loop(bot: Bot):
                                 trigger_detected = True
                                 if not log_msg_to_send:
                                     log_msg_to_send = log_msg
-                                
+
                                 button_text = _("🔕 Desactivar estas alertas", user_id)
                                 keyboard = [[
                                     InlineKeyboardButton(button_text, callback_data="toggle_hbd_alerts")
                                 ]]
                                 reply_markup = InlineKeyboardMarkup(keyboard)
-                                
+
                                 await _enviar_mensaje_telegram_async_ref(
-                                    alerta_msg, 
-                                    [user_id_str], 
+                                    alerta_msg,
+                                    [str(user_id)],  # Convert int to str for sending
                                     reply_markup=reply_markup
                                 )
                         

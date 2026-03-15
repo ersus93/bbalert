@@ -113,26 +113,35 @@ def _obtener_precios(monedas, api_key):
     precios = {}
     try:
         response = requests.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest", headers=headers, params=params, timeout=10)
-        response.raise_for_status() 
+        response.raise_for_status()
         data = response.json()
-        
+
         if not data or "data" not in data:
-            return None if len(monedas) == 3 else {} 
-        
+            # Always return {} on error for consistent handling
+            return {}
+
         for m in monedas:
             if m in data["data"]:
                 precios[m] = data["data"][m]["quote"]["USD"]["price"]
-        
+
         return precios
-        
+
     except requests.exceptions.RequestException as e:
-        
-        return None if len(monedas) == 3 else {}
+        # Always return {} on error for consistent handling
+        return {}
 
 def obtener_precios_alerta():
+    """
+    Obtiene precios para alertas HBD (4 monedas).
+    Siempre retorna dict o {} en caso de error.
+    """
     return _obtener_precios(["BTC", "TON", "HIVE", "HBD"], CMC_API_KEY_ALERTA)
 
 def obtener_precios_control(monedas):
+    """
+    Obtiene precios para uso general (watchlist, comandos).
+    Siempre retorna dict o {} en caso de error.
+    """
     return _obtener_precios(monedas, CMC_API_KEY_CONTROL)
 
 
