@@ -17,7 +17,7 @@ from utils.file_manager import(
 )
 from utils.user_data import(
     cargar_usuarios, guardar_usuarios, registrar_usuario,
-    actualizar_monedAS, obtener_monedAS_usuario, actualizar_intervalo_alerta,
+    actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta,
     set_user_language, get_user_language
 )
 from utils.alert_manager import(
@@ -66,7 +66,7 @@ async def manejar_texto(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
             return
         # ============================
-        actualizar_monedAS(chat_id, monedas_limpias)
+        actualizar_monedas(chat_id, monedas_limpias)
         
         # Mensaje 1 (Éxito) - Requiere formateo
         mensaje_base = _(
@@ -259,7 +259,7 @@ async def set_monedas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     # ============================
 
     # 3. Guardar la nueva lista de monedas
-    actualizar_monedAS(chat_id, monedas)
+    actualizar_monedas(chat_id, monedas)
     
     # 4. Obtener los precios de la nueva lista para dar una respuesta inmediata
     precios = obtener_precios_control(monedas)

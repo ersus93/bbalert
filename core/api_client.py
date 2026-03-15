@@ -61,10 +61,10 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
         return None, None
 
     # --- Construcción del Mensaje ---
-    
+
     # Encabezado Fijo
     encabezado = _("🚨 *Alerta de precio de HBD* 🚨\n—————————————————\n\n", user_id)
-    
+
     # Cuerpo del mensaje según evento
     if evento_detectado == "subio":
         cuerpo = _(
@@ -79,13 +79,20 @@ def generar_alerta(precios_actuales, precio_anterior_hbd, user_id: int | None):
         ).format(precio=f"{precio_cruce:.4f}")
         log_msg = f"📉 Alerta HBD: Bajó a {precio_cruce}"
 
+    # Helper function to format prices safely (handles 'N/A' strings)
+    def fmt(val, decimales=2):
+        """Format price value, handling None and 'N/A' cases."""
+        if isinstance(val, (int, float)):
+            return f"${val:.{decimales}f}"
+        return "N/A"
+
     # Detalles de precios (Footer)
     detalle_precios = (
-        _("\n\n—————————————————\n📊 *Precios Actuales:*\n•\n", user_id) +
-        f"🟠 *BTC/USD*: ${btc:.2f}\n"
-        f"🔷 *TON/USD*: ${ton:.4f}\n"
-        f"🐝 *HIVE/USD*: ${hive:.4f}\n"
-        f"💰 *HBD/USD*: ${precio_actual_hbd:.4f}"
+        _("\n\n—————————————————\n📊 *Precios Actuales:*\n", user_id) +
+        f"🟠 *BTC/USD*: {fmt(btc, 2)}\n"
+        f"🔷 *TON/USD*: {fmt(ton, 4)}\n"
+        f"🐝 *HIVE/USD*: {fmt(hive, 4)}\n"
+        f"💰 *HBD/USD*: {fmt(precio_actual_hbd, 4)}"
     )
 
     msg_final = encabezado + cuerpo + detalle_precios

@@ -15,7 +15,7 @@ from core.loops import set_custom_alert_history_util # Nueva importación
 from utils.file_manager import delete_all_alerts, add_log_line
 from utils.user_data import (
     cargar_usuarios, guardar_usuarios, registrar_usuario,
-    actualizar_monedAS, obtener_monedAS_usuario, actualizar_intervalo_alerta
+    actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta
 )
 from utils.alert_manager import (
     add_price_alert, get_user_alerts, delete_price_alert,

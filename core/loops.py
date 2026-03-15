@@ -207,11 +207,15 @@ async def check_custom_price_alerts(bot: Bot):
                         reply_markup = InlineKeyboardMarkup(keyboard)
                         
                         await _enviar_mensaje_telegram_async_ref(message, [user_id], reply_markup=reply_markup)
+
+                        # Mark alert as TRIGGERED to prevent infinite loop
+                        update_alert_status(user_id, alert['alert_id'], 'TRIGGERED')
                         
                         add_log_line(
                             f"🔔 Alerta notificada a {user_id} para {coin}. "
                             f"(Cruce: {previous_price:.4f} -> {current_price:.4f} vs Target: {target_price:.4f})"
                         )
+                        add_log_line(f"🔔 Alerta {alert['alert_id']} marcada como TRIGGERED.")
               
             for coin, price in current_prices.items():
                 CUSTOM_ALERT_HISTORY[coin] = price

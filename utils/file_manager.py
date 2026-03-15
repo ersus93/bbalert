@@ -21,8 +21,8 @@ from utils.user_data import (
     obtener_datos_usuario,
     obtener_datos_usuario_seguro,
     registrar_usuario,
-    obtener_monedAS_usuario,
-    actualizar_monedAS,
+    obtener_monedas_usuario,
+    actualizar_monedas,
     set_user_language,
     get_user_language,
     actualizar_intervalo_alerta,
@@ -31,9 +31,7 @@ from utils.user_data import (
     set_user_meta,
 )
 
-# Alias para compatibilidad - ambas formas de escribir funcionan
-obtener_monedAS_usuario = obtener_monedAS_usuario
-actualizar_monedAS = actualizar_monedAS
+# Backwards compatibility aliases removed - use conventional snake_case names
 
 from utils.subscription_manager import (
     check_feature_access,
@@ -121,6 +119,15 @@ def migrate_user_timestamps():
 # === Inicialización de Archivos ===
 def inicializar_archivos():
     """Crea los archivos si no existen."""
+    from core.config import DATA_DIR
+    
+    # Create data directory if it doesn't exist
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        logger.info(f"✅ Directorio de datos verificado: {DATA_DIR}")
+    except Exception as e:
+        logger.error(f"❌ ERROR al crear directorio de datos: {e}")
+    
     try:
         if not os.path.exists(CUSTOM_ALERT_HISTORY_PATH):
             with open(CUSTOM_ALERT_HISTORY_PATH, 'w', encoding='utf-8') as f:

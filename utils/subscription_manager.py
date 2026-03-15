@@ -104,7 +104,7 @@ def check_feature_access(chat_id: int, feature_type: str, current_count: int = N
     if feature_type == 'temp_change_limit':
         if is_active('watchlist_bundle'):
             return True, "OK"
-        
+
         if daily.get('temp_changes', 0) >= 1:
             return False, (
                 f"🔒 *Límite Diario Alcanzado*\n"
@@ -113,7 +113,25 @@ def check_feature_access(chat_id: int, feature_type: str, current_count: int = N
                 "Adquiere el 'Pack Control Total' para cambios ilimitados."
             )
         return True, "OK"
-    
+
+    # REGLA 6: Capacidad de alertas de precio
+    if feature_type == 'alerts_capacity':
+        base_limit = 2  # 2 pares (4 alertas: arriba + abajo cada una)
+        
+        extra_qty = subs.get('alerts_extra', {}).get('qty', 0)
+        total_limit = base_limit + extra_qty
+        
+        # current_count is the number of currently active alerts
+        if current_count is not None and current_count >= total_limit * 2:
+            return False, (
+                f"🔒 *Límite de Alertas Alcanzado ({current_count}/{total_limit * 2})*\n"
+                "—————————————————\n\n"
+                f"Tienes el máximo de {total_limit} pares de alerta activos.\n\n"
+                "—————————————————\n"
+                "Adquiere '+1 Alerta' en /shop para ampliar tu capacidad."
+            )
+        return True, "OK"
+
     return True, "OK"
 
 

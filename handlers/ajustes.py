@@ -17,8 +17,8 @@ from telegram.constants import ParseMode
 from utils.user_data import (
     set_user_language,
     actualizar_intervalo_alerta,
-    actualizar_monedAS,
-    obtener_monedAS_usuario,
+    actualizar_monedas,
+    obtener_monedas_usuario,
     obtener_datos_usuario,
     registrar_usuario
 )

@@ -161,20 +161,20 @@ def registrar_usuario(chat_id: int, user_lang_code: str = 'es') -> None:
 
 # === Monedas/Lista ===
 
-def obtener_monedAS_usuario(chat_id: int) -> list:
+def obtener_monedas_usuario(chat_id: int) -> list:
     """Obtiene la lista de monedas del usuario."""
     usuarios = cargar_usuarios()
     return usuarios.get(str(chat_id), {}).get("monedas", [])
 
-def actualizar_monedAS(chat_id: int, lista_monedAS: list) -> None:
+def actualizar_monedas(chat_id: int, lista_monedas: list) -> None:
     """Actualiza la lista de monedas del usuario."""
     usuarios = cargar_usuarios()
     chat_id_str = str(chat_id)
-    
+
     if chat_id_str not in usuarios:
         usuarios[chat_id_str] = {}
-    
-    usuarios[chat_id_str]["monedas"] = lista_monedAS
+
+    usuarios[chat_id_str]["monedas"] = lista_monedas
     guardar_usuarios(usuarios)
 
 # === Idioma ===

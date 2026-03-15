@@ -3,7 +3,7 @@
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
-from utils.user_data import obtener_monedAS_usuario, actualizar_monedAS
+from utils.user_data import obtener_monedas_usuario, actualizar_monedas
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text
 from core.i18n import _
@@ -35,7 +35,7 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     chat_id = update.effective_chat.id
     
     # Obtener monedas del usuario
-    monedas = obtener_monedAS_usuario(chat_id)
+    monedas = obtener_monedas_usuario(chat_id)
     
     if not monedas:
         await update.message.reply_text(
@@ -142,8 +142,8 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     query = update.callback_query
     es_callback = query is not None
-    
-    monedas = obtener_monedAS_usuario(chat_id)
+
+    monedas = obtener_monedas_usuario(chat_id)
     
     if not monedas:
         texto = _(
@@ -188,16 +188,16 @@ async def add_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coins: 
     nuevas = []
     for coin_arg in coins:
         nuevas.extend([c.strip().upper() for c in coin_arg.split(",") if c.strip()])
-    
-    actuales = obtener_monedAS_usuario(chat_id)
-    
+
+    actuales = obtener_monedas_usuario(chat_id)
+
     añadidas = []
     for m in nuevas:
         if m not in actuales:
             actuales.append(m)
             añadidas.append(m)
-    
-    actualizar_monedAS(chat_id, actuales)
+
+    actualizar_monedas(chat_id, actuales)
     
     if añadidas:
         await update.message.reply_text(
@@ -233,16 +233,16 @@ async def remove_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coin
     quitar = []
     for coin_arg in coins:
         quitar.extend([c.strip().upper() for c in coin_arg.split(",") if c.strip()])
-    
-    actuales = obtener_monedAS_usuario(chat_id)
-    
+
+    actuales = obtener_monedas_usuario(chat_id)
+
     eliminadas = []
     for m in quitar:
         if m in actuales:
             actuales.remove(m)
             eliminadas.append(m)
-    
-    actualizar_monedAS(chat_id, actuales)
+
+    actualizar_monedas(chat_id, actuales)
     
     if eliminadas:
         await update.message.reply_text(

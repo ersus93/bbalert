@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from utils.file_manager import load_last_prices_status
 from utils.user_data import (
     registrar_usuario,
-    obtener_monedAS_usuario,
+    obtener_monedas_usuario,
     obtener_datos_usuario,
     get_user_meta,
     set_user_meta

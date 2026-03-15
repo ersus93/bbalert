@@ -234,8 +234,9 @@ def main():
                 if "Chat not found" in error_str or "bot was blocked" in error_str:
                     if usuarios_actualizados is None:
                         usuarios_actualizados = cargar_usuarios()
-                    if chat_id in usuarios_actualizados:
-                        del usuarios_actualizados[chat_id]
+                    # chat_id is int, but dictionary keys are strings
+                    if str(chat_id) in usuarios_actualizados:
+                        del usuarios_actualizados[str(chat_id)]
                         logger.info(f"🗑️ Usuario {chat_id} ha bloqueado el bot. Eliminado de la lista.")
 
         if usuarios_actualizados is not None:
