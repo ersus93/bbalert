@@ -379,6 +379,49 @@ async def prices_add_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
 
 
+async def show_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Muestra solo la lista de monedas SIN precios.
+    Alias: /mismonemonas
+    """
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    monedas = obtener_monedas_usuario(chat_id)
+    
+    if not monedas:
+        if update.message:
+            await update.message.reply_text(
+                _("📝 Tu lista está vacía.\n\n"
+                  "Usa `/prices add BTC,ETH` para añadir monedas.", user_id),
+                parse_mode=ParseMode.MARKDOWN
+            )
+        return
+    
+    mensaje = _("📋 *Tu Lista de Monedas*\n—————————————————\n\n", user_id)
+    mensaje += "\n".join([f"• {m}" for m in monedas])
+    mensaje += f"\n\n_Total: {len(monedas)} monedas_\n"
+    
+    if update.message:
+        await update.message.reply_text(
+            mensaje,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        await update.callback_query.edit_message_text(
+            mensaje,
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+
+async def prices_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Subcomando: /prices list
+    Muestra solo la lista de monedas (alias de show_list_command).
+    """
+    await show_list_command(update, context)
+
+
 async def prices_remove_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Subcomando: /prices remove BTC,ETH
@@ -421,6 +464,49 @@ async def prices_remove_command(update: Update, context: ContextTypes.DEFAULT_TY
         mensaje = _("ℹ️ Esas monedas no están en tu lista.", user_id)
 
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+
+
+# === COMANDO MAESTRO /prices (detecta subcomandos) ===
+
+async def prices_master_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Handler maestro para /prices.
+    Detecta subcomandos y bifurca accordingly.
+    
+    Formatos soportados:
+    - /prices → muestra precios
+    - /prices add BTC,ETH → añade monedas
+    - /prices remove BTC → elimina monedas
+    - /prices list → muestra lista sin precios
+    """
+    if not update.message:
+        return
+    
+    args = context.args
+    
+    if not args:
+        # /prices → mostrar precios
+        await prices_command(update, context)
+        return
+    
+    # Primer argumento es el subcomando
+    subcommand = args[0].lower()
+    remaining_args = args[1:]
+    
+    if subcommand == "add":
+        # /prices add BTC,ETH,HIVE
+        await prices_add_command(update, context)
+    elif subcommand == "remove" or subcommand == "del":
+        # /prices remove BTC
+        await prices_remove_command(update, context)
+    elif subcommand == "list" or subcommand == "ls":
+        # /prices list
+        await show_list_command(update, context)
+    else:
+        # Subcomando desconocido - treating as coin to add
+        # Re-construct args as coins
+        context.args = args  # Restore all args as coins
+        await prices_add_command(update, context)
 
 
 # === CONVERSATION HANDLERS ===
@@ -578,9 +664,12 @@ async def prices_remove_done(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 __all__ = [
     'prices_command',
+    'prices_master_command',
     'prices_callback_handler',
     'prices_add_command',
     'prices_remove_command',
+    'prices_list_command',
+    'show_list_command',
     'prices_delete_callback',
     'prices_add_start',
     'prices_add_receive',

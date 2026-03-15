@@ -83,9 +83,12 @@ from handlers.alertas import alertas_command
 from handlers.ajustes import ajustes_command
 from handlers.prices import (
     prices_command,
+    prices_master_command,
     prices_callback_handler,
     prices_add_command,
     prices_remove_command,
+    prices_list_command,
+    show_list_command,
     prices_delete_callback,
     prices_add_start,
     prices_add_receive,
@@ -299,91 +302,42 @@ def main():
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("help", help_command))
     
-    # Aliases de compatibilidad (redirigen a /prices)
-    app.add_handler(CommandHandler("ver", prices_command))
-    app.add_handler(CommandHandler("monedas", prices_add_start))
-    
-    # Alias para /mismonedas → necesita función wrapper
-    async def mismonedas_alias(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        """Alias: /mismonedas → muestra lista de precios"""
-        # Simular callback query para mostrar lista
-        await prices_command(update, context)
-    
-    app.add_handler(CommandHandler("mismonedas", mismonedas_alias))
-    
-    # ============================================
-    # Comandos de Admin
-    # ============================================
-    app.add_handler(CommandHandler("users", users))
-    app.add_handler(CommandHandler("logs", logs_command))
-    app.add_handler(CommandHandler("ad", ad_command))
-    app.add_handler(CommandHandler("free", free_command))
-    app.add_handler(CommandHandler("health", health_command))
-    
-    # ============================================
-    # Comandos de Usuario (Settings)
-    # ============================================
-    app.add_handler(CommandHandler("parar", parar))
-    app.add_handler(CommandHandler("temp", cmd_temp))
-    app.add_handler(CommandHandler("ajustes", ajustes_command))
-    app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
-    app.add_handler(CommandHandler("lang", lang_command))
-    
-    # ============================================
-    # Comandos de Trading/Cripto
-    # ============================================
-    app.add_handler(CommandHandler("mk", mk_command))
-    app.add_handler(CommandHandler("trading", trading_command))
-    app.add_handler(CommandHandler("graf", graf_command))
-    app.add_handler(CommandHandler("p", p_command))
-    app.add_handler(CommandHandler("tasa", eltoque_command))
-    app.add_handler(CommandHandler("ta", ta_command))
-    
     # ============================================
     # Comandos de Precios (UNIFICADO /prices)
     # ============================================
-    app.add_handler(CommandHandler("prices", prices_command))
-    app.add_handler(CommandHandler("prices", prices_add_command, has_args=True))  # /prices add
+    
+    # Handler maestro - detecta subcomandos y bifurca
+    # Debe ir ANTES que los ConversationHandlers
+    app.add_handler(CommandHandler("prices", prices_master_command))
+    
+    # Aliases de compatibilidad
+    # /ver → muestra precios (igual que /prices)
+    app.add_handler(CommandHandler("ver", prices_command))
+    
+    # /monedas → inicia diálogo interactivo de añadir
+    app.add_handler(CommandHandler("monedas", prices_add_start))
+    
+    # /mismonemonas → muestra lista SIN precios
+    app.add_handler(CommandHandler("mismonemonas", show_list_command))
+    
+    # Callback handlers para botones inline
     app.add_handler(CallbackQueryHandler(prices_callback_handler, pattern="^prices_"))
     app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
     
-    # ConversationHandlers para diálogos interactivos
-    # Nota: El CallbackQueryHandler para prices_back debe ir ANTES para tener prioridad
+    # ConversationHandler para /monedas (diálogo interactivo de añadir)
     app.add_handler(
         ConversationHandler(
-            entry_points=[CommandHandler("prices", prices_add_start, has_args=False)],
+            entry_points=[CommandHandler("monedas", prices_add_start)],
             states={
                 ADD_COIN: [
                     MessageHandler(filters.TEXT & ~filters.COMMAND, prices_add_receive),
                     CommandHandler("done", prices_add_done),
-                    # Permitir cancelar con botón también
-                    CallbackQueryHandler(prices_add_cancel, pattern="^prices_cancel$"),
                 ],
             },
-            fallbacks=[
-                CommandHandler("cancel", prices_add_cancel),
-                CallbackQueryHandler(prices_add_cancel, pattern="^prices_back$"),
-            ],
+            fallbacks=[CommandHandler("cancel", prices_add_cancel)],
         )
     )
 
-    app.add_handler(
-        ConversationHandler(
-            entry_points=[CommandHandler("prices", prices_remove_start, has_args=False)],
-            states={
-                REMOVE_COIN: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, prices_remove_receive),
-                    CommandHandler("done", prices_remove_done),
-                    CallbackQueryHandler(prices_add_cancel, pattern="^prices_cancel$"),
-                ],
-            },
-            fallbacks=[
-                CommandHandler("cancel", prices_add_cancel),
-                CallbackQueryHandler(prices_add_cancel, pattern="^prices_back$"),
-            ],
-        )
-    )
-    
     # ============================================
     # Comandos de Alertas
     # ============================================
