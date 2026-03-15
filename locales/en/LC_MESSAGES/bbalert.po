@@ -1840,3 +1840,15 @@ msgstr "Don't forget your umbrella!"
 #: core/weather_loop_v2.py:244
 msgid "Toma precauciones."
 msgstr "Take precautions."
+
+#: core/sp_loop.py:544
+msgid "🚀 Abrir Operación"
+msgstr "🚀 Open Trade"
+
+#: core/sp_loop.py:545
+msgid "📈 Mis Operaciones"
+msgstr "📈 My Trades"
+
+#: core/sp_loop.py:552
+msgid "📊 Ver Gráfico TA"
+msgstr "📊 View TA Chart"

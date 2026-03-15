@@ -360,6 +360,37 @@ def _pct(a: float, b: float) -> str:
     sign = '+' if pct >= 0 else ''
     return f"{sign}{pct:.2f}%"
 
+def build_minimal_signal_message(symbol: str, tf: str, sig: dict) -> str:
+    """Mensaje conciso de señal (3-4 líneas máx)."""
+    direction = sig['direction']
+    
+    if direction == 'BUY_STRONG':
+        dir_emoji = "🚀"
+        dir_text  = "COMPRA"
+    elif direction == 'BUY':
+        dir_emoji = "📈"
+        dir_text  = "COMPRA"
+    elif direction == 'SELL_STRONG':
+        dir_emoji = "💀"
+        dir_text  = "VENTA"
+    elif direction == 'SELL':
+        dir_emoji = "📉"
+        dir_text  = "VENTA"
+    else:
+        dir_emoji = "⚖️"
+        dir_text  = "NEUTRAL"
+    
+    coin   = symbol.replace('USDT', '')
+    price  = sig['price']
+    sl     = sig['stop']
+    t1     = sig['target1']
+    
+    return (
+        f"📡 {coin} {tf} {dir_emoji} {dir_text}\n"
+        f"💰 ${_fmt_price(price)}\n"
+        f"🛡 SL: ${_fmt_price(sl)} | 🎯 TP: ${_fmt_price(t1)}"
+    )
+
 def build_signal_message(symbol: str, tf: str, sig: dict) -> str:
     """
     Construye el mensaje de señal para enviar al usuario.
@@ -510,6 +541,10 @@ def _get_signal_keyboard(symbol: str, tf: str) -> InlineKeyboardMarkup:
     coin = symbol.replace('USDT', '')
     return InlineKeyboardMarkup([
         [
+            InlineKeyboardButton("🚀 Abrir Operación", callback_data=f"sp_open_trade|{symbol}|{tf}"),
+            InlineKeyboardButton("📈 Mis Operaciones", callback_data="sp_ops"),
+        ],
+        [
             InlineKeyboardButton("🔄 Actualizar", callback_data=f"sp_refresh|{symbol}|{tf}"),
             InlineKeyboardButton("🔕 Desactivar", callback_data=f"sp_toggle|{symbol}|{tf}"),
         ],
@@ -614,13 +649,13 @@ async def _process_pair(bot, engine: SPSignalEngine, symbol: str, tf: str) -> No
     for gkey, uids in groups.items():
         if gkey == '__base__':
             # Mensaje estándar sin estrategia
-            msg_text = build_signal_message(symbol, tf, sig)
+            msg_text = build_minimal_signal_message(symbol, tf, sig)
             keyboard = _get_signal_keyboard(symbol, tf)
         else:
             # Mensaje enriquecido con estrategia SSS
             strat = get_user_strategy(int(uids[0]))
             if strat is None:
-                msg_text = build_signal_message(symbol, tf, sig)
+                msg_text = build_minimal_signal_message(symbol, tf, sig)
                 keyboard = _get_signal_keyboard(symbol, tf)
             else:
                 df_ext = await loop.run_in_executor(
@@ -631,7 +666,7 @@ async def _process_pair(bot, engine: SPSignalEngine, symbol: str, tf: str) -> No
                     # Estrategia filtra la señal — no enviar a este grupo
                     continue
                 sig_enriched = enrich_signal(strat, sig, df_ext)
-                base_msg     = build_signal_message(symbol, tf, sig)
+                base_msg     = build_minimal_signal_message(symbol, tf, sig)
                 strat_block  = build_strategy_signal_block(sig_enriched)
                 msg_text     = base_msg + "\n" + strat_block
                 keyboard     = _get_signal_keyboard(symbol, tf)
@@ -694,11 +729,8 @@ async def _send_quick_notify(
     chart_buf = await loop.run_in_executor(None, generate_sp_chart, df, symbol, tf, sig_copy, 60)
     coin      = symbol.replace('USDT', '')
 
-    intro = (
-        f"📡 *SmartSignals activo!* \\— `{coin}` (`{tf}`)\n"
-        f"_Esta es la señal actual en el momento de tu suscripción:_\n\n"
-    )
-    msg_text = intro + build_signal_message(symbol, tf, sig_copy)
+    intro = "📡 *Nueva Señal*\n\n"
+    msg_text = intro + build_minimal_signal_message(symbol, tf, sig_copy)
     keyboard = _get_signal_keyboard(symbol, tf)
 
     if chart_buf and len(msg_text) > 1024:

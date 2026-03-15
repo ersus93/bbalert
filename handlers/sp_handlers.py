@@ -71,7 +71,7 @@ from utils.sp_manager import (
     TRADE_CLEANUP_DAYS,
 )
 from utils.sp_chart import generate_sp_chart
-from core.sp_loop import SPSignalEngine, _get_klines, build_signal_message, _fmt_price
+from core.sp_loop import SPSignalEngine, _get_klines, build_signal_message, build_minimal_signal_message, _fmt_price
 
 # SSS: estrategias como skills
 try:
