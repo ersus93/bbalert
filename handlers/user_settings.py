@@ -11,13 +11,21 @@ from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardBut
 from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
 from telegram.constants import ParseMode
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYTHON_VERSION, LOG_LINES, USUARIOS_PATH
-from utils.file_manager import(cargar_usuarios, guardar_usuarios, registrar_usuario,\
-                               actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, add_log_line,\
-                                add_price_alert, get_user_alerts, delete_price_alert,delete_all_alerts,\
-                                      set_user_language, get_user_language,\
-                                      toggle_hbd_alert_status, modify_hbd_threshold, load_hbd_thresholds,\
-                                        check_feature_access, registrar_uso_comando
-                                ) 
+from utils.file_manager import(
+    add_log_line, delete_all_alerts,
+    modify_hbd_threshold, load_hbd_thresholds
+)
+from utils.user_data import(
+    cargar_usuarios, guardar_usuarios, registrar_usuario,
+    actualizar_monedAS, obtener_monedAS_usuario, actualizar_intervalo_alerta,
+    set_user_language, get_user_language
+)
+from utils.alert_manager import(
+    add_price_alert, get_user_alerts, delete_price_alert
+)
+from utils.subscription_manager import(
+    check_feature_access, registrar_uso_comando, toggle_hbd_alert_status
+)
 from core.api_client import obtener_precios_control
 from core.loops import set_custom_alert_history_util # Nueva importación
 

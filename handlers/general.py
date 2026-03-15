@@ -5,15 +5,17 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
-from utils.file_manager import (
+from utils.file_manager import load_last_prices_status
+from utils.user_data import (
     registrar_usuario,
-    obtener_monedas_usuario,
-    load_last_prices_status,
+    obtener_monedAS_usuario,
     obtener_datos_usuario,
-    check_feature_access,
-    registrar_uso_comando,
     get_user_meta,
     set_user_meta
+)
+from utils.subscription_manager import (
+    check_feature_access,
+    registrar_uso_comando
 )
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text

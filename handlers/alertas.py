@@ -14,13 +14,13 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from utils.file_manager import (
+from utils.file_manager import delete_all_alerts
+from utils.alert_manager import (
     add_price_alert,
     get_user_alerts,
     delete_price_alert,
-    delete_all_alerts,
-    registrar_usuario
 )
+from utils.user_data import registrar_usuario
 from utils.logger import logger
 from core.i18n import _
 

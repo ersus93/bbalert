@@ -23,7 +23,10 @@ from utils.weather_manager import load_weather_subscriptions
 from utils.valerts_manager import get_active_symbols, get_valerts_subscribers
 from utils.btc_manager import load_btc_subs
 from collections import Counter
-from utils.file_manager import cargar_usuarios, load_price_alerts, get_user_alerts, load_hbd_history, migrate_user_timestamps, add_subscription_days, registrar_uso_comando
+from utils.file_manager import load_hbd_history, migrate_user_timestamps
+from utils.user_data import cargar_usuarios
+from utils.alert_manager import load_price_alerts, get_user_alerts
+from utils.subscription_manager import add_subscription_days, registrar_uso_comando
 from utils.sp_manager import get_trades_stats, get_active_sp_pairs
 from utils.ads_manager import load_ads, add_ad, delete_ad
 from utils.logger import LOG_FILE_PATH

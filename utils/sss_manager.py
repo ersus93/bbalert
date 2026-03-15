@@ -23,7 +23,7 @@ except ImportError:
     pta = None
 
 from core.config import DATA_DIR, ADMIN_CHAT_IDS
-from utils.file_manager import check_feature_access
+from utils.subscription_manager import check_feature_access
 
 logger = logging.getLogger(__name__)
 

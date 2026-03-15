@@ -41,12 +41,12 @@ from telegram.ext import (
 from telegram.constants import ParseMode
 
 from core.config import ADMIN_CHAT_IDS
-from utils.file_manager import (
-    add_log_line,
+from utils.file_manager import add_log_line
+from utils.subscription_manager import (
     check_feature_access,
-    obtener_datos_usuario_seguro,
     registrar_uso_comando,
 )
+from utils.user_data import obtener_datos_usuario_seguro
 from utils.sp_manager import (
     SP_SUPPORTED_COINS,
     SP_TIMEFRAMES,

@@ -4,7 +4,8 @@ import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from utils.file_manager import add_log_line, check_feature_access, registrar_uso_comando
+from utils.file_manager import add_log_line
+from utils.subscription_manager import check_feature_access, registrar_uso_comando
 # Importamos las nuevas funciones de historial BCC
 from utils.tasa_manager import (
     load_eltoque_history, save_eltoque_history, obtener_tasas_eltoque,

@@ -14,11 +14,11 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 
-from utils.file_manager import (
+from utils.user_data import (
     set_user_language,
     actualizar_intervalo_alerta,
-    actualizar_monedas,
-    obtener_monedas_usuario,
+    actualizar_monedAS,
+    obtener_monedAS_usuario,
     obtener_datos_usuario,
     registrar_usuario
 )

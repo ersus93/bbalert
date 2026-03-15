@@ -12,13 +12,16 @@ from telegram.constants import ParseMode
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYTHON_VERSION, LOG_LINES, USUARIOS_PATH
 from core.api_client import obtener_precios_control
 from core.loops import set_custom_alert_history_util # Nueva importación
-from utils.file_manager import(\
-     delete_all_alerts, add_price_alert, get_user_alerts,
-        delete_price_alert, cargar_usuarios, guardar_usuarios, registrar_usuario,
-            actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta, 
-            add_log_line, load_price_alerts, update_alert_status,
-            check_feature_access, get_user_alerts, registrar_uso_comando
+from utils.file_manager import delete_all_alerts, add_log_line
+from utils.user_data import (
+    cargar_usuarios, guardar_usuarios, registrar_usuario,
+    actualizar_monedAS, obtener_monedAS_usuario, actualizar_intervalo_alerta
 )
+from utils.alert_manager import (
+    add_price_alert, get_user_alerts, delete_price_alert,
+    load_price_alerts, update_alert_status
+)
+from utils.subscription_manager import check_feature_access, registrar_uso_comando
 from core.i18n import _
 # ------------------------------------------------------------------
 #  HISTORIAL EN MEMORIA DE PRECIOS (para comparar cruces)

@@ -14,9 +14,8 @@ from tradingview_ta import TA_Handler, Interval, Exchange
 from core.ai_logic import get_groq_crypto_analysis
 # Importamos configuraciones y utilidades existentes
 from core.config import ADMIN_CHAT_IDS
-from utils.file_manager import (
-    add_log_line, check_feature_access, registrar_uso_comando
-)
+from utils.file_manager import add_log_line
+from utils.subscription_manager import check_feature_access, registrar_uso_comando
 from utils.ads_manager import get_random_ad_text
 from core.i18n import _
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer

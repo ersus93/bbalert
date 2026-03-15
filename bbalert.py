@@ -406,7 +406,7 @@ def main():
             log_error_with_context,
             send_error_message
         )
-        from utils.file_manager import obtener_datos_usuario
+        from utils.user_data import obtener_datos_usuario
         
         err = context.error
         category = categorize_error(err)

@@ -3,7 +3,9 @@
 from telegram import Update, LabeledPrice, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
-from utils.file_manager import add_subscription_days, obtener_datos_usuario_seguro, add_log_line
+from utils.file_manager import add_log_line
+from utils.subscription_manager import add_subscription_days
+from utils.user_data import obtener_datos_usuario_seguro
 from core.config import ADMIN_CHAT_IDS
 from core.i18n import _
 from datetime import datetime
