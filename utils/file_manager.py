@@ -31,6 +31,10 @@ from utils.user_data import (
     set_user_meta,
 )
 
+# Alias para compatibilidad - ambas formas de escribir funcionan
+obtener_monedAS_usuario = obtener_monedAS_usuario
+actualizar_monedAS = actualizar_monedAS
+
 from utils.subscription_manager import (
     check_feature_access,
     registrar_uso_comando,
