@@ -227,6 +227,16 @@ def _get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
         InlineKeyboardButton("🛒 Tienda", callback_data="sp_goto_shop"),
     ])
     
+    # Fila 4: Estrategias (SSS)
+    if _SSS_OK:
+        strat = get_user_strategy(user_id)
+        if strat:
+            strat_name = strat.get('name', 'Estrategia')[:20]
+            strat_text = f"🧠 {strat_name}"
+        else:
+            strat_text = "🧠 Estrategias"
+        keyboard.append([InlineKeyboardButton(strat_text, callback_data="sp_strategies")])
+    
     return InlineKeyboardMarkup(keyboard)
 
 
