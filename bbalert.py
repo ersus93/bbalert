@@ -1,6 +1,8 @@
 # bbalert.py - Punto de Entrada Principal del Bot de Telegram para BitBread.
 
 import asyncio
+import time
+import threading
 import warnings
 from telegram.warnings import PTBUserWarning
 from telegram import Update
@@ -52,6 +54,7 @@ from handlers.valerts_handlers import valerts_handlers_list
 from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
 from core.btc_advanced_analysis import BTCAdvancedAnalyzer
 from handlers.health import health_command
+from core.rate_limiter import check_rate_limit, get_user_stats, cleanup_rate_limits
 
 # ── SmartSignals (/sp) ────────────────────────────────────────────────────────
 from handlers.sp_handlers import sp_handlers_list
@@ -115,6 +118,16 @@ async def post_init(app: Application):
         logger.info("👥 No hay usuarios registrados. Esperando a que se unan.")
     
     logger.info("✅ Todas las tareas de fondo han sido iniciadas.")
+
+    # Rate limiting cleanup (cada hora)
+    def cleanup_loop():
+        while True:
+            time.sleep(3600)  # 1 hour
+            cleanup_rate_limits()
+    
+    cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
+    cleanup_thread.start()
+    logger.info("✅ Hilo de cleanup de rate limits iniciado.")
 
     try:
         startup_message_template = _(
