@@ -17,8 +17,8 @@ from telegram.constants import ParseMode
 from utils.file_manager import (
     set_user_language,
     actualizar_intervalo_alerta,
-    actualizar_monedAS,
-    obtener_monedAS_usuario,
+    actualizar_monedas,
+    obtener_monedas_usuario,
     obtener_datos_usuario,
     registrar_usuario
 )
@@ -75,7 +75,7 @@ async def show_ajustes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     
     lang = datos.get('language', 'es')
     interval = datos.get('intervalo_alerta_h', 2.5)
-    monedas = obtener_monedAS_usuario(chat_id)
+    monedas = obtener_monedas_usuario(chat_id)
     
     lang_name = "Español" if lang == "es" else "English"
     
@@ -83,7 +83,7 @@ async def show_ajustes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         f"⚙️ *Tus Ajustes*\n\n"
         f"🌐 *Idioma:* {lang_name}\n"
         f"⏰ *Intervalo:* {interval}h\n"
-        f"💰 *Monedas:* {', '.join(monedAS) if monedAS else '(vacía)'}\n\n"
+        f"💰 *Monedas:* {', '.join(monedas) if monedas else '(vacía)'}\n\n"
         f"Usa `/ajustes help` para ver más opciones",
         user_id
     )
@@ -109,7 +109,7 @@ async def show_ajustes_help(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         "• `/ajustes` - Ver ajustes actuales\n"
         "• `/ajustes lang es` - Cambiar idioma (es/en)\n"
         "• `/ajustes temp 2.5` - Intervalo de alertas\n"
-        "• `/ajustes monedAS BTC,ETH` - Tu lista de monedas\n\n"
+        "• `/ajustes monedas BTC,ETH` - Tu lista de monedas\n\n"
         "También puedes usar:\n"
         "• `/lang` - Cambiar idioma\n"
         "• `/temp 2.5` - Intervalo\n"
@@ -200,7 +200,7 @@ async def set_money_list(update: Update, context: ContextTypes.DEFAULT_TYPE, arg
         await update.message.reply_text(
             _(
                 "⚠️ *Uso incorrecto*\n\n"
-                "Usa: `/ajustes monedAS BTC,ETH,HIVE`",
+                "Usa: `/ajustes monedas BTC,ETH,HIVE`",
                 user_id
             ),
             parse_mode=ParseMode.MARKDOWN
@@ -212,7 +212,7 @@ async def set_money_list(update: Update, context: ContextTypes.DEFAULT_TYPE, arg
     for coin_arg in args:
         nuevas.extend([c.strip().upper() for c in coin_arg.split(",") if c.strip()])
     
-    actualizar_monedAS(chat_id, nuevas)
+    actualizar_monedas(chat_id, nuevas)
     
     await update.message.reply_text(
         _(f"✅ *Lista actualizada*\n\nMonedas: {', '.join(nuevas)}", user_id),
