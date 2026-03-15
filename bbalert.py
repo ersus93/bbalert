@@ -321,6 +321,15 @@ def main():
     app.add_handler(CommandHandler("health", health_command))
     
     # ============================================
+    # Comandos de Usuario (Settings)
+    # ============================================
+    app.add_handler(CommandHandler("parar", parar))
+    app.add_handler(CommandHandler("temp", cmd_temp))
+    app.add_handler(CommandHandler("ajustes", ajustes_command))
+    app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
+    app.add_handler(CommandHandler("lang", lang_command))
+    
+    # ============================================
     # Comandos de Trading/Cripto
     # ============================================
     app.add_handler(CommandHandler("mk", mk_command))
@@ -458,6 +467,9 @@ def main():
     
     # Callbacks de Precios
     app.add_handler(CallbackQueryHandler(precios_callback, pattern="^precios_"))
+    
+    # Callbacks de HBD
+    app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
     
     # 4. Asignar la función post_init
     app.post_init = post_init
