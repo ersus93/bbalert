@@ -29,7 +29,9 @@ async def prices_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     # === GUARDIA DE RATE LIMITING ===
     acceso, mensaje = check_feature_access(chat_id, 'prices_limit')
     if not acceso:
-        await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
+        # Manejar caso donde update.message es None (viene de callback)
+        if update.message:
+            await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
 
     # Registrar uso
@@ -45,19 +47,25 @@ async def prices_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         return
 
     # Notificar que estamos cargando
-    msg = await update.message.reply_text(
-        _("⏳ Consultando precios...", user_id),
-        parse_mode=ParseMode.MARKDOWN
-    )
+    # Manejar caso donde update.message es None
+    if update.message:
+        msg = await update.message.reply_text(
+            _("⏳ Consultando precios...", user_id),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        # Si viene de callback, no mostramos loading
+        msg = None
 
     # Obtener precios
     precios = obtener_precios_control(monedas)
 
     if not precios:
-        await msg.edit_text(
-            _("❌ No se pudieron obtener los precios. Intenta luego.", user_id),
-            parse_mode=ParseMode.MARKDOWN
-        )
+        if msg:
+            await msg.edit_text(
+                _("❌ No se pudieron obtener los precios. Intenta luego.", user_id),
+                parse_mode=ParseMode.MARKDOWN
+            )
         return
 
     # Construir mensaje con precios
