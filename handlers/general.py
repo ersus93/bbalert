@@ -87,6 +87,21 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
+    # === DEPRECATION NOTICE ===
+    # Only show once per user
+    deprecated_notified = get_user_meta(user_id, 'ver_deprecated_notified')
+    if not deprecated_notified:
+        await update.message.reply_text(
+            _(
+                "💡 *Comando actualizado*\n\n"
+                "Ahora usa `/precios` para ver tus precios.\n\n"
+                "_Este mensaje solo se muestra una vez._",
+                user_id
+            ),
+            parse_mode=ParseMode.MARKDOWN
+        )
+        set_user_meta(user_id, 'ver_deprecated_notified', True)
+    
     # === GUARDIA DE PAGO ===
     # 1. Verificar acceso
     acceso, mensaje = check_feature_access(chat_id, 'ver_limit')

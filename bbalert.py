@@ -42,6 +42,7 @@ from handlers.alerts import (
     borrar_todas_alertas_callback,
 )
 from handlers.trading import graf_command, graf_timeframe_callback, p_command, refresh_command_callback, mk_command, ta_quick_callback
+from handlers.trading_unified import trading_command
 from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback, graf_from_ta_callback
 from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
@@ -63,6 +64,10 @@ from handlers.weather import (
    weather_conversation_handler, 
     weather_callback_handlers
 )
+
+from handlers.precios import precios_command, precios_callback
+from handlers.alertas import alertas_command
+from handlers.ajustes import ajustes_command
 
 # Ignorar advertencias específicas de PTB sobre CallbackQueryHandler en ConversationHandler
 warnings.filterwarnings("ignore", category=PTBUserWarning, message=".*CallbackQueryHandler.*")
@@ -267,10 +272,12 @@ def main():
     # Comandos de Trading/Cripto
     # ============================================
     app.add_handler(CommandHandler("mk", mk_command))
+    app.add_handler(CommandHandler("trading", trading_command))
     app.add_handler(CommandHandler("graf", graf_command))
     app.add_handler(CommandHandler("p", p_command))
     app.add_handler(CommandHandler("tasa", eltoque_command))
     app.add_handler(CommandHandler("ta", ta_command))
+    app.add_handler(CommandHandler("precios", precios_command))
     
     # ============================================
     # Comandos de Usuario
@@ -279,6 +286,7 @@ def main():
     app.add_handler(CommandHandler("monedas", set_monedas_command))
     app.add_handler(CommandHandler("parar", parar))
     app.add_handler(CommandHandler("temp", cmd_temp))
+    app.add_handler(CommandHandler("ajustes", ajustes_command))
     app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
     app.add_handler(CommandHandler("lang", lang_command))
     
@@ -287,6 +295,7 @@ def main():
     # ============================================
     app.add_handler(CommandHandler("alerta", alerta_command))
     app.add_handler(CommandHandler("misalertas", misalertas))
+    app.add_handler(CommandHandler("alertas", alertas_command))
     
     # ============================================
     # Comandos de CLIMA (comandos directos, NO conversación)
@@ -360,6 +369,9 @@ def main():
     
     # Callbacks de Pago
     app.add_handler(CallbackQueryHandler(shop_callback, pattern="^buy_"))
+    
+    # Callbacks de Precios
+    app.add_handler(CallbackQueryHandler(precios_callback, pattern="^precios_"))
     
     # 4. Asignar la función post_init
     app.post_init = post_init
