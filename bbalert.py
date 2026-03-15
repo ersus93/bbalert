@@ -88,16 +88,10 @@ from handlers.prices import (
     prices_add_command,
     prices_remove_command,
     prices_list_command,
-    show_list_command,
     prices_delete_callback,
-    prices_add_start,
-    prices_add_receive,
-    prices_add_done,
-    prices_add_cancel,
     prices_remove_start,
     prices_remove_receive,
     prices_remove_done,
-    ADD_COIN,
     REMOVE_COIN,
 )
 
@@ -310,33 +304,9 @@ def main():
     # Debe ir ANTES que los ConversationHandlers
     app.add_handler(CommandHandler("prices", prices_master_command))
     
-    # Aliases de compatibilidad
-    # /ver → muestra precios (igual que /prices)
-    app.add_handler(CommandHandler("ver", prices_command))
-    
-    # /monedas → inicia diálogo interactivo de añadir
-    app.add_handler(CommandHandler("monedas", prices_add_start))
-    
-    # /mismonemonas → muestra lista SIN precios
-    app.add_handler(CommandHandler("mismonemonas", show_list_command))
-    
     # Callback handlers para botones inline
     app.add_handler(CallbackQueryHandler(prices_callback_handler, pattern="^prices_"))
     app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
-    
-    # ConversationHandler para /monedas (diálogo interactivo de añadir)
-    app.add_handler(
-        ConversationHandler(
-            entry_points=[CommandHandler("monedas", prices_add_start)],
-            states={
-                ADD_COIN: [
-                    MessageHandler(filters.TEXT & ~filters.COMMAND, prices_add_receive),
-                    CommandHandler("done", prices_add_done),
-                ],
-            },
-            fallbacks=[CommandHandler("cancel", prices_add_cancel)],
-        )
-    )
 
     # ============================================
     # Comandos de Alertas
