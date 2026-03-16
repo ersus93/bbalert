@@ -183,7 +183,7 @@ async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     chat_id = update.effective_chat.id
 
     mensaje = _(
-        "➕ *Añadir Monedas*\n"
+        "➕ *Añadir monedas*\n"
         "────────────────────────────────\n\n"
         "Escribe los símbolos separados por comas.\n\n"
         "*Ejemplo:*\n"
@@ -237,7 +237,7 @@ async def _handle_remove_button(update: Update, context: ContextTypes.DEFAULT_TY
     keyboard.append([InlineKeyboardButton(_("⬅️ Volver", user_id), callback_data="prices_back")])
 
     mensaje = _(
-        "🗑️ *Eliminar Monedas*\n—————————————————\n\n"
+        "🗑️ *Eliminar monedas*\n—————————————————\n\n"
         "Haz click en una moneda para eliminarla:\n\n",
         user_id
     )
@@ -289,8 +289,8 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
     keyboard.append([InlineKeyboardButton(_("⬅️ Volver", user_id), callback_data="prices_back")])
 
     mensaje = _(
-        "📋 *Tu Lista de Monedas*\n—————————————————\n\n"
-        "Monedas en tu lista (haz click para eliminar):\n\n",
+        "📋 *Tu Lista de monedas*\n—————————————————\n\n"
+        "monedas en tu lista (haz click para eliminar):\n\n",
         user_id
     )
     mensaje += "\n".join([f"• {m}" for m in monedas])
@@ -352,9 +352,52 @@ async def _handle_back_button(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = query.from_user.id
     chat_id = query.message.chat.id if query.message else query.from_user.id
 
+    # Replicar la lógica de prices_command aquí para evitar problemas con CallbackQuery
     try:
-        await prices_command(update, context)
+        monedas = obtener_monedas_usuario(chat_id)
+        
+        if not monedas:
+            await query.edit_message_text(
+                _("📝 Tu lista está vacía. Usa /prices para añadir monedas.", user_id),
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return
+        
+        # Obtener precios
+        precios = obtener_precios_control(monedas)
+        
+        if not precios:
+            await query.edit_message_text(
+                _("❌ No se pudieron obtener los precios. Intenta luego.", user_id),
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return
+        
+        # Construir mensaje con precios
+        mensaje = await _build_prices_message(monedas, precios, chat_id, user_id)
+        
+        # Crear botones inline
+        keyboard = [
+            [
+                InlineKeyboardButton(_("➕ Añadir", user_id), callback_data="prices_add"),
+                InlineKeyboardButton(_("🗑️ Eliminar", user_id), callback_data="prices_remove"),
+            ],
+            [
+                InlineKeyboardButton(_("📋 Ver Lista", user_id), callback_data="prices_list"),
+                InlineKeyboardButton(_("⚙️ Configurar", user_id), callback_data="prices_settings"),
+            ],
+            [
+                InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back"),
+            ],
+        ]
+        
+        await query.edit_message_text(
+            mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
     except Exception:
+        # Fallback: enviar mensaje nuevo si falla
         await context.bot.send_message(
             chat_id=chat_id,
             text=_("⚠️ Error al cargar precios. Usa /prices para intentar de nuevo.", user_id),
@@ -367,8 +410,9 @@ async def prices_delete_callback(update: Update, context: ContextTypes.DEFAULT_T
     query = update.callback_query
     await query.answer()
     
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
+    # Usar query.message.chat.id para evitar problemas en grupos
+    chat_id = query.message.chat.id if query.message else query.from_user.id
+    user_id = query.from_user.id
     
     # Extraer moneda del callback data
     data = query.data  # prices_del_BTC
@@ -461,7 +505,7 @@ async def show_list_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             )
         return
     
-    mensaje = _("📋 *Tu Lista de Monedas*\n—————————————————\n\n", user_id)
+    mensaje = _("📋 *Tu Lista de monedas*\n—————————————————\n\n", user_id)
     mensaje += "\n".join([f"• {m}" for m in monedas])
     mensaje += f"\n\n_Total: {len(monedas)} monedas_\n"
     
@@ -581,7 +625,7 @@ async def prices_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     user_id = update.effective_user.id
     
     mensaje = _(
-        "➕ *Añadir Monedas*\n—————————————————\n\n"
+        "➕ *Añadir monedas*\n—————————————————\n\n"
         "Escribe los símbolos separados por comas.\n\n"
         "*Ejemplo:*\n"
         "`BTC, ETH, HIVE, SOL`\n\n"
@@ -664,7 +708,7 @@ async def prices_remove_start(update: Update, context: ContextTypes.DEFAULT_TYPE
         return ConversationHandler.END
     
     mensaje = _(
-        "🗑️ *Eliminar Monedas*\n—————————————————\n\n"
+        "🗑️ *Eliminar monedas*\n—————————————————\n\n"
         "Tu lista actual: {lista}\n\n"
         "Escribe los símbolos a eliminar separados por comas.\n\n"
         "*Ejemplo:*\n"

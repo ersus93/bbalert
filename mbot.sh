@@ -1092,7 +1092,11 @@ manage_logs() {
         read -rp "  Opción: " lc
         
         case $lc in
-            1) _info "Ctrl+C para salir."; sleep 1; $SUDO journalctl -u "$SERVICE_NAME" -f ;;
+            1) _info "Ctrl+C para salir."; sleep 1
+               trap 'printf "\n\n${CB}›${NC} Volviendo al menú de logs...\n"; trap - INT; return 0' INT
+               $SUDO journalctl -u "$SERVICE_NAME" -f
+               trap - INT
+               ;;
             2) $SUDO journalctl -u "$SERVICE_NAME" -n 50 --no-pager; _pause ;;
             3) $SUDO journalctl -u "$SERVICE_NAME" -n 200 --no-pager; _pause ;;
             4) $SUDO journalctl -u "$SERVICE_NAME" -p err --no-pager -n 50; _pause ;;

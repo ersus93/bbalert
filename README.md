@@ -231,49 +231,125 @@ SCREENSHOT_API_KEY="TU_SCREENSHOT_KEY"
 
 ```
 bbalert/
-├── bbalert.py              # Punto de entrada
-├── mbot.sh                 # Script de gestión
-├── apit.env                # Variables de entorno
-├── requirements.txt        # Dependencias
+├── bbalert.py                    # Punto de entrada principal
+├── mbot.sh                       # Script de gestión (TUI)
+├── apit.env.example              # Plantilla de variables de entorno
+├── babel.cfg                     # Configuración i18n/gettext
+├── requirements.txt              # Dependencias Python
+├── update_version.py             # Utilidad de versión
 │
-├── core/                   # Núcleo del sistema
-│   ├── btc_loop.py         # Monitor BTC
-│   ├── weather_loop_v2.py  # Alertas clima
-│   ├── loops.py            # Bucles generales
-│   ├── valerts_loop.py     # Multi-moneda PRO
-│   ├── sp_loop.py          # Motor SmartSignals
-│   ├── i18n.py            # Internacionalización
-│   ├── config.py           # Configuración
-│   └── api_client.py       # Clientes API
+├── core/                         # Lógica central y loops
+│   ├── btc_loop.py               # Monitor BTC
+│   ├── weather_loop_v2.py        # Alertas clima
+│   ├── sp_loop.py                # Motor SmartSignals
+│   ├── valerts_loop.py           # Multi-moneda PRO
+│   ├── loops.py                  # Bucles generales
+│   ├── reminders_loop.py         # Recordatorios
+│   ├── year_loop.py              # Progreso anual
+│   ├── global_disasters_loop.py  # Desastres globales
+│   ├── ai_logic.py               # Lógica IA
+│   ├── api_client.py             # Clientes API
+│   ├── btc_advanced_analysis.py  # Análisis avanzado BTC
+│   ├── config.py                 # Configuración
+│   └── i18n.py                   # Internacionalización
 │
-├── handlers/               # Comandos
-│   ├── btc_handlers.py
-│   ├── weather.py
-│   ├── trading.py
-│   ├── admin.py
-│   ├── alerts.py
-│   └── sp_handlers.py      # SmartSignals
+├── handlers/                     # Comandos Telegram
+│   ├── btc_handlers.py           # Alertas BTC
+│   ├── weather.py                # Clima
+│   ├── trading.py                # Trading (/ta, /graf)
+│   ├── sp_handlers.py            # SmartSignals (/sp)
+│   ├── alerts.py                 # Alertas personalizadas
+│   ├── valerts_handlers.py       # Multi-moneda
+│   ├── admin.py                  # Administración
+│   ├── general.py                # Comandos generales
+│   ├── pay.py                    # Pagos (Telegram Stars)
+│   ├── feed_parser_v4.py         # Feeds RSS/Atom
+│   ├── reminders.py              # Recordatorios
+│   ├── user_settings.py          # Configuración usuario
+│   ├── ta.py                     # Análisis técnico
+│   ├── tasa.py                   # Tasas Cuba
+│   └── year_handlers.py          # Progreso anual
 │
-├── utils/                  # Utilidades
-│   ├── btc_manager.py
-│   ├── weather_manager.py
-│   ├── file_manager.py
-│   ├── logger.py
-│   ├── sp_manager.py       # Gestor SmartSignals
-│   └── sp_chart.py        # Gráficos predictivos
+├── utils/                        # Utilidades
+│   ├── btc_manager.py            # Gestión BTC
+│   ├── weather_manager.py        # Gestión clima
+│   ├── weather_api.py            # API OpenWeatherMap
+│   ├── sp_manager.py             # Gestor SmartSignals
+│   ├── sp_chart.py               # Gráficos predictivos
+│   ├── valerts_manager.py        # Gestión multi-moneda
+│   ├── tasa_manager.py           # Tasas de cambio
+│   ├── cadeca_scraper.py         # Scraping CADECA
+│   ├── bcc_scraper.py            # Scraping BCC
+│   ├── file_manager.py           # Operaciones JSON
+│   ├── logger.py                 # Logging (loguru)
+│   ├── ads_manager.py            # Gestión de anuncios
+│   ├── reminders_manager.py      # Gestión recordatorios
+│   ├── chart_generator.py        # Generador de gráficos
+│   ├── image_generator.py        # Generador de imágenes
+│   ├── tv_helper.py              # Helper TradingView
+│   ├── global_disasters_api.py   # API desastres
+│   ├── year_manager.py           # Gestión año
+│   └── telemetry.py              # Telemetría
 │
-├── data/                   # Datos persistentes
+├── data-example/                 # Plantillas de datos
+│   ├── users.json.example
+│   ├── price_alerts.json.example
+│   ├── btc_alert_state.json.example
+│   ├── hbd_thresholds.json.example
+│   ├── weather_subs.json.example
+│   └── ... (más ejemplos)
+│
+├── data/                         # Datos persistentes (runtime)
 │   ├── users.json
 │   ├── price_alerts.json
-│   └── weather_subs.json
+│   ├── weather_subs.json
+│   └── ... (archivos de datos)
 │
-├── locales/                # Traducciones
-│   ├── es/
-│   └── en/
+├── locales/                      # Traducciones (i18n)
+│   ├── bbalert.pot               # Plantilla
+│   ├── texts.py                  # Textos comunes
+│   ├── es/LC_MESSAGES/           # Español
+│   │   ├── bbalert.po
+│   │   └── bbalert.mo
+│   └── en/LC_MESSAGES/           # Inglés
+│       ├── bbalert.po
+│       └── bbalert.mo
 │
-└── docs/                   # Documentación
-    └── PROYECTO_DETALLADO.md
+├── docs/                         # Documentación
+│   ├── PROYECTO_DETALLADO.md     # Documentación completa
+│   ├── MANUAL_SETUP.md           # Instalación manual
+│   ├── WORKFLOW.md               # Flujo de trabajo
+│   └── WebApp/                   # Planificación WebApp
+│       └── PLAN_WEBAPP_BBALERT.md
+│
+├── plans/                        # Planes de desarrollo
+│   ├── PLAN_SMARTSIGNALS_SP.md
+│   ├── code-improvement-plan.md
+│   ├── i18n-translation-implementation-plan.md
+│   └── ... (más planes)
+│
+├── scripts/                      # Scripts de despliegue
+│   ├── deploy-prod.sh
+│   └── deploy-staging.sh
+│
+├── systemd/                      # Unidades systemd
+│   ├── README.md
+│   ├── bbalert-prod.service
+│   └── bbalert-staging.service
+│
+└── tests/                        # Tests automatizados
+    ├── test_command_tracking_integration.py
+    ├── test_reminders_recurring.py
+    ├── test_users_dashboard.py
+    └── ... (más tests)
 ```
+
+**Archivos ignorados** (`.gitignore`):
+- `apit.env` — credenciales reales
+- `data/` — datos de runtime
+- `logs/` — logs de ejecución
+- `version.txt` — versión local
+- `__pycache__/`, `*.pyc` — caché Python
 
 ---
 

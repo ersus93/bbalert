@@ -89,9 +89,14 @@ from handlers.prices import (
     prices_remove_command,
     prices_list_command,
     prices_delete_callback,
+    prices_add_start,
+    prices_add_receive,
+    prices_add_done,
+    prices_add_cancel,
     prices_remove_start,
     prices_remove_receive,
     prices_remove_done,
+    ADD_COIN,
     REMOVE_COIN,
 )
 
