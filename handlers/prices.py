@@ -6,7 +6,7 @@ Reemplaza a: /ver, /monedas, /mismonedas
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
-from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler
+from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters
 from utils.user_data import obtener_monedas_usuario, actualizar_monedas, cargar_usuarios
 from core.api_client import obtener_precios_control
 from utils.subscription_manager import check_feature_access, registrar_uso_comando
