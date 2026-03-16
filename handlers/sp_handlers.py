@@ -1524,6 +1524,7 @@ async def sp_strategy_document_handler(
 
 async def sp_open_trade_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Abre una operación desde el botón de señal."""
+    print(f"[DEBUG] sp_open_trade_callback: data={update.callback_query.data}, user={update.callback_query.from_user.id}")
     query = update.callback_query
     user_id = query.from_user.id
     
@@ -1552,6 +1553,7 @@ async def sp_preopen_trade_callback(update: Update, context: ContextTypes.DEFAUL
     Abre una operación desde el botón de prealerta.
     Muestra confirmación previa porque la señal puede cambiar al cierre de vela.
     """
+    print(f"[DEBUG] sp_preopen_trade_callback: data={update.callback_query.data}, user={update.callback_query.from_user.id}")
     query = update.callback_query
     user_id = query.from_user.id
     
