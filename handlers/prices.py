@@ -162,7 +162,7 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     await query.answer()
 
     data = query.data
-    chat_id = query.message.chat.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
     user_id = query.from_user.id
 
     if data == "prices_add":
@@ -174,31 +174,35 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     elif data == "prices_settings":
         await _handle_settings_button(update, context)
     elif data == "prices_back":
-        await prices_command(update, context)
+        await _handle_back_button(update, context)
 
 
 async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Maneja click en botón 'Añadir'."""
+    """Maneja click en botón 'Añadir' - inicia conversación."""
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
 
     mensaje = _(
         "➕ *Añadir Monedas*\n"
         "────────────────────────────────\n\n"
-        "Usa el comando:\n"
-        "`/prices add BTC,ETH,HIVE,SOL`\n\n"
-        "Escribe los símbolos separados por comas.",
+        "Escribe los símbolos separados por comas.\n\n"
+        "*Ejemplo:*\n"
+        "`BTC, ETH, HIVE, SOL`\n\n"
+        "Envía `/cancel` para cancelar.",
         user_id
     )
 
-    keyboard = [
-        [InlineKeyboardButton(_("⬅️ Volver", user_id), callback_data="prices_back")]
-    ]
-
-    await update.callback_query.edit_message_text(
-        mensaje,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN
-    )
+    try:
+        await update.callback_query.edit_message_text(
+            mensaje,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=mensaje,
+            parse_mode=ParseMode.MARKDOWN
+        )
 
 
 async def _handle_remove_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -209,9 +213,67 @@ async def _handle_remove_button(update: Update, context: ContextTypes.DEFAULT_TY
     monedas = obtener_monedas_usuario(chat_id)
     
     if not monedas:
+        try:
+            await update.callback_query.edit_message_text(
+                _("📝 Tu lista está vacía.", user_id)
+            )
+        except Exception:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=_("📝 Tu lista está vacía.", user_id)
+            )
+        return
+    
+    # Crear botones para cada moneda
+    keyboard = []
+    for moneda in monedas:
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🗑️ {moneda}",
+                callback_data=f"prices_del_{moneda}"
+            )
+        ])
+    
+    keyboard.append([InlineKeyboardButton(_("⬅️ Volver", user_id), callback_data="prices_back")])
+
+    mensaje = _(
+        "🗑️ *Eliminar Monedas*\n—————————————————\n\n"
+        "Haz click en una moneda para eliminarla:\n\n",
+        user_id
+    )
+    
+    try:
         await update.callback_query.edit_message_text(
-            _("📝 Tu lista está vacía.", user_id)
+            mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
         )
+    except Exception:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+
+async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Maneja click en botón 'Ver Lista'."""
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    monedas = obtener_monedass_usuario(chat_id)
+    
+    if not monedas:
+        try:
+            await update.callback_query.edit_message_text(
+                _("📝 Tu lista está vacía.", user_id)
+            )
+        except Exception:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=_("📝 Tu lista está vacía.", user_id)
+            )
         return
     
     # Crear botones para cada moneda
@@ -247,8 +309,35 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
     monedas = obtener_monedas_usuario(chat_id)
     
     if not monedas:
+        try:
+            await update.callback_query.edit_message_text(
+                _("📝 Tu lista está vacía.", user_id)
+            )
+        except Exception:
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=_("📝 Tu lista está vacía.", user_id)
+            )
+        return
+    
+    mensaje = _("📋 *Tu Lista de Monedas*\n—————————————————\n\n", user_id)
+    mensaje += "\n".join([f"• {m}" for m in monedas])
+    mensaje += f"\n\n_Total: {len(monedass)} monedas_\n"
+    
+    keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
+    
+    try:
         await update.callback_query.edit_message_text(
-            _("📝 Tu lista está vacía.", user_id)
+            mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
         )
         return
     
@@ -272,7 +361,7 @@ async def _handle_settings_button(update: Update, context: ContextTypes.DEFAULT_
     
     usuarios = cargar_usuarios()
     intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
-    min_val, _ = check_feature_access(chat_id, 'temp_min_val')
+    min_val, _ = check_feature_access(user_id, 'temp_min_val')
     
     mensaje = _(
         "⚙️ *Configuración de Alertas*\n—————————————————\n\n"
@@ -286,11 +375,34 @@ async def _handle_settings_button(update: Update, context: ContextTypes.DEFAULT_
     
     keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
     
-    await update.callback_query.edit_message_text(
-        mensaje,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN
-    )
+    try:
+        await update.callback_query.edit_message_text(
+            mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=mensaje,
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+
+async def _handle_back_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Maneja click en botón 'Volver' - muestra precios nuevamente."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
+
+    try:
+        await prices_command(update, context)
+    except Exception:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=_("⚠️ Error al cargar precios. Usa /prices para intentar de nuevo.", user_id),
+            parse_mode=ParseMode.MARKDOWN
+        )
 
 
 async def prices_delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
