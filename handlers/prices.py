@@ -258,51 +258,7 @@ async def _handle_remove_button(update: Update, context: ContextTypes.DEFAULT_TY
 
 
 async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Maneja click en botón 'Ver Lista'."""
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-    
-    monedas = obtener_monas_usuario(chat_id)
-    
-    if not monedas:
-        try:
-            await update.callback_query.edit_message_text(
-                _("📝 Tu lista está vacía.", user_id)
-            )
-        except Exception:
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text=_("📝 Tu lista está vacía.", user_id)
-            )
-        return
-    
-    # Crear botones para cada moneda
-    keyboard = []
-    for moneda in monedas:
-        keyboard.append([
-            InlineKeyboardButton(
-                f"🗑️ {moneda}",
-                callback_data=f"prices_del_{moneda}"
-            )
-        ])
-    
-    keyboard.append([InlineKeyboardButton(_("⬅️ Volver", user_id), callback_data="prices_back")])
-
-    mensaje = _(
-        "🗑️ *Eliminar Monedas*\n—————————————————\n\n"
-        "Haz click en una moneda para eliminarla:\n\n",
-        user_id
-    )
-    
-    await update.callback_query.edit_message_text(
-        mensaje,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN
-    )
-
-
-async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Maneja click en botón 'Ver Lista'."""
+    """Maneja click en botón 'Ver Lista' - muestra lista con botones para eliminar."""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
@@ -320,11 +276,25 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
         return
     
-    mensaje = _("📋 *Tu Lista de Monedas*\n—————————————————\n\n", user_id)
-    mensaje += "\n".join([f"• {m}" for m in monedas])
-    mensaje += f"\n\n_Total: {len(moneda)} monedas_\n"
+    # Crear botones para cada moneda (para eliminar)
+    keyboard = []
+    for moneda in monedas:
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🗑️ {moneda}",
+                callback_data=f"prices_del_{moneda}"
+            )
+        ])
     
-    keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
+    keyboard.append([InlineKeyboardButton(_("⬅️ Volver", user_id), callback_data="prices_back")])
+
+    mensaje = _(
+        "📋 *Tu Lista de Monedas*\n—————————————————\n\n"
+        "Monedas en tu lista (haz click para eliminar):\n\n",
+        user_id
+    )
+    mensaje += "\n".join([f"• {m}" for m in monedas])
+    mensaje += f"\n\n_Total: {len(monedas)} monedas_\n"
     
     try:
         await update.callback_query.edit_message_text(
@@ -339,19 +309,6 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
-        return
-    
-    mensaje = _("📋 *Tu Lista de Monedas*\n—————————————————\n\n", user_id)
-    mensaje += "\n".join([f"• {m}" for m in monedas])
-    mensaje += f"\n\n_Total: {len(monedas)} monedas_\n"
-    
-    keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
-    
-    await update.callback_query.edit_message_text(
-        mensaje,
-        reply_markup=InlineKeyboardMarkup(keyboard),
-        parse_mode=ParseMode.MARKDOWN
-    )
 
 
 async def _handle_settings_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
