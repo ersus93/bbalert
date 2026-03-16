@@ -93,6 +93,7 @@ from handlers.prices import (
     prices_add_receive,
     prices_add_done,
     prices_add_cancel,
+    prices_add_conversation_handler,
     prices_remove_start,
     prices_remove_receive,
     prices_remove_done,
@@ -289,6 +290,9 @@ def main():
     # 1️⃣ ConversationHandler de CLIMA (DEBE IR PRIMERO)
     app.add_handler(weather_conversation_handler)
     
+    # ConversationHandler de Precios (Añadir monedas)
+    app.add_handler(prices_add_conversation_handler)
+    
     # 2️⃣ ConversationHandler de Mensajes Admin
     app.add_handler(ms_conversation_handler)
 
@@ -310,8 +314,9 @@ def main():
     app.add_handler(CommandHandler("prices", prices_master_command))
     
     # Callback handlers para botones inline
-    app.add_handler(CallbackQueryHandler(prices_callback_handler, pattern="^prices_"))
+    # IMPORTANTE: Primero el más específico (prices_del_), luego el general (prices_)
     app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
+    app.add_handler(CallbackQueryHandler(prices_callback_handler, pattern="^prices_"))
 
     # ============================================
     # Comandos de Trading/Cripto

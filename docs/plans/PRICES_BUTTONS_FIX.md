@@ -1,48 +1,42 @@
 # 🔧 Corrección: Botones del Comando `/prices`
 
 **Fecha:** 2026-03-16  
-**Estado:** ✅ **COMPLETADO**
+**Estado:** ✅ **COMPLETADO** (Actualizado)
 
 ---
 
-## 📋 Problemas Identificados
+## 📋 Problemas Identificados y Soluciones
 
-### 1. Bug en `_handle_back_button` (CRÍTICO)
-**Ubicación:** `handlers/prices.py:349-405`
+### 1. Bug en Orden de Callbacks (CRÍTICO)
+**Problema:** El patrón `^prices_` capturaba `prices_del_BTC` antes de que llegara al handler específico.
 
-**Problema:** La función intentaba llamar a `prices_command(update, context)` pero `update` es un `CallbackQuery`, no un `Update` con `message`. Esto causaba que el botón "Volver" no funcionara.
+**Solución:** Invertido el orden - primero el más específico (`prices_del_`), luego el general (`prices_`).
 
-**Solución:** Se reimplementó la lógica directamente en `_handle_back_button` para evitar problemas con el objeto Update.
+```python
+# bbalert.py
+app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
+app.add_handler(CallbackQueryHandler(prices_callback_handler, pattern="^prices_"))
+```
 
----
+### 2. Bug en `_handle_back_button`
+**Problema:** Intentaba llamar a `prices_command()` con un CallbackQuery.
 
-### 2. Bug en `prices_delete_callback` 
-**Ubicación:** `handlers/prices.py:408-414`
+**Solución:** Reescrito para replicar la lógica internamente.
 
-**Problema:** Usaba `update.effective_chat.id` que puede fallar en grupos donde el bot no tiene acceso al chat.
+### 3. Bug en `prices_delete_callback`
+**Problema:** Usaba `update.effective_chat.id` que puede fallar en grupos.
 
-**Solución:** Cambiado a usar `query.message.chat.id` (igual que en otros handlers).
+**Solución:** Cambiado a usar `query.message.chat.id`.
 
----
+### 4. Botón Añadir - Falta ConversationHandler
+**Problema:** El botón mostraba un mensaje pero no había handler para recibir las monedas escritas.
 
-### 3. Imports Faltantes en `bbalert.py`
-**Ubicación:** `bbalert.py:84-101`
+**Solución:** Creado `prices_add_conversation_handler` y registrado en bbalert.py.
 
-**Problema:** Faltaban imports de funciones necesarias para el ConversationHandler.
+### 5. Bug en `_handle_settings_button`
+**Problema:** Llamaba a `check_feature_access(user_id, ...)` pero la función requiere `chat_id`.
 
-**Solución:** Agregados los imports:
-- `prices_add_start`
-- `prices_add_receive`
-- `prices_add_done`
-- `prices_add_cancel`
-- `ADD_COIN`
-
----
-
-### 4. Conflictos con Módulos Legacy
-**Situación:** Existe un módulo `handlers/precios.py` (legacy) que usa callbacks con patrón `precios_`.
-
-**Verificación:** ✅ Los nuevos botones usan el patrón `prices_` (sin 's'), que es diferente de `precios_`, por lo que no hay conflicto.
+**Solución:** Corregido a `check_feature_access(chat_id, ...)`.
 
 ---
 
@@ -50,8 +44,8 @@
 
 | Archivo | Cambio |
 |---------|--------|
-| `handlers/prices.py` | Corregidos bugs en `_handle_back_button` y `prices_delete_callback` |
-| `bbalert.py` | Agregados imports faltantes |
+| `handlers/prices.py` | Múltiples correcciones de bugs |
+| `bbalert.py` | Imports, orden de handlers, ConversationHandler |
 
 ---
 

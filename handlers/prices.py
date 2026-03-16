@@ -179,21 +179,29 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
 
 async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja click en botón 'Añadir' - inicia conversación."""
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
-
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
+    
+    # Obtener lista actual
+    actuales = obtener_monedas_usuario(chat_id)
+    
     mensaje = _(
         "➕ *Añadir monedas*\n"
         "────────────────────────────────\n\n"
+        "Tu lista actual: {lista}\n\n"
         "Escribe los símbolos separados por comas.\n\n"
         "*Ejemplo:*\n"
         "`BTC, ETH, HIVE, SOL`\n\n"
+        "O usa directamente: /prices add BTC,ETH\n\n"
         "Envía `/cancel` para cancelar.",
         user_id
-    )
-
+    ).format(lista=', '.join(actuales) if actuales else "(vacía)")
+    
     try:
-        await update.callback_query.edit_message_text(
+        await query.edit_message_text(
             mensaje,
             parse_mode=ParseMode.MARKDOWN
         )
@@ -313,12 +321,15 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def _handle_settings_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja click en botón 'Configurar'."""
-    user_id = update.effective_user.id
-    chat_id = update.effective_chat.id
+    query = update.callback_query
+    await query.answer()
+    
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
     
     usuarios = cargar_usuarios()
     intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
-    min_val, _ = check_feature_access(user_id, 'temp_min_val')
+    min_val, _ = check_feature_access(chat_id, 'temp_min_val')
     
     mensaje = _(
         "⚙️ *Configuración de Alertas*\n—————————————————\n\n"
@@ -770,6 +781,25 @@ async def prices_remove_done(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 # === EXPORTS ===
+
+# ConversationHandler para añadir monedas
+prices_add_conversation_handler = ConversationHandler(
+    entry_points=[
+        CallbackQueryHandler(prices_add_start, pattern="^prices_add$")
+    ],
+    states={
+        ADD_COIN: [
+            MessageHandler(filters.TEXT & ~filters.COMMAND, prices_add_receive)
+        ]
+    },
+    fallbacks=[
+        CommandHandler("cancel", prices_add_cancel),
+        CommandHandler("done", prices_add_done),
+    ],
+    per_message=False,
+    allow_reentry=True,
+    name="prices_add"
+)
 
 __all__ = [
     'prices_command',
