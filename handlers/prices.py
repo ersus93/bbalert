@@ -262,7 +262,7 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     
-    monedas = obtener_monedass_usuario(chat_id)
+    monedas = obtener_monas_usuario(chat_id)
     
     if not monedas:
         try:
@@ -322,7 +322,7 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
     
     mensaje = _("📋 *Tu Lista de Monedas*\n—————————————————\n\n", user_id)
     mensaje += "\n".join([f"• {m}" for m in monedas])
-    mensaje += f"\n\n_Total: {len(monedass)} monedas_\n"
+    mensaje += f"\n\n_Total: {len(moneda)} monedas_\n"
     
     keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
     

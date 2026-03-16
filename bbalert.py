@@ -440,7 +440,7 @@ def main():
         
         if isinstance(err, (NetworkError, TimedOut)):
             # Errores de red esperados - solo log
-            logger.debug(f"🌐 Error de red transitorio: {err}")
+            logger.info(f"🌐 Error de red transitorio: {err}")
             return
             
         if isinstance(err, RetryAfter):
