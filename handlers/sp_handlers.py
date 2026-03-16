@@ -1686,19 +1686,19 @@ async def _do_open_trade(
         dir_emoji = "🟢" if direction in ("BUY", "BUY_STRONG") else "🔴"
         
         prealert_note = (
-            "\n⚠️ *Nota:* Operación abierta desde prealerta.\n"
+            "\n⚠️ <b>Nota:</b> Operación abierta desde prealerta.\n"
             "La señal puede variar al cierre de vela."
         ) if is_prealert else ""
         
         trade_text = (
-            f"✅ *Operación Abierta* {dir_emoji}\n"
+            f"✅ <b>Operación Abierta</b> {dir_emoji}\n"
             f"────────────────────\n\n"
-            f"📡 *{coin}* ({tf}) · {direction}\n"
-            f"💰 Entrada: `${_fmt_price(entry_price)}`\n"
-            f"🛡 SL: `${_fmt_price(stop_loss)}`\n"
-            f"🎯 TP1: `${_fmt_price(tp1)}`\n"
-            f"🎯 TP2: `${_fmt_price(tp2)}`\n\n"
-            f"🆔 ID: `{trade_id}`{prealert_note}\n\n"
+            f"📡 <b>{coin}</b> ({tf}) · {direction}\n"
+            f"💰 Entrada: <code>{_fmt_price(entry_price)}</code>\n"
+            f"🛡 SL: <code>{_fmt_price(stop_loss)}</code>\n"
+            f"🎯 TP1: <code>{_fmt_price(tp1)}</code>\n"
+            f"🎯 TP2: <code>{_fmt_price(tp2)}</code>\n\n"
+            f"🆔 ID: <code>{trade_id}</code>{prealert_note}\n\n"
             f"ℹ️ Te notificaré al tocar SL o TP.\n"
             "Usa /sp_ops para ver operaciones."
         )
@@ -1710,7 +1710,7 @@ async def _do_open_trade(
         try:
             await query.edit_message_caption(
                 caption=trade_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=trade_kb,
             )
         except Exception:
@@ -1721,7 +1721,7 @@ async def _do_open_trade(
             await context.bot.send_message(
                 chat_id=query.message.chat_id,
                 text=trade_text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=trade_kb,
             )
     except Exception as e:
