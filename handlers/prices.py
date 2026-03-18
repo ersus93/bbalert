@@ -344,15 +344,15 @@ async def _handle_settings_button(update: Update, context: ContextTypes.DEFAULT_
     """Maneja click en botón 'Configurar' - muestra menú visual completo."""
     query = update.callback_query
     await query.answer()
-    
+
     user_id = query.from_user.id
     chat_id = query.message.chat.id if query.message else query.from_user.id
-    
+
     # Obtener datos del usuario
     usuarios = cargar_usuarios()
     intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
     monedas = obtener_monedas_usuario(chat_id)
-    min_val, _ = check_feature_access(chat_id, 'temp_min_val')
+    min_val, _msg = check_feature_access(chat_id, 'temp_min_val')
 
     # Formatear lista de monedas
     lista_monedas = ', '.join(monedas) if monedas else "(vacía)"
@@ -892,7 +892,7 @@ async def _handle_config_temp_menu(update: Update, context: ContextTypes.DEFAULT
     # Obtener intervalo actual y límites
     usuarios = cargar_usuarios()
     intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
-    min_val, _ = check_feature_access(chat_id, 'temp_min_val')
+    min_val, _msg = check_feature_access(chat_id, 'temp_min_val')
 
     mensaje = _(
         "⏰ *Intervalo de Alertas*\n"
