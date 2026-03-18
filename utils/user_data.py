@@ -81,7 +81,7 @@ def obtener_datos_usuario(chat_id: int) -> Dict[str, Any]:
     usuarios = cargar_usuarios()
     return usuarios.get(str(chat_id), {})
 
-def obtener_datos_usuario_seguro(chat_id: int) -> Dict[str, Any]:
+def obtener_datos_usuario_seguro(chat_id: int) -> Optional[Dict[str, Any]]:
     """
     Obtiene datos del usuario asegurando que existan campos requeridos.
     Si no existe, retorna None.
@@ -132,7 +132,18 @@ def obtener_datos_usuario_seguro(chat_id: int) -> Dict[str, Any]:
     if 'registered_at' not in usuario:
         usuario['registered_at'] = None
         guardar = True
-    
+
+    # HBD Alerts
+    if 'hbd_alerts_enabled' not in usuario:
+        usuario['hbd_alerts_enabled'] = False
+        guardar = True
+
+    # Legacy cleanup: migrate 'hbd_alerts' to 'hbd_alerts_enabled'
+    if 'hbd_alerts' in usuario:
+        usuario['hbd_alerts_enabled'] = usuario['hbd_alerts']
+        del usuario['hbd_alerts']
+        guardar = True
+
     if guardar:
         guardar_usuarios(usuarios)
     
