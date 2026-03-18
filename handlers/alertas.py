@@ -104,7 +104,7 @@ async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE, query=
         condition = alerta.get('condition', 'ABOVE')
 
         emoji = "✅" if status == "triggered" else "🔔"
-        direction_text = 'cruce arriba' if condition == 'ABOVE' else 'cruce abajo'
+        direction_text = '↑' if condition == 'ABOVE' else '↓'
         mensaje += f"{i}. {emoji} *{symbol}* {direction_text} ${price:,.4f}\n"
 
         # Agregar botón para eliminar esta alerta
