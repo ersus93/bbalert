@@ -7,7 +7,7 @@ Reemplaza a: /ver, /monedas, /mismonedas
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, CommandHandler
-from utils.user_data import obtener_monedas_usuario, actualizar_monedas, cargar_usuarios
+from utils.user_data import obtener_monedas_usuario, actualizar_monedas, cargar_usuarios, actualizar_intervalo_alerta
 from core.api_client import obtener_precios_control
 from utils.subscription_manager import check_feature_access, registrar_uso_comando
 from utils.ads_manager import get_random_ad_text
@@ -179,9 +179,8 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         await _handle_temp_callback(update, context)
         return
 
-    if data == "prices_add":
-        await _handle_add_button(update, context)
-    elif data == "prices_remove":
+    # No manejamos "prices_add" aquí, lo dejamos para el ConversationHandler
+    if data == "prices_remove":
         await _handle_remove_button(update, context)
     elif data == "prices_list":
         await _handle_list_button(update, context)
@@ -191,7 +190,7 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         await _handle_back_button(update, context)
 
 
-async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Maneja click en botón 'Añadir' - inicia conversación."""
     query = update.callback_query
     await query.answer()
@@ -201,6 +200,10 @@ async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # Obtener lista actual
     actuales = obtener_monedas_usuario(chat_id)
+    
+    # Añadir logs para diagnóstico
+    from utils.logger import logger
+    logger.info(f"[PRICES_ADD] Iniciando diálogo para usuario {user_id} en chat {chat_id}")
     
     mensaje = _(
         "➕ *Añadir monedas*\n"
@@ -219,12 +222,16 @@ async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
             mensaje,
             parse_mode=ParseMode.MARKDOWN
         )
-    except Exception:
+        # Retornar el estado ADD_COIN para iniciar el flujo de conversación
+        return ADD_COIN
+    except Exception as e:
+        logger.error(f"[PRICES_ADD_ERROR] Error al iniciar diálogo: {e}")
         await context.bot.send_message(
             chat_id=chat_id,
             text=mensaje,
             parse_mode=ParseMode.MARKDOWN
         )
+        return ADD_COIN  # También retornar el estado aquí
 
 
 async def _handle_remove_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -663,16 +670,30 @@ async def prices_master_command(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def prices_add_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Inicia el diálogo de añadir monedas."""
+    # Si el update viene de un callback query (botón)
+    if update.callback_query:
+        return await _handle_add_button(update, context)
+    
+    # Si viene de un comando directo
     user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    
+    # Obtener lista actual
+    actuales = obtener_monedas_usuario(chat_id)
+    
+    # Añadir logs para diagnóstico
+    from utils.logger import logger
+    logger.info(f"[PRICES_ADD] Iniciando diálogo para usuario {user_id} en chat {chat_id} (comando)")
     
     mensaje = _(
         "➕ *Añadir monedas*\n—————————————————\n\n"
+        "Tu lista actual: {lista}\n\n"
         "Escribe los símbolos separados por comas.\n\n"
         "*Ejemplo:*\n"
         "`BTC, ETH, HIVE, SOL`\n\n"
         "Envía `/cancel` para cancelar.",
         user_id
-    )
+    ).format(lista=', '.join(actuales) if actuales else "(vacía)")
     
     await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
     return ADD_COIN
@@ -1026,7 +1047,7 @@ async def _handle_temp_custom_start(update: Update, context: ContextTypes.DEFAUL
 # ConversationHandler para añadir monedas
 prices_add_conversation_handler = ConversationHandler(
     entry_points=[
-        CallbackQueryHandler(prices_add_start, pattern="^prices_add$")
+        CallbackQueryHandler(_handle_add_button, pattern="^prices_add$")
     ],
     states={
         ADD_COIN: [
@@ -1037,7 +1058,7 @@ prices_add_conversation_handler = ConversationHandler(
         CommandHandler("cancel", prices_add_cancel),
         CommandHandler("done", prices_add_done),
     ],
-    per_message=True,
+    per_message=False,  # Cambiar a False para permitir que funcione con callbacks
     allow_reentry=True,
     name="prices_add"
 )
@@ -1065,4 +1086,5 @@ __all__ = [
     '_handle_config_temp_menu',
     '_handle_temp_callback',
     '_handle_temp_custom_start',
+    'prices_add_conversation_handler',  # Añadir el ConversationHandler
 ]
