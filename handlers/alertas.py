@@ -180,7 +180,7 @@ async def alertas_create_callback(update: Update, context: ContextTypes.DEFAULT_
 
 async def alertas_delete_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Muestra el menú de eliminación con un botón para cada alerta.
+    Muestra el menú de eliminación con un botón para CADA alerta (above y below separadas).
     """
     query = update.callback_query
     await query.answer()
@@ -203,27 +203,25 @@ async def alertas_delete_menu_callback(update: Update, context: ContextTypes.DEF
         )
         return
 
-    # Construir mensaje
+    # Construir mensaje - mostrar CADA alerta individualmente
     mensaje = "❌ *Selecciona la alerta a eliminar:*\n\n"
     
-    # Agrupar alertas por precio
-    alerts_by_price = {}
-    for alerta in alertas:
-        key = (alerta.get('coin'), alerta.get('target_price'))
-        if key not in alerts_by_price:
-            alerts_by_price[key] = []
-        alerts_by_price[key].append(alerta)
-    
-    # Crear botón para cada par de alertas (arriba y abajo del mismo precio)
+    # NO agrupar - mostrar cada alerta por separado
     keyboard = []
     idx = 0
-    for (coin, price), alert_list in sorted(alerts_by_price.items()):
+    
+    # Ordenar por coin y price para consistencia
+    alertas_ordenadas = sorted(alertas, key=lambda x: (x.get('coin', ''), x.get('target_price', 0)))
+    
+    for alerta in alertas_ordenadas:
         idx += 1
-        # Obtener el alert_id de la alerta above (o la primera)
-        alert_id = alert_list[0].get('alert_id')
+        coin = alerta.get('coin')
+        price = alerta.get('target_price')
+        condition = alerta.get('condition')
+        alert_id = alerta.get('alert_id')
         
-        emoji = "📈" if alert_list[0].get('condition') == 'ABOVE' else "📉"
-        condition_str = ">" if alert_list[0].get('condition') == 'ABOVE' else "<"
+        emoji = "📈" if condition == 'ABOVE' else "📉"
+        condition_str = ">" if condition == 'ABOVE' else "<"
         
         mensaje += f"{idx}. {coin} {emoji} {condition_str} ${price:.4f}\n"
         
@@ -264,33 +262,15 @@ async def alertas_delete_menu_callback(update: Update, context: ContextTypes.DEF
 
 
 async def alertas_delete_single_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Elimina una alerta específica (ambas direcciones: above y below)."""
+    """Elimina una sola alerta (solo la seleccionada, no ambas direcciones)."""
     query = update.callback_query
     await query.answer()
 
     user_id = query.from_user.id
-    alert_id = query.data.split("_")[-1]  # Obtener el último parte del callback_data
+    alert_id = query.data.split("_")[-1]  # Obtener el alert_id del callback_data
 
-    # Obtener la alerta para mostrar info
-    alertas = get_user_alerts(user_id)
-    alerta_encontrada = None
-    for a in alertas:
-        if a.get('alert_id') == alert_id:
-            alerta_encontrada = a
-            break
-
-    if alerta_encontrada:
-        coin = alerta_encontrada.get('coin')
-        price = alerta_encontrada.get('target_price')
-        
-        # Eliminar TODAS las alertas de ese precio (both above and below)
-        delete_price_alert(user_id, alert_id)
-        
-        # Buscar y eliminar la otra dirección también
-        for a in alertas:
-            if a.get('coin') == coin and a.get('target_price') == price:
-                if a.get('alert_id') != alert_id:
-                    delete_price_alert(user_id, a.get('alert_id'))
+    # Eliminar SOLO esta alerta específica
+    delete_price_alert(user_id, alert_id)
 
     # Volver al menú de alertas
     await show_alerts_with_main_buttons(update, context, query)
