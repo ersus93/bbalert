@@ -1,13 +1,13 @@
 # handlers/alertas.py
 """
 Handler unificado para comandos de alertas.
-Unifica: /alerta, /valerts, /btcalerts
+Unifica: /alerta, /alertas, /misalertas
 
-Sintaxis:
-  /alertas              - Ver mis alertas
-  /alertas add BTC 50000 - Crear alerta
-  /alertas remove 1     - Eliminar alerta
-  /alertas clear        - Eliminar todas
+Funcionalidad:
+- /alertas - Ver mis alertas (con dos botones principales)
+- /alerta MONEDA PRECIO - Crear alerta
+- Botón "➕ Crear nueva alerta" - Muestra formato para crear
+- Botón "❌ Eliminar alerta" - Muestra alertas con botón para eliminar cada una
 """
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -25,60 +25,51 @@ from utils.logger import logger
 from core.i18n import _
 
 
+# === COMANDO PRINCIPAL /alertas ===
+
 async def alertas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """
     Comando unificado /alertas.
+    Muestra las alertas del usuario con dos botones principales:
+    - ➕ Crear nueva alerta
+    - ❌ Eliminar alerta
     """
     user_id = update.effective_user.id
-    args = context.args
     
     # Registrar usuario
     registrar_usuario(user_id, update.effective_user.language_code)
     
-    # Obtener acción
-    action = args[0].lower() if args else None
-    
-    if action == "add":
-        # /alertas add BTC 50000
-        await create_alert(update, context, args[1:] if len(args) > 1 else [])
-        return
-    
-    if action == "remove" or action == "del":
-        # /alertas remove 1
-        await remove_alert(update, context, args[1:] if len(args) > 1 else [])
-        return
-    
-    if action == "clear" or action == "borrar":
-        # /alertas clear - eliminar todas
-        await clear_alerts(update, context)
-        return
-    
-    # Sin argumentos - mostrar alertas
-    await show_alerts(update, context)
+    # Mostrar alertas con botones principales
+    await show_alerts_with_main_buttons(update, context)
 
 
-async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE, query=None) -> None:
-    """Muestra las alertas del usuario con botones inline para eliminar."""
+async def show_alerts_with_main_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE, query=None) -> None:
+    """
+    Muestra las alertas del usuario con dos botones principales:
+    - ➕ Crear nueva alerta
+    - ❌ Eliminar alerta
+    """
     user_id = update.effective_user.id
 
     alertas = get_user_alerts(user_id)
 
     if not alertas:
+        # No hay alertas - mostrar mensaje de ayuda
         keyboard = [[
             InlineKeyboardButton(
                 "➕ Crear mi primera alerta",
-                callback_data="alertas_add_help"
+                callback_data="alertas_create"
             )
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        text = _(
-            "🔔 *Sin alertas*\n\n"
+        text = (
+            "🔔 *Sin alertas de precio*\n\n"
             "Crea una alerta fácilmente:\n"
-            "`/alertas add BTC 50000`\n\n"
-            "O usa el botón de abajo para más ayuda.",
-            user_id
+            "`/alerta BTC 72000`\n\n"
+            "O usa el botón de abajo."
         )
+        
         if query:
             await query.edit_message_text(
                 text,
@@ -93,44 +84,43 @@ async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE, query=
             )
         return
 
-    mensaje = _("🚨 *Tus Alertas:*\n\n", user_id)
-    keyboard = []
+    # Construir mensaje con formato específico
+    mensaje = "🔔 *Tus Alertas de Precio Activas:*\n\n"
+    
+    # Agrupar alertas por precio (cada precio tiene above y below)
+    alerts_by_price = {}
+    for alerta in alertas:
+        key = (alerta.get('coin'), alerta.get('target_price'))
+        if key not in alerts_by_price:
+            alerts_by_price[key] = []
+        alerts_by_price[key].append(alerta)
+    
+    # Mostrar cada par de alertas (arriba y abajo)
+    for (coin, price), alert_list in sorted(alerts_by_price.items()):
+        above = next((a for a in alert_list if a.get('condition') == 'ABOVE'), None)
+        below = next((a for a in alert_list if a.get('condition') == 'BELOW'), None)
+        
+        if above:
+            mensaje += f"- {coin} 📈 > ${price:.4f}\n"
+        if below:
+            mensaje += f"- {coin} 📉 < ${price:.4f}\n"
 
-    for i, alerta in enumerate(alertas, 1):
-        symbol = alerta.get('coin', 'N/A')
-        price = alerta.get('target_price', 0)
-        status = alerta.get('status', 'active')
-        alert_id = alerta.get('id')
-        condition = alerta.get('condition', 'ABOVE')
-
-        emoji = "✅" if status == "triggered" else "🔔"
-        direction_text = '↑' if condition == 'ABOVE' else '↓'
-        mensaje += f"{i}. {emoji} *{symbol}* {direction_text} ${price:,.4f}\n"
-
-        # Agregar botón para eliminar esta alerta
-        keyboard.append([
+    # Botones principales
+    keyboard = [
+        [
             InlineKeyboardButton(
-                f"🗑️ Eliminar #{i} ({symbol})",
-                callback_data=f"delete_alert_{alert_id}"
+                "➕ Crear nueva alerta",
+                callback_data="alertas_create"
             )
-        ])
-
-    # Agregar botón para eliminar todas
-    keyboard.append([
-        InlineKeyboardButton(
-            "🗑️ Eliminar TODAS las alertas",
-            callback_data="delete_all_alerts"
-        )
-    ])
-
-    # Agregar botón para crear nueva alerta
-    keyboard.append([
-        InlineKeyboardButton(
-            "➕ Crear nueva alerta",
-            callback_data="alertas_add_help"
-        )
-    ])
-
+        ],
+        [
+            InlineKeyboardButton(
+                "❌ Eliminar alerta",
+                callback_data="alertas_delete_menu"
+            )
+        ]
+    ]
+    
     reply_markup = InlineKeyboardMarkup(keyboard)
 
     if query:
@@ -147,47 +137,212 @@ async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE, query=
         )
 
 
-async def create_alert(update: Update, context: ContextTypes.DEFAULT_TYPE, args: list) -> None:
-    """Crea una nueva alerta."""
-    user_id = update.effective_user.id
+# === FLUJO DE CREAR NUEVA ALERTA ===
 
-    if len(args) < 2:
-        keyboard = [[
+async def alertas_create_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Muestra ayuda para crear una nueva alerta."""
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+
+    help_text = (
+        "➕ *Crear Alerta de Precio*\n\n"
+        "*Opción 1 - Comando completo:*\n"
+        "`/alerta BTC 72000`\n\n"
+        "*Opción 2 - Solo envía:*\n"
+        "`BTC 72000`\n\n"
+        "_Recibirás notificaciones cuando el precio suba o baje del nivel indicado._"
+    )
+
+    keyboard = [
+        [
             InlineKeyboardButton(
                 "⬅️ Volver a mis alertas",
+                callback_data="alertas_back"
+            )
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    try:
+        await query.edit_message_text(
+            help_text,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        logger.error(f"Error en alertas_create_callback: {e}")
+        await query.answer("Error al actualizar el mensaje", show_alert=True)
+
+
+# === FLUJO DE ELIMINAR ALERTA ===
+
+async def alertas_delete_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Muestra el menú de eliminación con un botón para cada alerta.
+    """
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+    alertas = get_user_alerts(user_id)
+
+    if not alertas:
+        keyboard = [[
+            InlineKeyboardButton(
+                "⬅️ Volver",
                 callback_data="alertas_back"
             )
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await update.message.reply_text(
-            _(
-                "⚠️ *Uso incorrecto*\n\n"
-                "Usa: `/alertas add BTC 50000`\n\n"
-                "Ejemplo: `/alertas add ETH 3500`",
-                user_id
-            ),
+        await query.edit_message_text(
+            "ℹ️ No tienes alertas para eliminar.",
+            reply_markup=reply_markup
+        )
+        return
+
+    # Construir mensaje
+    mensaje = "❌ *Selecciona la alerta a eliminar:*\n\n"
+    
+    # Agrupar alertas por precio
+    alerts_by_price = {}
+    for alerta in alertas:
+        key = (alerta.get('coin'), alerta.get('target_price'))
+        if key not in alerts_by_price:
+            alerts_by_price[key] = []
+        alerts_by_price[key].append(alerta)
+    
+    # Crear botón para cada par de alertas (arriba y abajo del mismo precio)
+    keyboard = []
+    idx = 0
+    for (coin, price), alert_list in sorted(alerts_by_price.items()):
+        idx += 1
+        # Obtener el alert_id de la alerta above (o la primera)
+        alert_id = alert_list[0].get('alert_id')
+        
+        emoji = "📈" if alert_list[0].get('condition') == 'ABOVE' else "📉"
+        condition_str = ">" if alert_list[0].get('condition') == 'ABOVE' else "<"
+        
+        mensaje += f"{idx}. {coin} {emoji} {condition_str} ${price:.4f}\n"
+        
+        keyboard.append([
+            InlineKeyboardButton(
+                f"🗑️ Eliminar {coin} @ ${price:.4f}",
+                callback_data=f"alertas_delete_{alert_id}"
+            )
+        ])
+
+    # Botón para eliminar todas
+    keyboard.append([
+        InlineKeyboardButton(
+            "🗑️ Eliminar TODAS las alertas",
+            callback_data="alertas_delete_all"
+        )
+    ])
+
+    # Botón volver
+    keyboard.append([
+        InlineKeyboardButton(
+            "⬅️ Volver",
+            callback_data="alertas_back"
+        )
+    ])
+
+    reply_markup = InlineKeyboardMarkup(keyboard)
+
+    try:
+        await query.edit_message_text(
+            mensaje,
             reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        logger.error(f"Error en alertas_delete_menu_callback: {e}")
+        await query.answer("Error al actualizar el mensaje", show_alert=True)
+
+
+async def alertas_delete_single_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Elimina una alerta específica (ambas direcciones: above y below)."""
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+    alert_id = query.data.split("_")[-1]  # Obtener el último parte del callback_data
+
+    # Obtener la alerta para mostrar info
+    alertas = get_user_alerts(user_id)
+    alerta_encontrada = None
+    for a in alertas:
+        if a.get('alert_id') == alert_id:
+            alerta_encontrada = a
+            break
+
+    if alerta_encontrada:
+        coin = alerta_encontrada.get('coin')
+        price = alerta_encontrada.get('target_price')
+        
+        # Eliminar TODAS las alertas de ese precio (both above and below)
+        delete_price_alert(user_id, alert_id)
+        
+        # Buscar y eliminar la otra dirección también
+        for a in alertas:
+            if a.get('coin') == coin and a.get('target_price') == price:
+                if a.get('alert_id') != alert_id:
+                    delete_price_alert(user_id, a.get('alert_id'))
+
+    # Volver al menú de alertas
+    await show_alerts_with_main_buttons(update, context, query)
+
+
+async def alertas_delete_all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Elimina todas las alertas del usuario."""
+    query = update.callback_query
+    await query.answer()
+
+    user_id = query.from_user.id
+    
+    delete_all_alerts(user_id)
+
+    # Volver al menú principal de alertas
+    await show_alerts_with_main_buttons(update, context, query)
+
+
+async def alertas_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Vuelve a la lista de alertas con botones principales."""
+    query = update.callback_query
+    await query.answer()
+
+    await show_alerts_with_main_buttons(update, context, query)
+
+
+# === COMANDO /alerta (para compatibilidad) ===
+
+async def alerta_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Comando /alerta para crear alertas.
+    Uso: /alerta MONEDA PRECIO
+    Ejemplo: /alerta BTC 72000
+    """
+    user_id = update.effective_user.id
+    
+    if not context.args or len(context.args) != 2:
+        await update.message.reply_text(
+            "⚠️ *Uso incorrecto*\n\n"
+            "Usa: `/alerta MONEDA PRECIO`\n\n"
+            "Ejemplo: `/alerta BTC 72000`",
             parse_mode=ParseMode.MARKDOWN
         )
         return
 
-    symbol = args[0].upper()
-
+    symbol = context.args[0].upper()
+    
     try:
-        price = float(args[1].replace(',', ''))
+        price = float(context.args[1].replace(',', ''))
     except ValueError:
-        keyboard = [[
-            InlineKeyboardButton(
-                "⬅️ Volver a mis alertas",
-                callback_data="alertas_back"
-            )
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
         await update.message.reply_text(
-            _(f"⚠️ Precio inválido: {args[1]}", user_id),
-            reply_markup=reply_markup,
+            f"⚠️ Precio inválido: {context.args[1]}",
             parse_mode=ParseMode.MARKDOWN
         )
         return
@@ -200,225 +355,42 @@ async def create_alert(update: Update, context: ContextTypes.DEFAULT_TYPE, args:
             InlineKeyboardButton(
                 "📋 Ver mis alertas",
                 callback_data="alertas_back"
-            ),
-            InlineKeyboardButton(
-                "➕ Crear otra alerta",
-                callback_data="alertas_add_help"
             )
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
         await update.message.reply_text(
-            _(f"✅ *Alerta creada*\n\n"
-              f"🔔 {symbol} @ ${price:,.4f}\n\n"
-              f"ID: `{alert_id}`\n\n"
-              f"_Recibirás notificaciones cuando el precio cruce este nivel._",
-              user_id),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-    else:
-        keyboard = [[
-            InlineKeyboardButton(
-                "⬅️ Volver a mis alertas",
-                callback_data="alertas_back"
-            )
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text(
-            _("❌ Error al crear alerta", user_id),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-
-
-async def remove_alert(update: Update, context: ContextTypes.DEFAULT_TYPE, args: list) -> None:
-    """Elimina una alerta específica."""
-    user_id = update.effective_user.id
-
-    if not args:
-        keyboard = [[
-            InlineKeyboardButton(
-                "📋 Ver mis alertas",
-                callback_data="alertas_back"
-            )
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text(
-            _(
-                "⚠️ *Uso incorrecto*\n\n"
-                "Usa: `/alertas remove 1`\n\n"
-                "O usa los botones inline para eliminar más fácilmente.",
-                user_id
-            ),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-
-    try:
-        index = int(args[0])
-    except ValueError:
-        keyboard = [[
-            InlineKeyboardButton(
-                "📋 Ver mis alertas",
-                callback_data="alertas_back"
-            )
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text(
-            _(f"⚠️ Índice inválido: {args[0]}", user_id),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-
-    # Obtener alertas actuales
-    alertas = get_user_alerts(user_id)
-
-    if not alertas or index < 1 or index > len(alertas):
-        keyboard = [[
-            InlineKeyboardButton(
-                "📋 Ver mis alertas",
-                callback_data="alertas_back"
-            )
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text(
-            _("⚠️ Índice fuera de rango", user_id),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-
-    # Eliminar (índice - 1 para array)
-    alerta = alertas[index - 1]
-    alert_id = alerta.get('id')
-
-    keyboard = [[
-        InlineKeyboardButton(
-            "📋 Ver mis alertas",
-            callback_data="alertas_back"
-        ),
-        InlineKeyboardButton(
-            "➕ Crear nueva alerta",
-            callback_data="alertas_add_help"
-        )
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    if delete_price_alert(user_id, alert_id):
-        await update.message.reply_text(
-            _(f"✅ *Alerta eliminada*\n\n"
-              f"🔔 {alerta.get('coin')} @ ${alerta.get('target_price'):,.4f}",
-              user_id),
+            f"✅ *Alerta creada*\n\n"
+            f"🔔 {symbol} @ ${price:,.4f}\n\n"
+            f"Recibirás notificaciones cuando el precio suba o baje de este nivel.",
             reply_markup=reply_markup,
             parse_mode=ParseMode.MARKDOWN
         )
     else:
         await update.message.reply_text(
-            _("❌ Error al eliminar alerta", user_id),
-            reply_markup=reply_markup,
+            "❌ Error al crear alerta",
             parse_mode=ParseMode.MARKDOWN
         )
 
 
-async def clear_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Elimina todas las alertas del usuario."""
-    user_id = update.effective_user.id
+# === COMANDO /misalertas (para compatibilidad) ===
 
-    alertas = get_user_alerts(user_id)
-
-    if not alertas:
-        keyboard = [[
-            InlineKeyboardButton(
-                "➕ Crear mi primera alerta",
-                callback_data="alertas_add_help"
-            )
-        ]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-
-        await update.message.reply_text(
-            _("ℹ️ No tienes alertas para eliminar", user_id),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-
-    keyboard = [[
-        InlineKeyboardButton(
-            "➕ Crear nueva alerta",
-            callback_data="alertas_add_help"
-        )
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    if delete_all_alerts(user_id):
-        await update.message.reply_text(
-            _(f"✅ *{len(alertas)} alertas eliminadas*", user_id),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-    else:
-        await update.message.reply_text(
-            _("❌ Error al eliminar alertas", user_id),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
+async def misalertas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Comando /misalertas - alias para /alertas."""
+    await show_alerts_with_main_buttons(update, context)
 
 
-# === CALLBACK HANDLERS ===
+# === HANDLERS PARA REGISTRAR EN bbalert.py ===
 
-async def alertas_add_help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Muestra ayuda para crear una alerta."""
-    query = update.callback_query
-    await query.answer()
-
-    help_text = (
-        "➕ *Crear Alerta de Precio*\n\n"
-        "Usa el comando:\n"
-        "`/alertas add COIN PRECIO`\n\n"
-        "*Ejemplos:*\n"
-        "• `/alertas add BTC 50000`\n"
-        "• `/alertas add ETH 3500`\n"
-        "• `/alertas add SOL 150`\n\n"
-        "_Recibirás una notificación cuando el precio cruce ese nivel._"
-    )
-
-    keyboard = [[
-        InlineKeyboardButton(
-            "⬅️ Volver",
-            callback_data="alertas_back"
-        )
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    try:
-        await query.edit_message_text(
-            help_text,
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
-        )
-    except Exception:
-        await query.answer("Error al actualizar el mensaje", show_alert=True)
-
-
-async def alertas_back_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Vuelve a la lista de alertas."""
-    query = update.callback_query
-    await query.answer()
-
-    # Simplemente volvemos a mostrar las alertas
-    await show_alerts(update, context, query)
-
-
-# Lista de handlers para registrar en bbalert.py
 alertas_handlers_list = [
     CommandHandler("alertas", alertas_command),
-    CallbackQueryHandler(alertas_add_help_callback, pattern="^alertas_add_help$"),
+    CommandHandler("alerta", alerta_command),
+    CommandHandler("misalertas", misalertas_command),
+    
+    # Callbacks
+    CallbackQueryHandler(alertas_create_callback, pattern="^alertas_create$"),
+    CallbackQueryHandler(alertas_delete_menu_callback, pattern="^alertas_delete_menu$"),
+    CallbackQueryHandler(alertas_delete_single_callback, pattern="^alertas_delete_"),
+    CallbackQueryHandler(alertas_delete_all_callback, pattern="^alertas_delete_all$"),
     CallbackQueryHandler(alertas_back_callback, pattern="^alertas_back$"),
 ]

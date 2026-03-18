@@ -47,12 +47,6 @@ from handlers.user_settings import (
     parar, cmd_temp,
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
 )
-from handlers.alerts import (
-    alerta_command,
-    misalertas,
-    borrar_alerta_callback,
-    borrar_todas_alertas_callback,
-)
 from handlers.trading import graf_command, graf_timeframe_callback, p_command, refresh_command_callback, mk_command, ta_quick_callback
 from handlers.trading_unified import trading_command
 from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback, graf_from_ta_callback
@@ -79,7 +73,7 @@ from handlers.weather import (
 )
 
 from handlers.precios import show_prices as precios_command, precios_callback
-from handlers.alertas import alertas_command, alertas_handlers_list
+from handlers.alertas import alertas_command, alertas_handlers_list, alerta_command, misalertas_command
 from handlers.ajustes import ajustes_command
 from handlers.prices import (
     prices_command,
@@ -330,9 +324,8 @@ def main():
     # ============================================
     # Comandos de Alertas
     # ============================================
-    app.add_handler(CommandHandler("alerta", alerta_command))
-    app.add_handler(CommandHandler("misalertas", misalertas))
-    # Usar la lista completa de handlers para /alertas (incluye callbacks)
+    # Comandos de Alertas (usando alertas.py unificado)
+    # /alerta, /misalertas, /alertas están incluidos en alertas_handlers_list
     for handler in alertas_handlers_list:
         app.add_handler(handler)
     app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
@@ -400,9 +393,7 @@ def main():
     app.add_handler(CallbackQueryHandler(eltoque_refresh_callback, pattern="^eltoque_refresh$"))
     app.add_handler(CallbackQueryHandler(eltoque_provincias_callback, pattern="^eltoque_provincias$"))
     
-    # Callbacks de Alertas
-    app.add_handler(CallbackQueryHandler(borrar_alerta_callback, pattern='^delete_alert_'))
-    app.add_handler(CallbackQueryHandler(borrar_todas_alertas_callback, pattern="^delete_all_alerts$"))
+    # Callbacks de Alertas (eliminados - ahora están en alertas_handlers_list)
     
     # Callbacks de Configuración
     app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
