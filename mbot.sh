@@ -980,10 +980,118 @@ show_bot_stats() {
 
 show_logs_with_menu_exit() {
     local svc="${1:-$SERVICE_NAME}"
-    _info "Ctrl+C para volver al menú principal."
-    trap 'printf "\n\n${CB}›${NC} Volviendo al menú principal...\n"; trap - INT; return 0' INT
-    $SUDO journalctl -u "$svc" -f
-    trap - INT
+    local log_pid=""
+    local input_pid=""
+    local temp_fifo=""
+    local use_simple_mode=false
+    
+    # Función para limpiar y regresar al menú
+    cleanup_logs() {
+        # Matar procesos en background
+        if [[ -n "$log_pid" ]]; then
+            kill "$log_pid" 2>/dev/null || true
+            wait "$log_pid" 2>/dev/null || true
+        fi
+        if [[ -n "$input_pid" ]]; then
+            kill "$input_pid" 2>/dev/null || true
+            wait "$input_pid" 2>/dev/null || true
+        fi
+        # Limpiar FIFO si existe
+        if [[ -n "$temp_fifo" && -p "$temp_fifo" ]]; then
+            rm -f "$temp_fifo" 2>/dev/null || true
+        fi
+        # Restaurar terminal
+        tput cnorm 2>/dev/null || true  # Mostrar cursor
+        tput smkx 2>/dev/null || true   # Modo teclado normal
+        printf "\n\n${CB}›${NC} Volviendo al menú principal...\n"
+        sleep 1
+        # Restaurar handlers
+        trap - INT TERM QUIT EXIT
+        return 0
+    }
+    
+    # Función para modo simple (solo Ctrl+C)
+    show_logs_simple() {
+        _info "Viendo logs - Presiona ${YB}Ctrl+C${NC} para volver al menú"
+        sleep 1
+        $SUDO journalctl -u "$svc" -f --no-pager
+        local rc=$?
+        printf "\n\n${CB}›${NC} Volviendo al menú principal...\n"
+        sleep 1
+        return $rc
+    }
+    
+    # Configurar handlers para señales
+    trap cleanup_logs INT TERM QUIT EXIT
+    
+    _info "Viendo logs en tiempo real"
+    printf "  ${DIM}Opciones:${NC}\n"
+    printf "    • ${YB}Ctrl+C${NC} - Volver al menú\n"
+    printf "    • ${YB}q + Enter${NC} - Volver al menú\n"
+    printf "    • ${YB}F${NC} - Volver al menú\n"
+    printf "\n"
+    sleep 1
+    
+    # Mostrar cursor
+    tput cnorm 2>/dev/null || true
+    
+    # Intentar modo interactivo con FIFO
+    if ! command -v mkfifo &>/dev/null; then
+        _warn "mkfifo no disponible, usando modo simple"
+        use_simple_mode=true
+    fi
+    
+    if [[ "$use_simple_mode" = false ]]; then
+        # Crear FIFO para comunicación
+        temp_fifo=$(mktemp -u)
+        if ! mkfifo "$temp_fifo" 2>/dev/null; then
+            _warn "No se pudo crear FIFO, usando modo simple"
+            use_simple_mode=true
+        fi
+    fi
+    
+    if [[ "$use_simple_mode" = true ]]; then
+        show_logs_simple
+        trap - INT TERM QUIT EXIT
+        return 0
+    fi
+    
+    # Función para leer input del usuario
+    read_user_input() {
+        while true; do
+            read -r key
+            case "$key" in
+                q|Q|f|F|exit|quit|salir|s)
+                    echo "quit" > "$temp_fifo" 2>/dev/null && break
+                    ;;
+            esac
+        done
+    }
+    
+    # Leer input en background
+    read_user_input &
+    input_pid=$!
+    # Disminuir prioridad del proceso de input
+    renice +5 $$ &>/dev/null || true
+    
+    # Iniciar journalctl en foreground (para mejor compatibilidad)
+    $SUDO journalctl -u "$svc" -f --no-pager &
+    log_pid=$!
+    
+    # Monitorear señal de salida o fin de journalctl
+    local quit_signal=""
+    while kill -0 "$log_pid" 2>/dev/null; do
+        if [[ -p "$temp_fifo" ]] && read -t 0.5 -r quit_signal < "$temp_fifo" 2>/dev/null; then
+            if [[ "$quit_signal" == "quit" ]]; then
+                break
+            fi
+        fi
+        sleep 0.3
+    done
+    
+    # Limpieza
+    cleanup_logs
+    return 0
 }
 
 # ═══════════════════════════════════════════════════════════════
@@ -1084,8 +1192,8 @@ manage_logs() {
         _header
         _center "GESTIÓN DE LOGS — ${FOLDER_NAME}" "${YB}"
         printf "\n"
-        
-        _item  1 "📡" "Tiempo real"           "Ctrl+C para salir"
+
+        _item  1 "📡" "Tiempo real"           "Ctrl+C, q, F para salir"
         _item  2 "📋" "Últimas 50 líneas"    ""
         _item  3 "📋" "Últimas 200 líneas"   ""
         _item  4 "🔴" "Solo errores"         "Últimas 50"
@@ -1096,41 +1204,70 @@ manage_logs() {
         _item  9 "🔄" "Rotar logs"           "Mantener $LOG_ROTATION_DAYS días"
         _item  0 "✕"  "Volver"              ""
         printf "\n"
-        
+
         read -rp "  Opción: " lc
-        
+
         case $lc in
-            1) _info "Ctrl+C para salir."; sleep 1
-               trap 'printf "\n\n${CB}›${NC} Volviendo al menú de logs...\n"; trap - INT; return 0' INT
-               $SUDO journalctl -u "$SERVICE_NAME" -f
-               trap - INT
-               ;;
-            2) $SUDO journalctl -u "$SERVICE_NAME" -n 50 --no-pager; _pause ;;
-            3) $SUDO journalctl -u "$SERVICE_NAME" -n 200 --no-pager; _pause ;;
-            4) $SUDO journalctl -u "$SERVICE_NAME" -p err --no-pager -n 50; _pause ;;
-            5) read -rp "  Texto: " st
-               [[ -n "$st" ]] && $SUDO journalctl -u "$SERVICE_NAME" --no-pager -n 5000 2>/dev/null \
-                   | grep -i "$st" | tail -50 || _warn "Sin resultados."
-               _pause ;;
-            6) read -rp "  Fecha (YYYY-MM-DD): " ld
-               [[ "$ld" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] && \
-                   $SUDO journalctl -u "$SERVICE_NAME" --since "${ld} 00:00:00" --until "${ld} 23:59:59" --no-pager \
-                   || _err "Formato inválido."
-               _pause ;;
-            7) local lf="$HOME/logs_${FOLDER_NAME}_$(date +%Y%m%d_%H%M%S).txt"
-               _spin_start "Exportando"
-               $SUDO journalctl -u "$SERVICE_NAME" --no-pager > "$lf" 2>/dev/null
-               _spin_stop
-               _ok "Logs en: $lf ($(du -sh "$lf" | cut -f1))"
-               _pause ;;
-            8) printf "\n"; _info "Errores por hora (24h):"
-               $SUDO journalctl -u "$SERVICE_NAME" --since "24h ago" -p err --no-pager 2>/dev/null \
-                   | awk '{print $1,$2,substr($3,1,2)":00"}' | sort | uniq -c | sort -rn | head -20 \
-                   || _ok "Sin errores."
-               _pause ;;
-            9) rotate_logs ;;
-            0) return 0 ;;
-            *) _err "Opción inválida."; sleep 1 ;;
+            1) 
+                # Usar la función mejorada de logs en tiempo real
+                show_logs_with_menu_exit "$SERVICE_NAME"
+                ;;
+            2) 
+                $SUDO journalctl -u "$SERVICE_NAME" -n 50 --no-pager
+                _pause 
+                ;;
+            3) 
+                $SUDO journalctl -u "$SERVICE_NAME" -n 200 --no-pager
+                _pause 
+                ;;
+            4) 
+                $SUDO journalctl -u "$SERVICE_NAME" -p err --no-pager -n 50
+                _pause 
+                ;;
+            5) 
+                read -rp "  Texto: " st
+                if [[ -n "$st" ]]; then
+                    $SUDO journalctl -u "$SERVICE_NAME" --no-pager -n 5000 2>/dev/null | grep -i "$st" | tail -50 || _warn "Sin resultados."
+                else
+                    _warn "Texto vacío."
+                fi
+                _pause 
+                ;;
+            6) 
+                read -rp "  Fecha (YYYY-MM-DD): " ld
+                if [[ "$ld" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+                    $SUDO journalctl -u "$SERVICE_NAME" --since "${ld} 00:00:00" --until "${ld} 23:59:59" --no-pager
+                else
+                    _err "Formato inválido. Use YYYY-MM-DD"
+                fi
+                _pause 
+                ;;
+            7) 
+                local lf="$HOME/logs_${FOLDER_NAME}_$(date +%Y%m%d_%H%M%S).txt"
+                _spin_start "Exportando"
+                $SUDO journalctl -u "$SERVICE_NAME" --no-pager > "$lf" 2>/dev/null
+                _spin_stop
+                _ok "Logs en: $lf ($(du -sh "$lf" | cut -f1))"
+                _pause 
+                ;;
+            8) 
+                printf "\n"
+                _info "Errores por hora (24h):"
+                $SUDO journalctl -u "$SERVICE_NAME" --since "24h ago" -p err --no-pager 2>/dev/null \
+                    | awk '{print $1,$2,substr($3,1,2)":00"}' | sort | uniq -c | sort -rn | head -20 \
+                    || _ok "Sin errores."
+                _pause 
+                ;;
+            9) 
+                rotate_logs 
+                ;;
+            0) 
+                return 0 
+                ;;
+            *) 
+                _err "Opción inválida."
+                sleep 1 
+                ;;
         esac
     done
 }
@@ -1406,7 +1543,7 @@ EOF
 
 manage_service() {
     local ACTION=$1
-    
+
     case $ACTION in
         start)
             _step "Iniciando"
@@ -1428,13 +1565,18 @@ manage_service() {
             return 0
             ;;
     esac
-    
-    if systemctl is-active --quiet "$SERVICE_NAME"; then
+
+    # Verificar estado del servicio
+    if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
         _ok "Bot corriendo correctamente."
+        _info "PID: $(systemctl show "$SERVICE_NAME" --property=MainPID --value 2>/dev/null)"
         notify_telegram "✅ <b>$FOLDER_NAME</b> ${ACTION^} en <code>$(hostname)</code>"
+        return 0
     else
         _err "El bot no está corriendo."
-        _info "journalctl -u $SERVICE_NAME -n 50"
+        _info "Mostrando últimos logs para diagnóstico:"
+        $SUDO journalctl -u "$SERVICE_NAME" -n 20 --no-pager -p warning 2>/dev/null | tail -5
+        return 1
     fi
 }
 
@@ -1442,28 +1584,39 @@ start_bot() {
     _header
     _center "INICIAR — ${FOLDER_NAME}" "${YB}"
     printf "\n"
-    
+
     # Pre-start validation
     if ! _validate_before_start; then
         _warn "Validación fallida. Corrige los errores antes de iniciar."
         _pause
         return 1
     fi
-    
+
     # Health check
     _health_check || _warn "Algunas verificaciones fallaron, pero continuando..."
-    
+
     prompt_version_update
-    
+
     if systemctl is-active --quiet "$SERVICE_NAME" 2>/dev/null; then
         _warn "Ya está corriendo."
         read -rp "  ¿Reiniciar? [s/N]: " yn
         [[ "$yn" =~ ^[sS]$ ]] && manage_service "restart"
     else
-        manage_service "start"
+        if manage_service "start"; then
+            printf "\n"
+            _ok "Servicio iniciado exitosamente"
+        else
+            printf "\n"
+            _err "No se pudo iniciar el servicio"
+            _pause
+            return 1
+        fi
     fi
-    
+
+    # Mostrar logs en tiempo real automáticamente
     printf "\n"
+    _info "Mostrando logs en tiempo real..."
+    sleep 1
     show_logs_with_menu_exit
 }
 
@@ -1479,9 +1632,23 @@ restart_bot() {
     _header
     _center "REINICIAR — ${FOLDER_NAME}" "${YB}"
     printf "\n"
+
     prompt_version_update
-    manage_service "restart"
+    
+    if manage_service "restart"; then
+        printf "\n"
+        _ok "Servicio reiniciado exitosamente"
+    else
+        printf "\n"
+        _err "No se pudo reiniciar el servicio"
+        _pause
+        return 1
+    fi
+
+    # Mostrar logs en tiempo real automáticamente
     printf "\n"
+    _info "Mostrando logs en tiempo real..."
+    sleep 1
     show_logs_with_menu_exit
 }
 
