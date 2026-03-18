@@ -1037,7 +1037,7 @@ prices_add_conversation_handler = ConversationHandler(
         CommandHandler("cancel", prices_add_cancel),
         CommandHandler("done", prices_add_done),
     ],
-    per_message=False,
+    per_message=True,
     allow_reentry=True,
     name="prices_add"
 )
