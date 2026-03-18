@@ -333,6 +333,7 @@ def main():
     app.add_handler(CommandHandler("alerta", alerta_command))
     app.add_handler(CommandHandler("misalertas", misalertas))
     app.add_handler(CommandHandler("alertas", alertas_command))
+    app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
     
     # ============================================
     # Comandos de CLIMA (comandos directos, NO conversación)
