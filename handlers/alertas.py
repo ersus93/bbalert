@@ -11,7 +11,7 @@ Funcionalidad:
 """
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler
+from telegram.ext import ContextTypes, CommandHandler, CallbackQueryHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 
 from utils.file_manager import delete_all_alerts
@@ -360,12 +360,93 @@ async def misalertas_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await show_alerts_with_main_buttons(update, context)
 
 
+# === MENSAJE DE TEXTO (Opción 2: "BTC 72000" sin comando) ===
+
+async def alertas_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Maneja mensajes de texto que no son comandos.
+    Si el formato es "MONEDA PRECIO", crea una alerta.
+    Ejemplo: "BTC 72000" o "HIVE 0.15"
+    """
+    # Ignorar si es un comando (empieza con /)
+    if update.message.text.startswith('/'):
+        return
+    
+    # Ignorar si es una respuesta a un callback (tiene mensaje anterior)
+    if update.message.reply_to_message:
+        return
+    
+    user_id = update.effective_user.id
+    text = update.message.text.strip()
+    
+    # Parsear el texto: debe tener exactamente 2 partes
+    parts = text.split()
+    
+    if len(parts) != 2:
+        return  # No es formato de alerta, ignorar
+    
+    symbol = parts[0].upper()
+    price_str = parts[1]
+    
+    # Validar que el símbolo sea una moneda conocida o válido
+    # Símbolos válidos comunes (mínimo 2 letras)
+    if len(symbol) < 2:
+        return
+    
+    # Validar el precio
+    try:
+        price = float(price_str.replace(',', ''))
+        if price <= 0:
+            return
+    except ValueError:
+        return
+    
+    # Registrar usuario
+    registrar_usuario(user_id, update.effective_user.language_code)
+    
+    # Crear alerta
+    alert_id = add_price_alert(user_id, symbol, price)
+    
+    if alert_id:
+        keyboard = [
+            [
+                InlineKeyboardButton(
+                    "📋 Ver mis alertas",
+                    callback_data="alertas_back"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    "➕ Crear otra",
+                    callback_data="alertas_create"
+                )
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            f"✅ *Alerta creada*\n\n"
+            f"🔔 {symbol} @ ${price:,.4f}\n\n"
+            f"Recibirás notificaciones cuando el precio suba o baje de este nivel.",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        await update.message.reply_text(
+            "❌ Error al crear alerta",
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+
 # === HANDLERS PARA REGISTRAR EN bbalert.py ===
 
 alertas_handlers_list = [
     CommandHandler("alertas", alertas_command),
     CommandHandler("alerta", alerta_command),
     CommandHandler("misalertas", misalertas_command),
+    
+    # MessageHandler para capturar "BTC 72000" sin comando
+    MessageHandler(filters.TEXT & ~filters.COMMAND, alertas_text_handler),
     
     # Callbacks
     CallbackQueryHandler(alertas_create_callback, pattern="^alertas_create$"),
