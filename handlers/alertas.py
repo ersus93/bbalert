@@ -57,7 +57,7 @@ async def alertas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     await show_alerts(update, context)
 
 
-async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE, query=None) -> None:
     """Muestra las alertas del usuario con botones inline para eliminar."""
     user_id = update.effective_user.id
 
@@ -72,17 +72,25 @@ async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         ]]
         reply_markup = InlineKeyboardMarkup(keyboard)
 
-        await update.message.reply_text(
-            _(
-                "🔔 *Sin alertas*\n\n"
-                "Crea una alerta fácilmente:\n"
-                "`/alertas add BTC 50000`\n\n"
-                "O usa el botón de abajo para más ayuda.",
-                user_id
-            ),
-            reply_markup=reply_markup,
-            parse_mode=ParseMode.MARKDOWN
+        text = _(
+            "🔔 *Sin alertas*\n\n"
+            "Crea una alerta fácilmente:\n"
+            "`/alertas add BTC 50000`\n\n"
+            "O usa el botón de abajo para más ayuda.",
+            user_id
         )
+        if query:
+            await query.edit_message_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            await update.message.reply_text(
+                text,
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.MARKDOWN
+            )
         return
 
     mensaje = _("🚨 *Tus Alertas:*\n\n", user_id)
@@ -93,9 +101,11 @@ async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         price = alerta.get('target_price', 0)
         status = alerta.get('status', 'active')
         alert_id = alerta.get('id')
+        condition = alerta.get('condition', 'ABOVE')
 
         emoji = "✅" if status == "triggered" else "🔔"
-        mensaje += f"{i}. {emoji} *{symbol}* @ ${price:,.4f}\n"
+        direction_text = 'cruce arriba' if condition == 'ABOVE' else 'cruce abajo'
+        mensaje += f"{i}. {emoji} *{symbol}* {direction_text} ${price:,.4f}\n"
 
         # Agregar botón para eliminar esta alerta
         keyboard.append([
@@ -123,11 +133,18 @@ async def show_alerts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    await update.message.reply_text(
-        mensaje,
-        reply_markup=reply_markup,
-        parse_mode=ParseMode.MARKDOWN
-    )
+    if query:
+        await query.edit_message_text(
+            mensaje,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    else:
+        await update.message.reply_text(
+            mensaje,
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN
+        )
 
 
 async def create_alert(update: Update, context: ContextTypes.DEFAULT_TYPE, args: list) -> None:
@@ -396,7 +413,7 @@ async def alertas_back_callback(update: Update, context: ContextTypes.DEFAULT_TY
     await query.answer()
 
     # Simplemente volvemos a mostrar las alertas
-    await show_alerts(update, context)
+    await show_alerts(update, context, query)
 
 
 # Lista de handlers para registrar en bbalert.py
