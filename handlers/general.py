@@ -8,7 +8,7 @@ from telegram.ext import ContextTypes
 from utils.file_manager import load_last_prices_status
 from utils.user_data import (
     registrar_usuario,
-    obtener_monedAS_usuario,
+    obtener_monedas_usuario,
     obtener_datos_usuario,
     get_user_meta,
     set_user_meta
@@ -20,7 +20,7 @@ from utils.subscription_manager import (
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text
 from core.config import ADMIN_CHAT_IDS
-from locales.texts import HELP_MSG
+from locales.texts import HELP_MSG, HELP_CATEGORIES, HELP_FULL
 from core.i18n import _
 from handlers.trading import p_command
 
@@ -283,6 +283,18 @@ async def help_category_callback(update: Update, context: ContextTypes.DEFAULT_T
     lang = datos_usuario.get('language', 'es')
     if lang not in ['es', 'en']:
         lang = 'es'
+    
+    # Special case: help_all shows full help
+    if data == "help_all":
+        help_full = HELP_FULL.get(lang, HELP_FULL['es'])
+        keyboard = [[InlineKeyboardButton("← Volver a categorías", callback_data="help_back")]]
+        await query.edit_message_text(
+            help_full,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=True
+        )
+        return
     
     help_categories = HELP_CATEGORIES.get(lang, HELP_CATEGORIES['es'])
     content = help_categories.get(data, "❌ Opción no válida")

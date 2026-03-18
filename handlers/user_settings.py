@@ -3,12 +3,10 @@
 
 import asyncio
 import os
-import uuid
-import openpyxl 
 from datetime import datetime
 from telegram import Update
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, ConversationHandler, CallbackQueryHandler
+from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from core.config import TOKEN_TELEGRAM, ADMIN_CHAT_IDS, PID, VERSION, STATE, PYTHON_VERSION, LOG_LINES, USUARIOS_PATH
 from utils.file_manager import(
@@ -17,7 +15,7 @@ from utils.file_manager import(
 )
 from utils.user_data import(
     cargar_usuarios, guardar_usuarios, registrar_usuario,
-    actualizar_monedAS, obtener_monedAS_usuario, actualizar_intervalo_alerta,
+    actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta,
     set_user_language, get_user_language
 )
 from utils.alert_manager import(

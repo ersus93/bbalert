@@ -662,11 +662,12 @@ async def mk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 # Calcular tiempo para abrir
                 if is_weekend:
-                    # Si es finde, abre el Lunes (calculo aproximado sumando días)
-                    days_ahead = 7 - now_local.weekday() # 7 - 5(Sab) = 2 dias
-                    if days_ahead == 0: days_ahead = 1 # Si es Domingo noche y ya pasó la hora 0
-                    # Simplificación: "Opens on Monday" o calcular horas reales es complejo
-                    msg_status = "Closed ❌ opens Monday"
+                    # Si es finde, abre el Lunes
+                    # weekday(): Monday=0 ... Saturday=5, Sunday=6
+                    days_to_monday = (7 - now_local.weekday()) % 7
+                    if days_to_monday == 0:
+                        days_to_monday = 7
+                    msg_status = f"Closed ❌ opens Monday (~{days_to_monday * 24}h)"
                 elif current_float < m["open"]:
                     # Abre hoy más tarde
                     minutes_to_open = (m["open"] - current_float) * 60

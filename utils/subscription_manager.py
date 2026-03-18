@@ -104,7 +104,7 @@ def check_feature_access(chat_id: int, feature_type: str, current_count: int = N
     if feature_type == 'temp_change_limit':
         if is_active('watchlist_bundle'):
             return True, "OK"
-        
+
         if daily.get('temp_changes', 0) >= 1:
             return False, (
                 f"🔒 *Límite Diario Alcanzado*\n"
@@ -113,7 +113,41 @@ def check_feature_access(chat_id: int, feature_type: str, current_count: int = N
                 "Adquiere el 'Pack Control Total' para cambios ilimitados."
             )
         return True, "OK"
-    
+
+    # REGLA 6: Capacidad de alertas de precio
+    if feature_type == 'alerts_capacity':
+        base_limit = 2  # 2 pares (4 alertas: arriba + abajo cada una)
+        
+        extra_qty = subs.get('alerts_extra', {}).get('qty', 0)
+        total_limit = base_limit + extra_qty
+        
+        # current_count is the number of currently active alerts
+        if current_count is not None and current_count >= total_limit * 2:
+            return False, (
+                f"🔒 *Límite de Alertas Alcanzado ({current_count}/{total_limit * 2})*\n"
+                "—————————————————\n\n"
+                f"Tienes el máximo de {total_limit} pares de alerta activos.\n\n"
+                "—————————————————\n"
+                "Adquiere '+1 Alerta' en /shop para ampliar tu capacidad."
+            )
+        return True, "OK"
+
+    # REGLA 7: Comando /prices (unificado)
+    if feature_type == 'prices_limit':
+        limit = 8  # Mismo límite que /ver
+        if is_active('watchlist_bundle'):
+            limit = 48
+
+        if daily.get('prices', 0) >= limit:
+            return False, (
+                f"🔒 *Límite Diario Alcanzado ({limit}/{limit})*\n"
+                "—————————————————\n\n"
+                f"Has usado tus {limit} consultas gratuitas de /prices por hoy.\n\n"
+                "—————————————————\n"
+                "Adquiere el 'Pack Control Total' en /shop para aumentar a 48 consultas diarias"
+            )
+        return True, "OK"
+
     return True, "OK"
 
 
@@ -130,7 +164,7 @@ def registrar_uso_comando(chat_id: int, comando: str) -> None:
     if 'daily_usage' not in usuarios[chat_id_str]:
         usuarios[chat_id_str]['daily_usage'] = {
             'date': datetime.now().strftime('%Y-%m-%d'),
-            'ver': 0, 'tasa': 0, 'ta': 0,
+            'ver': 0, 'prices': 0, 'tasa': 0, 'ta': 0,
             'temp_changes': 0, 'reminders': 0,
             'weather': 0, 'btc': 0,
         }
@@ -138,7 +172,8 @@ def registrar_uso_comando(chat_id: int, comando: str) -> None:
     # Map comando to daily_usage key
     command_map = {
         'ver': 'ver',
-        'tasa': 'tasa', 
+        'prices': 'prices',  # Nuevo comando unificado
+        'tasa': 'tasa',
         'ta': 'ta',
         'temp': 'temp_changes',
         'rec': 'reminders',

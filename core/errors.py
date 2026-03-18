@@ -9,6 +9,9 @@ import functools
 import time
 from enum import Enum
 from typing import Callable, Any, Optional, TypeVar, Coroutine
+
+# TypeVar for generic type annotations
+T = TypeVar('T')
 from telegram import Update
 from telegram.ext import ContextTypes
 from utils.logger import logger
@@ -219,8 +222,10 @@ async def retry_async(
             return await func(*args, **kwargs)
         except Exception as e:
             last_error = e
-            
-            if isinstance(e, (BadRequest, InvalidToken, UserIsBot)):
+
+            # UserIsBot does not exist in python-telegram-bot v20+
+            # Only raise on critical errors that shouldn't be retried
+            if isinstance(e, (BadRequest, InvalidToken)):
                 raise
             
             if attempt < max_retries - 1:

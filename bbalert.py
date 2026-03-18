@@ -7,7 +7,17 @@ import warnings
 from telegram.warnings import PTBUserWarning
 from telegram import Update
 from telegram.error import BadRequest, NetworkError, TimedOut, RetryAfter
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, MessageHandler, filters, CallbackQueryHandler, ContextTypes, PreCheckoutQueryHandler
+from telegram.ext import (
+    Application,
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    CallbackQueryHandler,
+    ContextTypes,
+    PreCheckoutQueryHandler,
+    ConversationHandler,
+)
 from telegram.constants import ParseMode
 from utils.logger import logger
 from utils.file_manager import cargar_usuarios, guardar_usuarios, add_log_line
@@ -24,7 +34,7 @@ from core.loops import (
 from core.weather_loop_v2 import weather_alerts_loop, weather_daily_summary_loop
 from core.global_disasters_loop import global_disasters_loop
 from core.i18n import _ 
-from handlers.general import start, myid, ver, help_command
+from handlers.general import start, myid, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command, free_command
 from handlers.year_handlers import year_command, year_sub_callback
 from core.year_loop import year_progress_loop
@@ -34,7 +44,7 @@ from core.reminders_loop import reminders_monitor_loop
 
 
 from handlers.user_settings import (
-    mismonedas, parar, cmd_temp, set_monedas_command,
+    parar, cmd_temp,
     set_reprogramar_alerta_util, toggle_hbd_alerts_callback, hbd_alerts_command, lang_command, set_language_callback
 )
 from handlers.alerts import (
@@ -48,11 +58,10 @@ from handlers.trading_unified import trading_command
 from handlers.ta import ta_command, ta_switch_callback, ai_analysis_callback, graf_from_ta_callback
 from handlers.tasa import eltoque_command, eltoque_provincias_callback, eltoque_refresh_callback
 from handlers.pay import shop_command, shop_callback, precheckout_callback, successful_payment_callback
-from handlers.general import start, myid, ver, help_command, start_button_callback, help_category_callback, help_back_callback
+from handlers.general import start, myid, help_command, start_button_callback, help_category_callback, help_back_callback
 
 from handlers.valerts_handlers import valerts_handlers_list
-from core.valerts_loop import valerts_monitor_loop, set_valerts_sender 
-from core.btc_advanced_analysis import BTCAdvancedAnalyzer
+from core.valerts_loop import valerts_monitor_loop, set_valerts_sender
 from handlers.health import health_command
 from core.rate_limiter import check_rate_limit, get_user_stats, cleanup_rate_limits
 
@@ -72,6 +81,25 @@ from handlers.weather import (
 from handlers.precios import show_prices as precios_command, precios_callback
 from handlers.alertas import alertas_command
 from handlers.ajustes import ajustes_command
+from handlers.prices import (
+    prices_command,
+    prices_master_command,
+    prices_callback_handler,
+    prices_add_command,
+    prices_remove_command,
+    prices_list_command,
+    prices_delete_callback,
+    prices_add_start,
+    prices_add_receive,
+    prices_add_done,
+    prices_add_cancel,
+    prices_add_conversation_handler,
+    prices_remove_start,
+    prices_remove_receive,
+    prices_remove_done,
+    ADD_COIN,
+    REMOVE_COIN,
+)
 
 # Ignorar advertencias específicas de PTB sobre CallbackQueryHandler en ConversationHandler
 warnings.filterwarnings("ignore", category=PTBUserWarning, message=".*CallbackQueryHandler.*")
@@ -234,8 +262,9 @@ def main():
                 if "Chat not found" in error_str or "bot was blocked" in error_str:
                     if usuarios_actualizados is None:
                         usuarios_actualizados = cargar_usuarios()
-                    if chat_id in usuarios_actualizados:
-                        del usuarios_actualizados[chat_id]
+                    # chat_id is int, but dictionary keys are strings
+                    if str(chat_id) in usuarios_actualizados:
+                        del usuarios_actualizados[str(chat_id)]
                         logger.info(f"🗑️ Usuario {chat_id} ha bloqueado el bot. Eliminado de la lista.")
 
         if usuarios_actualizados is not None:
@@ -261,6 +290,9 @@ def main():
     # 1️⃣ ConversationHandler de CLIMA (DEBE IR PRIMERO)
     app.add_handler(weather_conversation_handler)
     
+    # ConversationHandler de Precios (Añadir monedas)
+    app.add_handler(prices_add_conversation_handler)
+    
     # 2️⃣ ConversationHandler de Mensajes Admin
     app.add_handler(ms_conversation_handler)
 
@@ -271,40 +303,29 @@ def main():
     # ============================================
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid))
-    app.add_handler(CommandHandler("ver", ver))
     app.add_handler(CommandHandler("help", help_command))
     
     # ============================================
-    # Comandos de Admin
+    # Comandos de Precios (UNIFICADO /prices)
     # ============================================
-    app.add_handler(CommandHandler("users", users))
-    app.add_handler(CommandHandler("logs", logs_command))
-    app.add_handler(CommandHandler("ad", ad_command))
-    app.add_handler(CommandHandler("free", free_command))
-    app.add_handler(CommandHandler("health", health_command))
     
+    # Handler maestro - detecta subcomandos y bifurca
+    # Debe ir ANTES que los ConversationHandlers
+    app.add_handler(CommandHandler("prices", prices_master_command))
+    
+    # Callback handlers para botones inline
+    # IMPORTANTE: Primero el más específico (prices_del_), luego el general (prices_)
+    app.add_handler(CallbackQueryHandler(prices_delete_callback, pattern="^prices_del_"))
+    app.add_handler(CallbackQueryHandler(prices_callback_handler, pattern="^prices_"))
+
     # ============================================
     # Comandos de Trading/Cripto
     # ============================================
-    app.add_handler(CommandHandler("mk", mk_command))
-    app.add_handler(CommandHandler("trading", trading_command))
-    app.add_handler(CommandHandler("graf", graf_command))
     app.add_handler(CommandHandler("p", p_command))
-    app.add_handler(CommandHandler("tasa", eltoque_command))
+    app.add_handler(CommandHandler("graf", graf_command))
+    app.add_handler(CommandHandler("mk", mk_command))
     app.add_handler(CommandHandler("ta", ta_command))
-    app.add_handler(CommandHandler("precios", precios_command))
-    
-    # ============================================
-    # Comandos de Usuario
-    # ============================================
-    app.add_handler(CommandHandler("mismonedas", mismonedas))
-    app.add_handler(CommandHandler("monedas", set_monedas_command))
-    app.add_handler(CommandHandler("parar", parar))
-    app.add_handler(CommandHandler("temp", cmd_temp))
-    app.add_handler(CommandHandler("ajustes", ajustes_command))
-    app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
-    app.add_handler(CommandHandler("lang", lang_command))
-    
+
     # ============================================
     # Comandos de Alertas
     # ============================================
@@ -317,6 +338,7 @@ def main():
     # ============================================
     app.add_handler(CommandHandler("w", weather_command))
     app.add_handler(CommandHandler("weather_settings", weather_settings_command))
+    app.add_handler(CommandHandler("wsub", weather_subscribe_command))
     
     # ============================================
     # Comandos de PAGO
@@ -347,9 +369,9 @@ def main():
     # Callbacks de /start buttons
     app.add_handler(CallbackQueryHandler(start_button_callback, pattern="^start_"))
 
-    # Callbacks de /help categories
-    app.add_handler(CallbackQueryHandler(help_category_callback, pattern="^help_"))
+    # Callbacks de /help categories - help_back DEBE ir primero porque ^help_ también captura help_back
     app.add_handler(CallbackQueryHandler(help_back_callback, pattern="^help_back$"))
+    app.add_handler(CallbackQueryHandler(help_category_callback, pattern="^help_"))
 
     # Callbacks de Clima
     if weather_callback_handlers:
@@ -388,6 +410,9 @@ def main():
     # Callbacks de Precios
     app.add_handler(CallbackQueryHandler(precios_callback, pattern="^precios_"))
     
+    # Callbacks de HBD
+    app.add_handler(CallbackQueryHandler(toggle_hbd_alerts_callback, pattern="^toggle_hbd_alerts$"))
+    
     # 4. Asignar la función post_init
     app.post_init = post_init
 
@@ -425,7 +450,7 @@ def main():
         
         if isinstance(err, (NetworkError, TimedOut)):
             # Errores de red esperados - solo log
-            logger.debug(f"🌐 Error de red transitorio: {err}")
+            logger.info(f"🌐 Error de red transitorio: {err}")
             return
             
         if isinstance(err, RetryAfter):

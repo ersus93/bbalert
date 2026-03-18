@@ -568,8 +568,11 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         original_report_text = query.message.caption if query.message.caption else query.message.text
         
         if not original_report_text:
-             await query.message.reply_text(_("❌ Error: No se pudo leer el reporte en pantalla.", user_id), parse_mode=ParseMode.MARKDOWN)
-             return
+            if query.message:
+                await query.message.reply_text(_("❌ Error: No se pudo leer el reporte en pantalla.", user_id), parse_mode=ParseMode.MARKDOWN)
+            else:
+                await context.bot.send_message(chat_id=query.from_user.id, text=_("❌ Error: No se pudo leer el reporte en pantalla.", user_id), parse_mode=ParseMode.MARKDOWN)
+            return
 
         # 3. Preparar el texto enriquecido para la IA
         # Le decimos explícitamente de dónde viene la data para que ajuste su análisis
@@ -596,16 +599,26 @@ async def ai_analysis_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         icon = "📡" if source == "TV" else "📊"
         header = f"🤖 *BitBread IA* (_Experimental_)\n {icon} *{source}* | Moneda: *{full_symbol}* ({timeframe})\n—————————————————\n"
         
-        await query.message.reply_text(
-            header + ai_response, 
-            parse_mode=ParseMode.MARKDOWN,
-            reply_to_message_id=query.message.message_id
-        )
+        if query.message:
+            await query.message.reply_text(
+                header + ai_response,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_to_message_id=query.message.message_id
+            )
+        else:
+            await context.bot.send_message(
+                chat_id=query.from_user.id,
+                text=header + ai_response,
+                parse_mode=ParseMode.MARKDOWN
+            )
 
     except Exception as e:
         print(f"Error en callback IA: {e}")
         try:
-            await query.message.reply_text(_("⚠️ La IA está ocupada, intenta de nuevo.", user_id), parse_mode=ParseMode.MARKDOWN)
+            if query.message:
+                await query.message.reply_text(_("⚠️ La IA está ocupada, intenta de nuevo.", user_id), parse_mode=ParseMode.MARKDOWN)
+            else:
+                await context.bot.send_message(chat_id=query.from_user.id, text=_("⚠️ La IA está ocupada, intenta de nuevo.", user_id), parse_mode=ParseMode.MARKDOWN)
         except Exception:
             pass
 
