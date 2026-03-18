@@ -164,6 +164,20 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
     data = query.data
     chat_id = query.message.chat.id if query.message else query.from_user.id
     user_id = query.from_user.id
+    
+    # Debug logging
+    from utils.logger import logger
+    logger.info(f"[PRICES_CALLBACK] data={data}, chat_id={chat_id}, user_id={user_id}")
+    
+    # === GESTIÓN DE CONFIGURACIÓN ===
+    if data.startswith("prices_config_"):
+        await _handle_config_callback(update, context)
+        return
+    
+    # === GESTIÓN DE TEMPORALIDAD ===
+    if data.startswith("prices_temp_"):
+        await _handle_temp_callback(update, context)
+        return
 
     if data == "prices_add":
         await _handle_add_button(update, context)
@@ -320,39 +334,55 @@ async def _handle_list_button(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def _handle_settings_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Maneja click en botón 'Configurar'."""
+    """Maneja click en botón 'Configurar' - muestra menú visual completo."""
     query = update.callback_query
     await query.answer()
     
     user_id = query.from_user.id
     chat_id = query.message.chat.id if query.message else query.from_user.id
     
+    # Obtener datos del usuario
     usuarios = cargar_usuarios()
     intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
+    monedas = obtener_monedas_usuario(chat_id)
     min_val, _ = check_feature_access(chat_id, 'temp_min_val')
-    
+
+    # Formatear lista de monedas
+    lista_monedas = ', '.join(monedas) if monedas else "(vacía)"
+
     mensaje = _(
-        "⚙️ *Configuración de Alertas*\n—————————————————\n\n"
-        "🕐 *Intervalo actual:* {intervalo} horas\n"
+        "⚙️ *Configuración de Alertas*\n"
+        "—————————————————\n\n"
+        "💰 *Monedas:* {lista_monedas}\n"
+        "⏰ *Intervalo:* {intervalo} horas\n"
         "📊 *Mínimo de tu plan:* {min_val} horas\n\n"
-        "Para cambiar el intervalo usa:\n"
-        "`/temp <horas>` (ej: `/temp 0.25`)\n\n"
-        "[ ← Volver ](/prices)",
+        "*¿Qué deseas configurar?*\n",
         user_id
-    ).format(intervalo=intervalo, min_val=min_val)
+    ).format(
+        lista_monedas=lista_monedas,
+        intervalo=intervalo,
+        min_val=min_val
+    )
     
-    keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
+    keyboard = [
+        [InlineKeyboardButton(_("💰 Gestionar Monedas", user_id), callback_data="prices_config_money")],
+        [InlineKeyboardButton(_("⏰ Cambiar Intervalo", user_id), callback_data="prices_config_temp")],
+        [InlineKeyboardButton(_("← Volver a Precios", user_id), callback_data="prices_back")],
+    ]
     
     try:
-        await update.callback_query.edit_message_text(
+        await query.edit_message_text(
             mensaje,
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
-    except Exception:
+    except Exception as e:
+        from utils.logger import logger
+        logger.error(f"[PRICES_SETTINGS_ERROR] {e}")
         await context.bot.send_message(
             chat_id=chat_id,
             text=mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
 
@@ -780,6 +810,217 @@ async def prices_remove_done(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return ConversationHandler.END
 
 
+async def _handle_config_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Maneja los callbacks de configuración."""
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
+
+    if data == "prices_config_money":
+        await _handle_config_money_menu(update, context)
+    elif data == "prices_config_temp":
+        await _handle_config_temp_menu(update, context)
+    else:
+        # Unknown config callback
+        from utils.logger import logger
+        logger.warning(f"[PRICES_CONFIG] Unknown callback: {data}")
+
+
+async def _handle_config_money_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Muestra el menú de gestión de monedas."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
+
+    monedas = obtener_monedas_usuario(chat_id)
+
+    mensaje = _(
+        "💰 *Gestionar Monedas*\n"
+        "—————————————————\n\n"
+        "Tu lista: {lista}\n\n"
+        "*¿Qué quieres hacer?*\n",
+        user_id
+    ).format(lista=', '.join(monedas) if monedas else _("(vacía)", user_id))
+
+    keyboard = [
+        [InlineKeyboardButton(_("➕ Añadir", user_id), callback_data="prices_config_money_add")],
+        [InlineKeyboardButton(_("🗑️ Eliminar", user_id), callback_data="prices_config_money_remove")],
+        [InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_settings")],
+    ]
+
+    try:
+        await query.edit_message_text(
+            mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        from utils.logger import logger
+        logger.error(f"[PRICES_CONFIG_MONEY] {e}")
+
+
+async def _handle_config_temp_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Muestra el menú de configuración de temporalidad."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
+
+    # Obtener intervalo actual y límites
+    usuarios = cargar_usuarios()
+    intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
+    min_val, _ = check_feature_access(chat_id, 'temp_min_val')
+
+    mensaje = _(
+        "⏰ *Intervalo de Alertas*\n"
+        "—————————————————\n\n"
+        "Actual: *{intervalo} horas*\n"
+        "Mínimo de tu plan: *{min_val} horas*\n\n"
+        "*Selecciona nuevo intervalo:*\n",
+        user_id
+    ).format(intervalo=intervalo, min_val=min_val)
+
+    keyboard = [
+        [
+            InlineKeyboardButton(_("⏱️ 1 hora", user_id), callback_data="prices_temp_1"),
+            InlineKeyboardButton(_("⏱️ 2 horas", user_id), callback_data="prices_temp_2"),
+        ],
+        [
+            InlineKeyboardButton(_("⏱️ 4 horas", user_id), callback_data="prices_temp_4"),
+            InlineKeyboardButton(_("⏱️ 8 horas", user_id), callback_data="prices_temp_8"),
+        ],
+        [
+            InlineKeyboardButton(_("✏️ Personalizado", user_id), callback_data="prices_temp_custom"),
+        ],
+        [
+            InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_settings"),
+        ],
+    ]
+
+    try:
+        await query.edit_message_text(
+            mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        from utils.logger import logger
+        logger.error(f"[PRICES_CONFIG_TEMP] {e}")
+
+
+async def _handle_temp_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Maneja los callbacks de configuración de temporalidad."""
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data
+    user_id = query.from_user.id
+    chat_id = query.message.chat.id if query.message else query.from_user.id
+
+    # Extraer el intervalo del callback
+    if data.startswith("prices_temp_"):
+        temp_str = data.replace("prices_temp_", "")
+
+        try:
+            if temp_str == "custom":
+                # Para personalizado, iniciar conversación
+                await _handle_temp_custom_start(update, context)
+                return
+            else:
+                # Intervalo predefinido
+                intervalo = float(temp_str)
+        except ValueError:
+            from utils.logger import logger
+            logger.error(f"[PRICES_TEMP] Invalid temp value: {temp_str}")
+            return
+
+        # Verificar límites
+        min_val, msg = check_feature_access(chat_id, 'temp_min_val')
+        if intervalo < min_val:
+            mensaje_error = _(
+                "🔒 *Función Premium*\n"
+                "—————————————————\n\n"
+                "El intervalo *{intervalo} horas* requiere un plan premium.\n"
+                "Tu mínimo actual: *{min_val} horas*\n\n"
+                "Usa `/temp {intervalo}` o actualiza tu plan.",
+                user_id
+            ).format(intervalo=intervalo, min_val=min_val)
+
+            await query.edit_message_text(
+                mensaje_error,
+                parse_mode=ParseMode.MARKDOWN
+            )
+            return
+
+        # Verificar límites de cambio diario
+        acceso_cambio, msg_cambio = check_feature_access(chat_id, 'temp_change_limit')
+        if not acceso_cambio:
+            await query.edit_message_text(msg_cambio, parse_mode=ParseMode.MARKDOWN)
+            return
+
+        # Aplicar cambio
+        if actualizar_intervalo_alerta(chat_id, intervalo):
+            # Reprogramar alerta si existe reprogramar_alerta_ref
+            from handlers.user_settings import _reprogramar_alerta_ref
+            if _reprogramar_alerta_ref:
+                try:
+                    _reprogramar_alerta_ref(chat_id, intervalo)
+                except Exception as e:
+                    from utils.logger import logger
+                    logger.warning(f"[PRICES_TEMP] Error reprogramming alert: {e}")
+
+            # Registrar uso
+            from utils.subscription_manager import registrar_uso_comando
+            registrar_uso_comando(chat_id, 'temp_changes')
+
+            mensaje_exito = _(
+                "✅ *Intervalo actualizado*\n"
+                "—————————————————\n\n"
+                "Nuevo intervalo: *{intervalo} horas*\n\n"
+                "Las próximas alertas usarán este intervalo.",
+                user_id
+            ).format(intervalo=intervalo)
+
+            keyboard = [[InlineKeyboardButton(_("← Volver a Configuración", user_id), callback_data="prices_settings")]]
+
+            await query.edit_message_text(
+                mensaje_exito,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            mensaje_error = _("❌ No se pudo guardar la configuración.", user_id)
+            await query.edit_message_text(mensaje_error, parse_mode=ParseMode.MARKDOWN)
+
+
+async def _handle_temp_custom_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Inicia el diálogo para intervalo personalizado."""
+    query = update.callback_query
+    user_id = query.from_user.id
+
+    mensaje = _(
+        "✏️ *Intervalo Personalizado*\n"
+        "—————————————————\n\n"
+        "Envía el intervalo en horas (ej: `0.5` para 30 minutos).\n\n"
+        "Envía `/cancel` para cancelar.",
+        user_id
+    )
+
+    try:
+        await query.edit_message_text(
+            mensaje,
+            parse_mode=ParseMode.MARKDOWN
+        )
+    except Exception as e:
+        await context.bot.send_message(
+            chat_id=query.message.chat.id,
+            text=mensaje,
+            parse_mode=ParseMode.MARKDOWN
+        )
+
+
 # === EXPORTS ===
 
 # ConversationHandler para añadir monedas
@@ -819,4 +1060,9 @@ __all__ = [
     'prices_remove_done',
     'ADD_COIN',
     'REMOVE_COIN',
+    '_handle_config_callback',
+    '_handle_config_money_menu',
+    '_handle_config_temp_menu',
+    '_handle_temp_callback',
+    '_handle_temp_custom_start',
 ]
