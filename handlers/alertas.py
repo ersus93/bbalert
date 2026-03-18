@@ -229,7 +229,7 @@ async def alertas_delete_menu_callback(update: Update, context: ContextTypes.DEF
         
         keyboard.append([
             InlineKeyboardButton(
-                f"🗑️ Eliminar {coin} @ ${price:.4f}",
+                f"🗑️ Eliminar {coin} {idx}",
                 callback_data=f"alertas_delete_{alert_id}"
             )
         ])
