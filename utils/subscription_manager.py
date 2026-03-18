@@ -61,22 +61,6 @@ def check_feature_access(chat_id: int, feature_type: str, current_count: int = N
             )
         return True, "OK"
 
-    # REGLA 2: Comando /tasa
-    if feature_type == 'tasa_limit':
-        limit = 8
-        if is_active('tasa_vip'):
-            limit = 24
-        
-        if daily['tasa'] >= limit:
-            return False, (
-                f"🔒 *Límite Diario Alcanzado ({limit}/{limit})*\n"
-                "—————————————————\n\n"
-                f"Has usado tus {limit} consultas de /tasa por hoy.\n\n"
-                "—————————————————\n"
-                "Adquiere 'Tasa VIP' en /shop para aumentar a 24 consultas diarias"
-            )
-        return True, "OK"
-
     # REGLA 3: Comando /ta
     if feature_type == 'ta_limit':
         limit = 21
@@ -164,16 +148,14 @@ def registrar_uso_comando(chat_id: int, comando: str) -> None:
     if 'daily_usage' not in usuarios[chat_id_str]:
         usuarios[chat_id_str]['daily_usage'] = {
             'date': datetime.now().strftime('%Y-%m-%d'),
-            'ver': 0, 'prices': 0, 'tasa': 0, 'ta': 0,
+            'ver': 0, 'ta': 0,
             'temp_changes': 0, 'reminders': 0,
             'weather': 0, 'btc': 0,
         }
-    
+
     # Map comando to daily_usage key
     command_map = {
         'ver': 'ver',
-        'prices': 'prices',  # Nuevo comando unificado
-        'tasa': 'tasa',
         'ta': 'ta',
         'temp': 'temp_changes',
         'rec': 'reminders',
@@ -212,7 +194,6 @@ def add_subscription_days(chat_id: int, sub_type: str, days: int = 30, quantity:
             'alerts_extra': {'qty': 0, 'expires': None},
             'coins_extra': {'qty': 0, 'expires': None},
             'watchlist_bundle': {'active': False, 'expires': None},
-            'tasa_vip': {'active': False, 'expires': None},
             'ta_vip': {'active': False, 'expires': None},
             'sp_signals': {'active': False, 'expires': None},
         }

@@ -325,6 +325,7 @@ def main():
     app.add_handler(CommandHandler("graf", graf_command))
     app.add_handler(CommandHandler("mk", mk_command))
     app.add_handler(CommandHandler("ta", ta_command))
+    app.add_handler(CommandHandler("tasa", eltoque_command))
 
     # ============================================
     # Comandos de Alertas

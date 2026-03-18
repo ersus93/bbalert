@@ -5,7 +5,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode
 from utils.file_manager import add_log_line
-from utils.subscription_manager import check_feature_access, registrar_uso_comando
+from utils.subscription_manager import registrar_uso_comando
 # Importamos las nuevas funciones de historial BCC
 from utils.tasa_manager import (
     load_eltoque_history, save_eltoque_history, obtener_tasas_eltoque,
@@ -20,21 +20,16 @@ from core.i18n import _
 from utils.year_manager import get_simple_year_string
 
 async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Comando /tasa - Muestra tasas de cambio de ElToque, CADECA y BCC.
+    Disponible gratuitamente para todos los usuarios.
+    """
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
-    # === GUARDIA DE PAGO ===
-    acceso, mensaje = check_feature_access(chat_id, 'tasa_limit')
-    if not acceso:
-        if update.callback_query:
-            await update.callback_query.answer(mensaje, show_alert=True)
-        else:
-            await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
-        return
-    
     # BUG-3 FIX: Registrar uso del comando /tasa para estadísticas del dashboard
     registrar_uso_comando(chat_id, 'tasa')
-    
+
     # Manejo del mensaje de estado (botón vs comando)
     msg_estado = None
     if update.callback_query:
@@ -42,7 +37,7 @@ async def eltoque_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Intentamos borrar el mensaje anterior para que se vea fresco
         try: await update.callback_query.message.delete()
         except Exception: pass
-        msg_estado = await context.bot.send_message(user_id, _("⏳ Conectando con fuentes (ElToque, CADECA & BCC)...", user_id))
+        msg_estado = await context.bot.send_message(chat_id, _("⏳ Conectando con fuentes (ElToque, CADECA & BCC)...", user_id))
     else:
         msg_estado = await update.message.reply_text(_("⏳ Conectando con fuentes (ElToque, CADECA & BCC)...", user_id))
 

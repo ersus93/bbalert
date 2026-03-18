@@ -965,7 +965,7 @@ async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TY
 
     from handlers.pay import (
         PRICE_SP_SIGNALS, PRICE_BUNDLE, PRICE_TA_VIP,
-        PRICE_TASA_VIP, PRICE_COIN_SLOT, PRICE_ALERT_SLOT,
+        PRICE_COIN_SLOT, PRICE_ALERT_SLOT,
     )
 
     keyboard = InlineKeyboardMarkup([
@@ -975,7 +975,6 @@ async def sp_goto_shop_callback(update: Update, context: ContextTypes.DEFAULT_TY
         )],
         [InlineKeyboardButton(f"📦 Pack Total — {PRICE_BUNDLE} ⭐",  callback_data="buy_bundle")],
         [InlineKeyboardButton(f"📈 TA Pro — {PRICE_TA_VIP} ⭐",      callback_data="buy_ta")],
-        [InlineKeyboardButton(f"💱 Tasa VIP — {PRICE_TASA_VIP} ⭐",  callback_data="buy_tasa")],
         [
             InlineKeyboardButton(f"🪙 +1 Moneda — {PRICE_COIN_SLOT} ⭐", callback_data="buy_coin"),
             InlineKeyboardButton(f"🔔 +1 Alerta — {PRICE_ALERT_SLOT} ⭐", callback_data="buy_alert"),

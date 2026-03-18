@@ -403,7 +403,6 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         map_names = {
             'watchlist_bundle': '📦 Pack Control Total',
-            'tasa_vip': '💱 Tasa VIP',
             'ta_vip': '📈 TA Pro',
             'coins_extra': '🪙 Slot Moneda',
             'alerts_extra': '🔔 Slot Alerta'
@@ -471,7 +470,6 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Contadores VIP
     vip_stats = {
         'watchlist_bundle': 0,
-        'tasa_vip': 0,
         'ta_vip': 0,
         'coins_extra_users': 0,
         'alerts_extra_users': 0
@@ -527,7 +525,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # 4. VIP Check
         subs = u.get('subscriptions', {})
         # Check tiempo
-        for k in ['watchlist_bundle', 'tasa_vip', 'ta_vip']:
+        for k in ['watchlist_bundle', 'ta_vip']:
             s = subs.get(k, {})
             if s.get('active') and s.get('expires'):
                 try:
@@ -675,7 +673,6 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cmd_avg_esc = _clean_markdown(cmd_stats['avg_per_user'])
     daily_alerts_esc = _clean_markdown(daily_events['alerts_today'])
     vip_watchlist_esc = _clean_markdown(vip_stats['watchlist_bundle'])
-    vip_tasa_esc = _clean_markdown(vip_stats['tasa_vip'])
     vip_ta_esc = _clean_markdown(vip_stats['ta_vip'])
     vip_coins_esc = _clean_markdown(vip_stats['coins_extra_users'])
     vip_alerts_esc = _clean_markdown(vip_stats['alerts_extra_users'])
@@ -706,7 +703,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         f"⚙️ *CARGA DEL SISTEMA (Hoy)*\n"
         f"├ Comandos Procesados: `{total_usage_today_esc}`\n"
-        f"├ /ver: `{usage_ver_esc}` | /tasa: `{usage_tasa_esc}` | /ta: `{usage_ta_esc}`\n"
+        f"├ /ver: `{usage_ver_esc}` | /ta: `{usage_ta_esc}`\n"
         f"├ Alertas Cruce Vigilando: `{total_alerts_active_esc}`\n"
         f"└ Top Comandos:\n{top_cmds_str_esc}\n\n"
 
@@ -731,9 +728,8 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         f"💎 *NEGOCIO (Suscripciones Activas)*\n"
         f"├ 📦 Pack Control Total: `{vip_watchlist_esc}`\n"
-        f"├ 💱 Tasa VIP: `{vip_tasa_esc}`\n"
         f"├ 📈 TA Pro: `{vip_ta_esc}`\n"
-        f"├ ➕ Extras: `{vip_coins_esc}` Coins | `{vip_alerts_esc}` Alertas\n"
+        f"└ ➕ Extras: `{vip_coins_esc}` Coins | `{vip_alerts_esc}` Alertas\n"
         f"└ ⚠️ Próximas a vencer (7d): `{subs_expiring_esc}`\n\n"
 
         f"📢 *SERVICIOS DE NOTIFICACIÓN*\n"
@@ -994,7 +990,6 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     Filtros disponibles:
     - sp -> sp_signals (SmartSignals Pro)
-    - tasa -> tasa_vip (Tasa VIP)
     - ta -> ta_vip (TA Pro)
     - bundle -> watchlist_bundle (Pack Control Total)
     - coins -> coins_extra (Espacio extra de monedas)
@@ -1022,7 +1017,6 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• `filtro` - Tipo de suscripción (texto)\n\n"
             "🔖 *Filtros disponibles:*\n"
             "• `sp` → SmartSignals Pro\n"
-            "• `tasa` → Tasa VIP\n"
             "• `ta` → TA Pro\n"
             "• `bundle` → Pack Control Total\n"
             "• `coins` → Espacio extra de monedas\n"
@@ -1038,7 +1032,6 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     filter_map = {
         'sp': 'sp_signals',
-        'tasa': 'tasa_vip',
         'ta': 'ta_vip',
         'bundle': 'watchlist_bundle',
         'coins': 'coins_extra',
@@ -1124,7 +1117,6 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     filter_names = {
         'sp_signals': '📡 SmartSignals Pro',
-        'tasa_vip': '💱 Tasa VIP',
         'ta_vip': '📈 TA Pro',
         'watchlist_bundle': '📦 Pack Control Total',
         'coins_extra': '🪙 Espacio extra de monedas',

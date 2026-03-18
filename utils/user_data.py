@@ -100,13 +100,13 @@ def obtener_datos_usuario_seguro(chat_id: int) -> Dict[str, Any]:
     if 'daily_usage' not in usuario or usuario['daily_usage'].get('date') != today_str:
         usuario['daily_usage'] = {
             'date': today_str,
-            'ver': 0, 'tasa': 0, 'ta': 0,
+            'ver': 0, 'ta': 0,
             'temp_changes': 0, 'reminders': 0,
             'weather': 0, 'btc': 0,
         }
         guardar = True
     else:
-        keys_necesarias = ['ver', 'tasa', 'ta', 'temp_changes', 'reminders', 'weather', 'btc']
+        keys_necesarias = ['ver', 'ta', 'temp_changes', 'reminders', 'weather', 'btc']
         for key in keys_necesarias:
             if key not in usuario['daily_usage']:
                 usuario['daily_usage'][key] = 0
@@ -118,7 +118,6 @@ def obtener_datos_usuario_seguro(chat_id: int) -> Dict[str, Any]:
             'alerts_extra': {'qty': 0, 'expires': None},
             'coins_extra': {'qty': 0, 'expires': None},
             'watchlist_bundle': {'active': False, 'expires': None},
-            'tasa_vip': {'active': False, 'expires': None},
             'ta_vip': {'active': False, 'expires': None},
             'sp_signals': {'active': False, 'expires': None},
         }
