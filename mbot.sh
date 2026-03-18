@@ -978,6 +978,14 @@ show_bot_stats() {
     _pause
 }
 
+show_logs_with_menu_exit() {
+    local svc="${1:-$SERVICE_NAME}"
+    _info "Ctrl+C para volver al menú principal."
+    trap 'printf "\n\n${CB}›${NC} Volviendo al menú principal...\n"; trap - INT; return 0' INT
+    $SUDO journalctl -u "$svc" -f
+    trap - INT
+}
+
 # ═══════════════════════════════════════════════════════════════
 # SECTION: MULTI-BOT DASHBOARD
 # ═══════════════════════════════════════════════════════════════
@@ -1456,8 +1464,7 @@ start_bot() {
     fi
     
     printf "\n"
-    read -rp "  ¿Ver logs en tiempo real? [s/N]: " yn
-    [[ "$yn" =~ ^[sS]$ ]] && $SUDO journalctl -u "$SERVICE_NAME" -f
+    show_logs_with_menu_exit
 }
 
 stop_bot() {
@@ -1475,7 +1482,7 @@ restart_bot() {
     prompt_version_update
     manage_service "restart"
     printf "\n"
-    $SUDO journalctl -u "$SERVICE_NAME" -f
+    show_logs_with_menu_exit
 }
 
 status_bot() {
@@ -1928,7 +1935,7 @@ manage_environments() {
         2) sudo systemctl start "$es" ;;
         3) sudo systemctl stop "$es" ;;
         4) sudo systemctl restart "$es" ;;
-        5) sudo journalctl -u "$es" -f ;;
+        5) show_logs_with_menu_exit "$es" ;;
     esac
     _pause
 }
