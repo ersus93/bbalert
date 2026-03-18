@@ -393,7 +393,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # Estados de servicios
         btc_status = "✅ Activado" if btc_subs.get(chat_id_str, {}).get('active') else "❌ Desactivado"
-        hbd_status = "✅ Activado" if user_data.get('hbd_alerts') else "❌ Desactivado"
+        hbd_status = "✅ Activado" if user_data.get('hbd_alerts_enabled', False) else "❌ Desactivado"
         weather_status = "✅ Activado" if str(chat_id) in weather_subs else "❌ Desactivado"
         
         # Suscripciones activas
@@ -567,7 +567,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     btc_subscribers = sum(1 for s in btc_subs.values() if s.get('active'))
     
     # 2. HBD
-    hbd_subscribers = sum(1 for u in usuarios.values() if u.get('hbd_alerts'))
+    hbd_subscribers = sum(1 for u in usuarios.values() if u.get('hbd_alerts_enabled', False))
     
     # 3. CLIMA (Weather)
     weather_subscribers = len(weather_subs)

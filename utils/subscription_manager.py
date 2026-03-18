@@ -221,11 +221,12 @@ def toggle_hbd_alert_status(user_id: int) -> bool:
     """Activa/desactiva alertas HBD para el usuario."""
     usuarios = cargar_usuarios()
     user_id_str = str(user_id)
-    
+
     if user_id_str not in usuarios:
         return False
-    
-    current = usuarios[user_id_str].get('hbd_alerts_enabled', True)
+
+    # Default es False (no recibir alertas hasta que el usuario active explícitamente)
+    current = usuarios[user_id_str].get('hbd_alerts_enabled', False)
     usuarios[user_id_str]['hbd_alerts_enabled'] = not current
     guardar_usuarios(usuarios)
     return not current
@@ -235,9 +236,10 @@ def get_hbd_alert_recipients() -> list:
     """Obtiene lista de usuarios con alertas HBD activas."""
     usuarios = cargar_usuarios()
     recipients = []
-    
+
     for uid, data in usuarios.items():
-        if data.get('hbd_alerts_enabled', True):
+        # Solo usuarios que han activado EXPLÍCITAMENTE las alertas HBD
+        if data.get('hbd_alerts_enabled', False):
             recipients.append(int(uid))
-    
+
     return recipients

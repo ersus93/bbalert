@@ -326,11 +326,12 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return
 
     # --- VISTA GENERAL (Usuarios y Admins sin argumentos) ---
-    
+
     # 1. Obtener estado de suscripción del usuario
     usuarios = cargar_usuarios()
     user_data = usuarios.get(str(user_id), {})
-    is_subscribed = user_data.get('hbd_alerts', False)
+    # Usar la clave consistente 'hbd_alerts_enabled'
+    is_subscribed = user_data.get('hbd_alerts_enabled', False)
 
     # 2. Cargar lista de umbrales configurados
     thresholds = load_hbd_thresholds()

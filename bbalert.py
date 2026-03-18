@@ -79,7 +79,7 @@ from handlers.weather import (
 )
 
 from handlers.precios import show_prices as precios_command, precios_callback
-from handlers.alertas import alertas_command
+from handlers.alertas import alertas_command, alertas_handlers_list
 from handlers.ajustes import ajustes_command
 from handlers.prices import (
     prices_command,
@@ -332,7 +332,9 @@ def main():
     # ============================================
     app.add_handler(CommandHandler("alerta", alerta_command))
     app.add_handler(CommandHandler("misalertas", misalertas))
-    app.add_handler(CommandHandler("alertas", alertas_command))
+    # Usar la lista completa de handlers para /alertas (incluye callbacks)
+    for handler in alertas_handlers_list:
+        app.add_handler(handler)
     app.add_handler(CommandHandler("hbdalerts", hbd_alerts_command))
     
     # ============================================
