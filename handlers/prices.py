@@ -993,6 +993,9 @@ async def _handle_config_temp_menu(update: Update, context: ContextTypes.DEFAULT
         [
             InlineKeyboardButton(_("✏️ Personalizado", user_id), callback_data="prices_temp_custom"),
         ],
+        [
+            InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back"),
+        ],
     ]
 
     try:
