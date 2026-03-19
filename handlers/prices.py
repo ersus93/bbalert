@@ -80,9 +80,6 @@ async def prices_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         [
             InlineKeyboardButton(_("⚙️ Configurar", user_id), callback_data="prices_settings"),
         ],
-        [
-            InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back"),
-        ],
     ]
 
     await msg.edit_text(
@@ -438,9 +435,6 @@ async def _handle_back_button(update: Update, context: ContextTypes.DEFAULT_TYPE
             ],
             [
                 InlineKeyboardButton(_("⚙️ Configurar", user_id), callback_data="prices_settings"),
-            ],
-            [
-                InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back"),
             ],
         ]
         
