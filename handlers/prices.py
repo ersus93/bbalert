@@ -713,11 +713,10 @@ async def prices_add_receive(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     texto = update.message.text.strip()
     
-    # Procesar
-    nuevas = []
-    for arg in texto.split(","):
-        if arg.strip():
-            nuevas.append(arg.strip().upper())
+    # Procesar: aceptar comas Y espacios como separadores
+    # Primero reemplazar comas por espacios, luego dividir
+    partes = texto.replace(',', ' ').split()
+    nuevas = [m.upper() for m in partes if m.strip()]
     
     actuales = obtener_monedas_usuario(chat_id)
     añadidas = []
