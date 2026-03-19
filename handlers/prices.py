@@ -948,7 +948,6 @@ async def _handle_config_money_menu(update: Update, context: ContextTypes.DEFAUL
     keyboard = [
         [InlineKeyboardButton(_("➕ Añadir", user_id), callback_data="prices_config_money_add")],
         [InlineKeyboardButton(_("🗑️ Eliminar", user_id), callback_data="prices_config_money_remove")],
-        [InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_settings")],
     ]
 
     try:
@@ -993,9 +992,6 @@ async def _handle_config_temp_menu(update: Update, context: ContextTypes.DEFAULT
         ],
         [
             InlineKeyboardButton(_("✏️ Personalizado", user_id), callback_data="prices_temp_custom"),
-        ],
-        [
-            InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_settings"),
         ],
     ]
 
@@ -1083,7 +1079,7 @@ async def _handle_temp_callback(update: Update, context: ContextTypes.DEFAULT_TY
                 user_id
             ).format(intervalo=intervalo)
 
-            keyboard = [[InlineKeyboardButton(_("← Volver a Configuración", user_id), callback_data="prices_settings")]]
+            keyboard = [[InlineKeyboardButton(_("← Volver", user_id), callback_data="prices_back")]]
 
             await query.edit_message_text(
                 mensaje_exito,
