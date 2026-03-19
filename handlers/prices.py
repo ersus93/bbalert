@@ -179,9 +179,9 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         await _handle_temp_callback(update, context)
         return
 
-    # No manejamos "prices_add" aquí, lo dejamos para el ConversationHandler
-    if data == "prices_remove":
-        await _handle_remove_button(update, context)
+    # Manejamos "prices_add" aquí directamente
+    if data == "prices_add":
+        await _handle_add_button(update, context)
     elif data == "prices_list":
         await _handle_list_button(update, context)
     elif data == "prices_settings":
@@ -190,8 +190,8 @@ async def prices_callback_handler(update: Update, context: ContextTypes.DEFAULT_
         await _handle_back_button(update, context)
 
 
-async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    """Maneja click en botón 'Añadir' - inicia conversación."""
+async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Maneja click en botón 'Añadir' - muestra mensaje de ayuda."""
     query = update.callback_query
     await query.answer()
     
@@ -203,35 +203,42 @@ async def _handle_add_button(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     # Añadir logs para diagnóstico
     from utils.logger import logger
-    logger.info(f"[PRICES_ADD] Iniciando diálogo para usuario {user_id} en chat {chat_id}")
+    logger.info(f"[PRICES_ADD] Mostrando ayuda para usuario {user_id} en chat {chat_id}")
     
+    # Mensaje de ayuda similar a alertas
     mensaje = _(
         "➕ *Añadir monedas*\n"
-        "────────────────────────────────\n\n"
-        "Tu lista actual: {lista}\n\n"
-        "Escribe los símbolos separados por comas.\n\n"
-        "*Ejemplo:*\n"
-        "`BTC, ETH, HIVE, SOL`\n\n"
-        "O usa directamente: /prices add BTC,ETH\n\n"
-        "Envía `/cancel` para cancelar.",
+        "————————————————————\n\n"
+        "*Opción 1 - Comando completo:*\n"
+        "`/prices BTC,ETH,SOL`\n\n"
+        "*Opción 2 - Solo símbolos:*\n"
+        "`BTC ETH SOL`\n"
+        "o\n"
+        "`BTC,ETH,SOL`\n\n"
+        "_Envía las monedas que quieres seguir._\n\n"
+        "Tu lista actual: {lista}",
         user_id
     ).format(lista=', '.join(actuales) if actuales else "(vacía)")
+    
+    # Botón para volver
+    keyboard = [
+        [InlineKeyboardButton(_("⬅️ Volver", user_id), callback_data="prices_back")]
+    ]
     
     try:
         await query.edit_message_text(
             mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
-        # Retornar el estado ADD_COIN para iniciar el flujo de conversación
-        return ADD_COIN
     except Exception as e:
-        logger.error(f"[PRICES_ADD_ERROR] Error al iniciar diálogo: {e}")
+        logger.error(f"[PRICES_ADD_ERROR] Error al mostrar ayuda: {e}")
         await context.bot.send_message(
             chat_id=chat_id,
             text=mensaje,
+            reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode=ParseMode.MARKDOWN
         )
-        return ADD_COIN  # También retornar el estado aquí
 
 
 async def _handle_remove_button(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -831,6 +838,87 @@ async def prices_remove_done(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return ConversationHandler.END
 
 
+# === MANEJO DE TEXTO LIBRE PARA AÑADIR MONEDAS ===
+
+async def prices_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Maneja mensajes de texto que no son comandos.
+    Si el formato es válido (monedas separadas por coma o espacio), añade las monedas.
+    Ejemplo: "BTC,ETH" o "BTC ETH SOL"
+    """
+    # Ignorar si es un comando (empieza con /)
+    if update.message.text.startswith('/'):
+        return
+    
+    # Ignorar si es una respuesta a un callback (tiene mensaje anterior)
+    if update.message.reply_to_message:
+        return
+    
+    user_id = update.effective_user.id
+    chat_id = update.effective_chat.id
+    text = update.message.text.strip()
+    
+    # Detectar si es un formato válido de monedas
+    # Debe tener al menos un símbolo válido (2+ letras o números)
+    # Separadores válidos: coma, espacio, o ambos
+    
+    # Reemplazar comas por espacios y dividir
+    partes = text.replace(',', ' ').split()
+    
+    # Filtrar solo símbolos válidos (al menos 2 caracteres, solo letras y números)
+    monedas_validas = [m.upper() for m in partes if len(m) >= 2 and m.isalnum()]
+    
+    if not monedas_validas:
+        # No es formato válido de monedas, ignorar
+        return
+    
+    # Obtener lista actual y añadir las nuevas
+    actuales = obtener_moned_usuario(chat_id)
+    añadidas = []
+    
+    for m in monedas_validas:
+        if m not in actuales:
+            actuales.append(m)
+            añadidas.append(m)
+    
+    if añadidas:
+        actualizar_moned_usuario(chat_id, actuales)
+        
+        mensaje = _(
+            "✅ *Monedas añadidas:* {lista}\n\n"
+            "📋 *Tu lista:* {total}",
+            user_id
+        ).format(
+            lista=', '.join(añadidas),
+            total=', '.join(actuales)
+        )
+    else:
+        mensaje = _(
+            "ℹ️ Estas monedas ya están en tu lista:\n{lista}\n\n"
+            "📋 *Tu lista:* {total}",
+            user_id
+        ).format(
+            lista=', '.join(monedas_validas),
+            total=', '.join(actuales)
+        )
+    
+    # Añadir botones para volver o añadir más
+    keyboard = [
+        [
+            InlineKeyboardButton(_("📊 Ver Precios", user_id), callback_data="prices_back")
+        ],
+        [
+            InlineKeyboardButton(_("➕ Añadir más", user_id), callback_data="prices_add")
+        ]
+    ]
+    
+    await update.message.reply_text(
+        mensaje,
+        reply_markup=InlineKeyboardMarkup(keyboard),
+        parse_mode=ParseMode.MARKDOWN
+    )
+
+
 async def _handle_config_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Maneja los callbacks de configuración."""
     query = update.callback_query
@@ -1086,5 +1174,6 @@ __all__ = [
     '_handle_config_temp_menu',
     '_handle_temp_callback',
     '_handle_temp_custom_start',
-    'prices_add_conversation_handler',  # Añadir el ConversationHandler
+    'prices_add_conversation_handler',
+    'prices_text_handler',
 ]

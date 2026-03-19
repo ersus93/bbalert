@@ -89,6 +89,7 @@ from handlers.prices import (
     prices_add_cancel,
     prices_add_conversation_handler,
     prices_remove_start,
+    prices_text_handler,
     prices_remove_receive,
     prices_remove_done,
     ADD_COIN,
@@ -286,6 +287,10 @@ def main():
     
     # ConversationHandler de Precios (Añadir monedas)
     app.add_handler(prices_add_conversation_handler)
+    
+    # MessageHandler para texto libre (añadir monedas sin comando)
+    from telegram.ext import MessageHandler, filters
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, prices_text_handler))
     
     # 2️⃣ ConversationHandler de Mensajes Admin
     app.add_handler(ms_conversation_handler)
