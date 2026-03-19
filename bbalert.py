@@ -288,9 +288,10 @@ def main():
     # ConversationHandler de Precios (Añadir monedas)
     app.add_handler(prices_add_conversation_handler)
     
-    # MessageHandler para texto libre (añadir monedas sin comando)
-    from telegram.ext import MessageHandler, filters
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, prices_text_handler))
+    # MessageHandler para texto libre (añadir monedas sin comando) - DESACTIVADO
+    # Para activar: descomentar la línea siguiente
+    # from telegram.ext import MessageHandler, filters
+    # app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, prices_text_handler))
     
     # 2️⃣ ConversationHandler de Mensajes Admin
     app.add_handler(ms_conversation_handler)

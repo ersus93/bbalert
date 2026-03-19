@@ -864,7 +864,7 @@ async def prices_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     
     # Obtener lista actual y añadir las nuevas
-    actuales = obtener_monedAS_usuario(chat_id)
+    actuales = obtener_monedas_usuario(chat_id)
     añadidas = []
     
     for m in monedas_validas:
@@ -873,7 +873,7 @@ async def prices_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             añadidas.append(m)
     
     if añadidas:
-        actualizar_monedAS(chat_id, actuales)
+        actualizar_monas(chat_id, actuales)
         
         mensaje = _(
             "✅ *Monedas añadidas:* {lista}\n\n"
