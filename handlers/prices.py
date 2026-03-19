@@ -75,10 +75,9 @@ async def prices_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     keyboard = [
         [
             InlineKeyboardButton(_("➕ Añadir", user_id), callback_data="prices_add"),
-            InlineKeyboardButton(_("🗑️ Eliminar", user_id), callback_data="prices_remove"),
+            InlineKeyboardButton(_("📋 Ver Lista", user_id), callback_data="prices_list"),
         ],
         [
-            InlineKeyboardButton(_("📋 Ver Lista", user_id), callback_data="prices_list"),
             InlineKeyboardButton(_("⚙️ Configurar", user_id), callback_data="prices_settings"),
         ],
         [
@@ -435,10 +434,9 @@ async def _handle_back_button(update: Update, context: ContextTypes.DEFAULT_TYPE
         keyboard = [
             [
                 InlineKeyboardButton(_("➕ Añadir", user_id), callback_data="prices_add"),
-                InlineKeyboardButton(_("🗑️ Eliminar", user_id), callback_data="prices_remove"),
+                InlineKeyboardButton(_("📋 Ver Lista", user_id), callback_data="prices_list"),
             ],
             [
-                InlineKeyboardButton(_("📋 Ver Lista", user_id), callback_data="prices_list"),
                 InlineKeyboardButton(_("⚙️ Configurar", user_id), callback_data="prices_settings"),
             ],
             [
