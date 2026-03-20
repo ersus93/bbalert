@@ -304,7 +304,15 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("help", help_command))
-    
+     
+    # ============================================
+    # Comandos de Administración
+    # ============================================
+    app.add_handler(CommandHandler("users", users))
+    app.add_handler(CommandHandler("logs", logs_command))
+    app.add_handler(CommandHandler("ad", ad_command))
+    app.add_handler(CommandHandler("free", free_command))
+     
     # ============================================
     # Comandos de Precios (UNIFICADO /prices)
     # ============================================
