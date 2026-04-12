@@ -382,10 +382,12 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Carga de datos de Clima y Valerts
     weather_subs = load_weather_subscriptions()
     valerts_symbols = get_active_symbols()
-    
+
+    # Siempre cargar datos del usuario (admin o no)
+    user_data = obtener_datos_usuario(chat_id)
+
     # 2. VISTA DE USUARIO NORMAL (Perfil Propio)
     if chat_id not in ADMIN_CHAT_IDS:
-        user_data = obtener_datos_usuario(chat_id)
         if not user_data:
             await update.message.reply_text(_("❌ No estás registrado.", chat_id))
             return
