@@ -296,9 +296,13 @@ app.add_handler(reminders_conv_handler)
 # ============================================
 # Comandos generales
 # ============================================
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("myid", myid))
-    app.add_handler(CommandHandler("help", help_command))
+# Comandos generales
+# ============================================
+# Comandos generales
+# ============================================
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("myid", myid))
+app.add_handler(CommandHandler("help", help_command))
      
     # ============================================
     # Comandos de Administración
