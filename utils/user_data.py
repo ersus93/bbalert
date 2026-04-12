@@ -6,7 +6,7 @@ Extraído de file_manager.py para responsabilidad única.
 
 from datetime import datetime
 from typing import Dict, Any, Optional
-from core.redis_fallback import get_user, save_user, get_all_user_ids
+from core.redis_fallback import get_user, save_user, get_all_user_ids, delete_user_from_redis as delete_user
 
 # === Funciones de Carga/Guardado ===
 
