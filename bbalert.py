@@ -136,8 +136,10 @@ async def post_init(app: Application):
     if user_ids:
         add_log_line(f"👥 Encontrados {len(user_ids)} usuarios. Programando sus alertas periódicas...")
         for user_id in user_ids:
-            # programar_alerta_usuario ahora carga los datos del usuario internamente
-            programar_alerta_usuario(user_id)
+            from utils.user_data import obtener_datos_usuario
+            datos = obtener_datos_usuario(int(user_id))
+            intervalo_h = datos.get("intervalo_alerta_h", 2.5) if datos else 2.5
+            programar_alerta_usuario(int(user_id), intervalo_h)
     else:
         logger.info("👥 No hay usuarios registrados. Esperando a que se unan.")
     
