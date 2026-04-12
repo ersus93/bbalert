@@ -59,7 +59,7 @@ def get_redis_client():
                 
             if REDIS_SSL:
                 connection_kwargs['ssl'] = True
-                connection_kwargs['ssl_cert_reqs'] None  # No verificar certificado (para desarrollo)
+                connection_kwargs['ssl_cert_reqs'] = None  # No verificar certificado (para desarrollo)
             
             # Crear cliente Redis con pool
             _REDIS_CLIENT = redis.Redis(**connection_kwargs)
