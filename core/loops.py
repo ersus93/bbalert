@@ -24,14 +24,10 @@ from utils.user_data import (
     update_last_alert_timestamp
 )
 from utils.ads_manager import get_random_ad_text
-from core.i18n import _ # <-- Importar _
+from core.i18n import _
 from core.config import( PID, VERSION, STATE, INTERVALO_ALERTA, INTERVALO_CONTROL,
-                         LOG_LINES, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, USUARIOS_PATH, 
+                         LOG_LINES, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, USUARIOS_PATH,
                              ADMIN_CHAT_IDS, PYTHON_VERSION, HBD_HISTORY_PATH)
-from core.config import( PID, VERSION, STATE, INTERVALO_ALERTA, INTERVALO_CONTROL,
-                         LOG_LINES, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, USUARIOS_PATH, 
-                             ADMIN_CHAT_IDS, PYTHON_VERSION, HBD_HISTORY_PATH)
-from core.i18n import _ # <-- Importar _
 
 # Variable global para guardar la función de envío de mensajes y la app
 _enviar_mensaje_telegram_async_ref = None

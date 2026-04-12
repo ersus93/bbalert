@@ -34,7 +34,8 @@ from core.loops import (
 )
 from core.weather_loop_v2 import weather_alerts_loop, weather_daily_summary_loop
 from core.global_disasters_loop import global_disasters_loop
-from core.redis_fallback import get_all_user_ids 
+from core.redis_fallback import get_all_user_ids
+from core.i18n import _
 from handlers.general import start, myid, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command, free_command
 from handlers.year_handlers import year_command, year_sub_callback

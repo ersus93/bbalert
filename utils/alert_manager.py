@@ -12,7 +12,7 @@ from datetime import datetime
 
 from utils.logger import logger
 from core.config import PRICE_ALERTS_PATH
-from core.redis_fallback import get_price_alerts, save_price_alerts, get_all_user_ids
+from core.redis_fallback import get_price_alerts, save_price_alerts as save_price_alerts_redis, get_all_user_ids
 
 # === Funciones de Carga/Guardado ===
 
@@ -36,7 +36,7 @@ def save_price_alerts(alerts: Dict[str, Any]) -> None:
     for user_id_str, user_alerts in alerts.items():
         try:
             user_id = int(user_id_str)
-            save_price_alerts(user_id, user_alerts)
+            save_price_alerts_redis(user_id, user_alerts)
         except (ValueError, TypeError):
             continue
 
