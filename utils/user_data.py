@@ -4,95 +4,55 @@ Módulo de gestión de datos de usuarios.
 Extraído de file_manager.py para responsabilidad única.
 """
 
-import os
-import json
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, Any, Optional
-from utils.logger import logger
-from core.config import USUARIOS_PATH
-
-# Cache global
-_USUARIOS_CACHE = None
+from core.redis_fallback import get_user, save_user, get_all_user_ids
 
 # === Funciones de Carga/Guardado ===
 
-def _get_usuarios_cache():
-    """Obtiene el cache de usuarios (interno)."""
-    global _USUARIOS_CACHE
-    return _USUARIOS_CACHE
-
-def _set_usuarios_cache(data):
-    """Establece el cache de usuarios (interno)."""
-    global _USUARIOS_CACHE
-    _USUARIOS_CACHE = data
-
 def cargar_usuarios() -> Dict[str, Any]:
     """
-    Carga usuarios desde archivo.
-    Retorna dict con todos los usuarios.
+    Carga usuarios desde Redis (con fallback a JSON si aplica).
+    Retorna dict con todos los usuarios (claves en string).
     """
-    global _USUARIOS_CACHE
-    
-    if _USUARIOS_CACHE is not None:
-        return _USUARIOS_CACHE
-    
-    if not os.path.exists(USUARIOS_PATH):
-        _USUARIOS_CACHE = {}
-        return _USUARIOS_CACHE
-    
-    try:
-        with open(USUARIOS_PATH, 'r', encoding='utf-8') as f:
-            _USUARIOS_CACHE = json.load(f)
-            return _USUARIOS_CACHE
-    except json.JSONDecodeError:
-        if os.path.exists(USUARIOS_PATH):
-            import shutil
-            shutil.copy(USUARIOS_PATH, f"{USUARIOS_PATH}.corrupto")
-        _USUARIOS_CACHE = {}
-        return _USUARIOS_CACHE
-    except Exception:
-        return {}
+    ids = get_all_user_ids()  # Lista de IDs enteros
+    result = {}
+    for user_id in ids:
+        data = get_user(user_id)
+        if data is not None:
+            result[str(user_id)] = data
+    return result
 
 def guardar_usuarios(usuarios_data: Optional[Dict] = None) -> None:
     """
-    Guarda usuarios en archivo.
-    Usa escritura atómica para evitar corrupción.
+    Guarda usuarios en Redis (con fallback a JSON si aplica).
+    Usa escritura atómica para evitar corrupción (si aplica fallback).
     """
-    global _USUARIOS_CACHE
-    
-    if usuarios_data is not None:
-        _USUARIOS_CACHE = usuarios_data
-    
-    if _USUARIOS_CACHE is None:
+    if usuarios_data is None:
         return
-    
-    try:
-        temp_path = f"{USUARIOS_PATH}.tmp"
-        with open(temp_path, "w", encoding='utf-8') as f:
-            json.dump(_USUARIOS_CACHE, f, indent=4)
-        os.replace(temp_path, USUARIOS_PATH)
-    except Exception as e:
-        logger.error(f"Error al guardar usuarios: {e}")
+    for chat_id_str, datos in usuarios_data.items():
+        try:
+            chat_id = int(chat_id_str)
+            save_user(chat_id, datos)
+        except (ValueError, TypeError):
+            continue
 
 # === Datos de Usuario ===
 
 def obtener_datos_usuario(chat_id: int) -> Dict[str, Any]:
     """Obtiene todos los datos de un usuario."""
-    usuarios = cargar_usuarios()
-    return usuarios.get(str(chat_id), {})
+    data = get_user(chat_id)
+    return data if data is not None else {}
 
 def obtener_datos_usuario_seguro(chat_id: int) -> Optional[Dict[str, Any]]:
     """
     Obtiene datos del usuario asegurando que existan campos requeridos.
     Si no existe, retorna None.
     """
-    usuarios = cargar_usuarios()
-    chat_id_str = str(chat_id)
+    usuario = get_user(chat_id)
+    if usuario is None:
+        usuario = {}
     
-    if chat_id_str not in usuarios:
-        return None
-    
-    usuario = usuarios[chat_id_str]
     guardar = False
     today_str = datetime.now().strftime('%Y-%m-%d')
     
@@ -145,7 +105,7 @@ def obtener_datos_usuario_seguro(chat_id: int) -> Optional[Dict[str, Any]]:
         guardar = True
 
     if guardar:
-        guardar_usuarios(usuarios)
+        save_user(chat_id, usuario)
     
     return usuario
 
@@ -158,21 +118,16 @@ def _normalizar_lang(code: str) -> str:
     """
     if not code:
         return 'es'
-    # Extraer base del código regional (ej: 'es-419' → 'es', 'zh-hans' → 'zh')
     base = code.split('-')[0].lower()
-    # Solo es y en están completamente soportados
     return base if base in ('es', 'en') else 'es'
 
 def registrar_usuario(chat_id: int, user_lang_code: str = 'es') -> None:
     """Registra un nuevo usuario o actualiza existente."""
-    usuarios = cargar_usuarios()
-    chat_id_str = str(chat_id)
-
-    # Normalizar idioma
+    usuario = get_user(chat_id)
     lang_normalizado = _normalizar_lang(user_lang_code)
 
-    if chat_id_str not in usuarios:
-        usuarios[chat_id_str] = {
+    if usuario is None:
+        usuario = {
             'language': lang_normalizado,
             'registered_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'monedas': [],
@@ -180,58 +135,50 @@ def registrar_usuario(chat_id: int, user_lang_code: str = 'es') -> None:
             'last_seen': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }
     else:
-        usuarios[chat_id_str]['last_seen'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        # Actualizar idioma si es diferente
-        if usuarios[chat_id_str].get('language') != lang_normalizado:
-            usuarios[chat_id_str]['language'] = lang_normalizado
+        usuario['last_seen'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        if usuario.get('language') != lang_normalizado:
+            usuario['language'] = lang_normalizado
 
-    guardar_usuarios(usuarios)
+    save_user(chat_id, usuario)
 
 # === Monedas/Lista ===
 
 def obtener_monedas_usuario(chat_id: int) -> list:
     """Obtiene la lista de monedas del usuario."""
-    usuarios = cargar_usuarios()
-    return usuarios.get(str(chat_id), {}).get("monedas", [])
+    usuario = get_user(chat_id)
+    return usuario.get("monedas", []) if usuario else []
 
 def actualizar_monedas(chat_id: int, lista_monedas: list) -> None:
     """Actualiza la lista de monedas del usuario."""
-    usuarios = cargar_usuarios()
-    chat_id_str = str(chat_id)
-
-    if chat_id_str not in usuarios:
-        usuarios[chat_id_str] = {}
-
-    usuarios[chat_id_str]["monedas"] = lista_monedas
-    guardar_usuarios(usuarios)
+    usuario = get_user(chat_id)
+    if usuario is None:
+        usuario = {}
+    usuario["monedas"] = lista_monedas
+    save_user(chat_id, usuario)
 
 # === Idioma ===
 
 def set_user_language(chat_id: int, lang_code: str) -> None:
     """Establece el idioma del usuario."""
-    usuarios = cargar_usuarios()
-    chat_id_str = str(chat_id)
-    
-    if chat_id_str in usuarios:
-        usuarios[chat_id_str]['language'] = lang_code
-        guardar_usuarios(usuarios)
+    usuario = get_user(chat_id)
+    if usuario is not None:
+        usuario['language'] = lang_code
+        save_user(chat_id, usuario)
 
 def get_user_language(chat_id: int) -> str:
     """Obtiene el idioma del usuario."""
-    usuarios = cargar_usuarios()
-    return usuarios.get(str(chat_id), {}).get('language', 'es')
+    usuario = get_user(chat_id)
+    return usuario.get('language', 'es') if usuario else 'es'
 
 # === Intervalo de Alertas ===
 
 def actualizar_intervalo_alerta(chat_id: int, new_interval_h: float) -> bool:
     """Actualiza el intervalo de alertas del usuario."""
-    usuarios = cargar_usuarios()
-    chat_id_str = str(chat_id)
-    
-    if chat_id_str in usuarios:
+    usuario = get_user(chat_id)
+    if usuario is not None:
         try:
-            usuarios[chat_id_str]['intervalo_alerta_h'] = float(new_interval_h)
-            guardar_usuarios(usuarios)
+            usuario['intervalo_alerta_h'] = float(new_interval_h)
+            save_user(chat_id, usuario)
             return True
         except ValueError:
             return False
@@ -239,35 +186,27 @@ def actualizar_intervalo_alerta(chat_id: int, new_interval_h: float) -> bool:
 
 def update_last_alert_timestamp(chat_id: int) -> None:
     """Actualiza el timestamp de última alerta."""
-    usuarios = cargar_usuarios()
-    chat_id_str = str(chat_id)
-    
-    if chat_id_str in usuarios:
-        usuarios[chat_id_str]['last_alert_timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        guardar_usuarios(usuarios)
+    usuario = get_user(chat_id)
+    if usuario is not None:
+        usuario['last_alert_timestamp'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        save_user(chat_id, usuario)
 
 # === Meta datos ===
 
 def get_user_meta(user_id: int, key: str, default=None):
     """Obtiene un metadata del usuario."""
-    usuarios = cargar_usuarios()
-    user_id_str = str(user_id)
-    
-    if user_id_str in usuarios:
-        meta = usuarios[user_id_str].get('meta', {})
+    usuario = get_user(user_id)
+    if usuario is not None:
+        meta = usuario.get('meta', {})
         return meta.get(key, default)
     return default
 
 def set_user_meta(user_id: int, key: str, value) -> None:
     """Establece un metadata del usuario."""
-    usuarios = cargar_usuarios()
-    user_id_str = str(user_id)
-    
-    if user_id_str not in usuarios:
-        usuarios[user_id_str] = {'meta': {}}
-    
-    if 'meta' not in usuarios[user_id_str]:
-        usuarios[user_id_str]['meta'] = {}
-    
-    usuarios[user_id_str]['meta'][key] = value
-    guardar_usuarios(usuarios)
+    usuario = get_user(user_id)
+    if usuario is None:
+        usuario = {'meta': {}}
+    elif 'meta' not in usuario:
+        usuario['meta'] = {}
+    usuario['meta'][key] = value
+    save_user(user_id, usuario)

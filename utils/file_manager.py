@@ -29,8 +29,6 @@ from utils.user_data import (
     set_user_meta,
 )
 
-# Backwards compatibility aliases removed - use conventional snake_case names
-
 from utils.subscription_manager import (
     check_feature_access,
     registrar_uso_comando,
@@ -47,6 +45,34 @@ from utils.alert_manager import (
     delete_price_alert,
     delete_all_alerts,
     update_alert_status,
+    check_price_alerts,
+    get_alert_count,
+)
+
+from core.redis_fallback import (
+    get_hbd_history,
+    save_hbd_history,
+    get_custom_alert_history,
+    save_custom_alert_history,
+    get_eltoque_history,
+    save_eltoque_history,
+    get_last_prices,
+    save_last_prices,
+    get_ads,
+    save_ads,
+    get_hbd_thresholds,
+    save_hbd_thresholds,
+    get_weather_subs,
+    save_weather_subs,
+    get_weather_last_alerts,
+    save_weather_last_alerts,
+    get_year_quotes,
+    save_year_quotes,
+    get_year_subs,
+    save_year_subs,
+    get_events_log,
+    save_events_log,
+    save_user,  # Nueva función para guardar un solo usuario
 )
 
 _USUARIOS_CACHE = None
@@ -65,15 +91,22 @@ def migrate_user_timestamps():
     if _MIGRATION_TIMESTAMPS_DONE:
         return {'migrated': 0, 'already_had': 0, 'failed': 0}
     
-    usuarios = cargar_usuarios()
+    # Obtener lista de IDs de usuarios
+    user_ids = cargar_usuarios()
     migrated = 0
     already_had = 0
     failed = 0
     now = datetime.now()
     
-    for uid, u in usuarios.items():
+    for user_id in user_ids.keys():
+        # Obtener datos completos del usuario
+        usuario = obtener_datos_usuario(int(user_id))
+        if not usuario:
+            failed += 1
+            continue
+        
         # Skip if already has registered_at
-        if u.get('registered_at'):
+        if usuario.get('registered_at'):
             already_had += 1
             continue
         
@@ -81,16 +114,16 @@ def migrate_user_timestamps():
         estimated_date = None
         
         # 1. Use last_alert_timestamp as oldest available activity
-        if u.get('last_alert_timestamp'):
+        if usuario.get('last_alert_timestamp'):
             try:
-                estimated_date = u['last_alert_timestamp']
+                estimated_date = usuario['last_alert_timestamp']
             except Exception:
                 pass
         
         # 2. Use last_seen as fallback
-        if not estimated_date and u.get('last_seen'):
+        if not estimated_date and usuario.get('last_seen'):
             try:
-                estimated_date = u['last_seen']
+                estimated_date = usuario['last_seen']
             except Exception:
                 pass
         
@@ -98,23 +131,22 @@ def migrate_user_timestamps():
         if not estimated_date:
             # Default to 90 days ago as conservative estimate
             estimated_date = (now - timedelta(days=90)).strftime('%Y-%m-%d %H:%M:%S')
-            failed += 1  # Mark as failed (estimated) since we had no real data
-        else:
-            migrated += 1
         
         # Set the estimated registration date
-        u['registered_at'] = estimated_date
-    
-    # Save if any changes were made
-    if migrated > 0 or failed > 0:
-        guardar_usuarios(usuarios)
-        logger.info(f"Migration complete: {migrated} migrated, {failed} estimated, {already_had} already had timestamps")
+        usuario['registered_at'] = estimated_date
+        
+        # Guardar el usuario modificado en Redis
+        if save_user(int(user_id), usuario):
+            migrated += 1
+        else:
+            failed += 1
     
     _MIGRATION_TIMESTAMPS_DONE = True
     return {'migrated': migrated, 'already_had': already_had, 'failed': failed}
 
 
 # === Inicialización de Archivos ===
+
 def inicializar_archivos():
     """Crea los archivos si no existen."""
     from core.config import DATA_DIR
@@ -146,21 +178,13 @@ def inicializar_archivos():
 
 MAX_HISTORY_ENTRIES = 2 # Limita el archivo para que no crezca indefinidamente
 
+# === Funciones para HBD History (ahora usan Redis) ===
+
 def load_hbd_history():
-    if not os.path.exists(HBD_HISTORY_PATH):
-        return []
-    try:
-        with open(HBD_HISTORY_PATH, "r", encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return []
+    return get_hbd_history()
 
 def save_hbd_history(history):
-    try:
-        with open(HBD_HISTORY_PATH, "w", encoding='utf-8') as f:
-            json.dump(history, f, indent=4)
-    except Exception as e:
-        logger.error(f"Error al guardar el historial de HBD: {e}")
+    return save_hbd_history(history)
 
 def leer_precio_anterior_alerta():
     history = load_hbd_history()
@@ -181,32 +205,15 @@ def guardar_precios_alerta(precios):
     if len(history) > MAX_HISTORY_ENTRIES:
         history = history[-MAX_HISTORY_ENTRIES:]
     save_hbd_history(history)
-    logger.info("✅ Precios de alerta guardados en hbd_price_history.json")
-
-def add_log_line(linea):
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    LOG_LINES.append(f"[{timestamp}] | {linea}") 
-    if len(LOG_LINES) > LOG_MAX:
-        del LOG_LINES[0]
-    print(LOG_LINES[-1])
-    logger.info(linea)
+    logger.info("✅ Precios de alerta guardados en Redis")
 
 # === FUNCIONES DE UMBRALES HBD ===
+
 def load_hbd_thresholds():
-    if not os.path.exists(HBD_THRESHOLDS_PATH):
-        return {}
-    try:
-        with open(HBD_THRESHOLDS_PATH, "r", encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return {}
+    return get_hbd_thresholds()
 
 def save_hbd_thresholds(thresholds):
-    try:
-        with open(HBD_THRESHOLDS_PATH, "w", encoding='utf-8') as f:
-            json.dump(thresholds, f, indent=4, sort_keys=True)
-    except Exception as e:
-        logger.error(f"Error al guardar umbrales HBD: {e}")
+    return save_hbd_thresholds(thresholds)
 
 def modify_hbd_threshold(price: float, action: str):
     thresholds = load_hbd_thresholds()
@@ -254,38 +261,87 @@ def modify_hbd_threshold(price: float, action: str):
     logger.info(msg)
     return True, msg
 
+# === FUNCIONES DE LAST PRICES ===
+
 def load_last_prices_status():
-    if not os.path.exists(LAST_PRICES_PATH):
-        return {}
-    try:
-        with open(LAST_PRICES_PATH, "r", encoding='utf-8') as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return {}
+    return get_last_prices()
 
 def save_last_prices_status(data: dict):
-    try:
-        with open(LAST_PRICES_PATH, "w", encoding='utf-8') as f:
-            json.dump(data, f, indent=4)
-    except Exception as e:
-        logger.error(f"❌ Error guardando last_prices.json: {e}")
+    return save_last_prices(data)
+
+# === FUNCIONES DE CUSTOM ALERT HISTORY ===
 
 def cargar_custom_alert_history():
-    try:
-        if os.path.exists(CUSTOM_ALERT_HISTORY_PATH):
-            with open(CUSTOM_ALERT_HISTORY_PATH, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            return {}
-    except Exception as e:
-        return {}
+    return get_custom_alert_history()
 
 def guardar_custom_alert_history(history_data: dict):
-    try:
-        with open(CUSTOM_ALERT_HISTORY_PATH, 'w', encoding='utf-8') as f:
-            json.dump(history_data, f, indent=4)
-    except Exception as e:
-        logger.error(f"❌ ERROR al guardar el historial de alertas: {e}")
+    return save_custom_alert_history(history_data)
+
+# === FUNCIONES DE ELTOQUE HISTORY ===
+
+def load_eltoque_history():
+    return get_eltoque_history()
+
+def save_eltoque_history(history):
+    return save_eltoque_history(history)
+
+# === FUNCIONES DE ADS ===
+
+def load_ads():
+    return get_ads()
+
+def save_ads(ads):
+    return save_ads(ads)
+
+# === FUNCIONES DE WEATHER SUBS ===
+
+def load_weather_subs():
+    return get_weather_subs()
+
+def save_weather_subs(subs):
+    return save_weather_subs(subs)
+
+# === FUNCIONES DE WEATHER LAST ALERTS ===
+
+def load_weather_last_alerts():
+    return get_weather_last_alerts()
+
+def save_weather_last_alerts(data):
+    return save_weather_last_alerts(data)
+
+# === FUNCIONES DE YEAR QUOTES ===
+
+def load_year_quotes():
+    return get_year_quotes()
+
+def save_year_quotes(quotes):
+    return save_year_quotes(quotes)
+
+# === FUNCIONES DE YEAR SUBS ===
+
+def load_year_subs():
+    return get_year_subs()
+
+def save_year_subs(subs):
+    return save_year_subs(subs)
+
+# === FUNCIONES DE EVENTS LOG ===
+
+def load_events_log():
+    return get_events_log()
+
+def save_events_log(log):
+    return save_events_log(log)
+
+# === FUNCIONES VARIAS ===
+
+def add_log_line(linea):
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    LOG_LINES.append(f"[{timestamp}] | {linea}") 
+    if len(LOG_LINES) > LOG_MAX:
+        del LOG_LINES[0]
+    print(LOG_LINES[-1])
+    logger.info(linea)
 
 def delete_all_alerts(user_id: int) -> bool:
     user_alerts = get_user_alerts(user_id)
@@ -294,5 +350,3 @@ def delete_all_alerts(user_id: int) -> bool:
     for alert in user_alerts:
         delete_price_alert(user_id, alert['alert_id'])
     return True
-
-inicializar_archivos()

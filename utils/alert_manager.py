@@ -9,29 +9,36 @@ import json
 import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
+
 from utils.logger import logger
 from core.config import PRICE_ALERTS_PATH
-
+from core.redis_fallback import get_price_alerts, save_price_alerts, get_all_user_ids
 
 # === Funciones de Carga/Guardado ===
 
 def load_price_alerts() -> Dict[str, Any]:
-    """Carga alertas desde archivo."""
-    if not os.path.exists(PRICE_ALERTS_PATH):
-        return {}
-    try:
-        with open(PRICE_ALERTS_PATH, "r") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return {}
+    """
+    Carga alertas desde Redis (con fallback a archivo si Redis no está disponible).
+    Retorna diccionario con todos los usuarios y sus alertas.
+    """
+    all_alerts = {}
+    # Obtener todos los IDs de usuarios
+    user_ids = get_all_user_ids()
+    for user_id in user_ids:
+        alerts = get_price_alerts(user_id)
+        if alerts:
+            all_alerts[str(user_id)] = alerts
+    return all_alerts
 
 def save_price_alerts(alerts: Dict[str, Any]) -> None:
-    """Guarda alertas en archivo."""
-    try:
-        with open(PRICE_ALERTS_PATH, "w") as f:
-            json.dump(alerts, f, indent=4)
-    except Exception as e:
-        logger.error(f"Error al guardar alertas de precio: {e}")
+    """Guarda alertas en Redis (con fallback a archivo si Redis no está disponible)."""
+    # Guardar cada usuario individualmente
+    for user_id_str, user_alerts in alerts.items():
+        try:
+            user_id = int(user_id_str)
+            save_price_alerts(user_id, user_alerts)
+        except (ValueError, TypeError):
+            continue
 
 # === CRUD de Alertas ===
 

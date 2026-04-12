@@ -25,6 +25,8 @@ from utils.btc_manager import load_btc_subs
 from collections import Counter
 from utils.file_manager import load_hbd_history, migrate_user_timestamps
 from utils.user_data import cargar_usuarios
+from core.redis_fallback import get_all_user_ids
+from core.redis_fallback import get_all_user_ids
 from utils.alert_manager import load_price_alerts, get_user_alerts
 from utils.subscription_manager import add_subscription_days, registrar_uso_comando
 from utils.sp_manager import get_trades_stats, get_active_sp_pairs
@@ -239,8 +241,9 @@ async def send_broadcast(query, context: ContextTypes.DEFAULT_TYPE) -> int:
     text_to_send = context.user_data.get('ms_text', "")
     photo_id_to_send = context.user_data.get('ms_photo_id')
     
-    usuarios = cargar_usuarios()
-    chat_ids = list(usuarios.keys())
+    # Obtener todos los IDs de usuarios
+    user_ids = get_all_user_ids()
+    chat_ids = list(user_ids)  # Convertir a lista si es necesario
         
     fallidos = await _enviar_mensaje_telegram_async_ref(
         text_to_send, 
@@ -371,8 +374,9 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Track command usage
     registrar_uso_comando(chat_id, "users")
     
-    # 1. CARGA DE DATOS (Centralizada)
-    usuarios = cargar_usuarios()
+# 1. CARGA DE DATOS (Centralizada)
+    # Cambiado: usar cargar_usuarios() para obtener IDs, no datos completos
+    user_ids = cargar_usuarios()
     all_alerts = load_price_alerts()
     btc_subs = load_btc_subs()
     
@@ -380,12 +384,12 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weather_subs = load_weather_subscriptions()
     valerts_symbols = get_active_symbols()
     
-    # 2. VISTA DE USUARIO NORMAL (Perfil Propio)
-    if chat_id not in ADMIN_CHAT_IDS:
-        user_data = usuarios.get(chat_id_str)
-        if not user_data:
-            await update.message.reply_text(_("❌ No estás registrado.", chat_id))
-            return
+# 2. VISTA DE USUARIO NORMAL (Perfil Propio)
+        if chat_id not in ADMIN_CHAT_IDS:
+            user_data = obtener_datos_usuario(chat_id)
+            if not user_data:
+                await update.message.reply_text(_("❌ No estás registrado.", chat_id))
+                return
 
         # Calcular datos del usuario
         monedas = user_data.get('monedas', [])
@@ -454,8 +458,8 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     daily_events = get_daily_events()
     reg_stats = get_users_registration_stats()
     
-    # --- A. CÁLCULOS DE USUARIOS ---
-    total_users = len(usuarios)
+# --- A. CÁLCULOS DE USUARIOS ---
+    total_users = len(user_ids)
     active_24h = 0
     active_7d = 0
     active_30d = 0
@@ -488,10 +492,15 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cutoff_30d = now - timedelta(days=30)
     expiry_window = now + timedelta(days=7)
     
-    for uid, u in usuarios.items():
+    for user_id in user_ids:
+        # Obtener datos completos del usuario
+        usuario = obtener_datos_usuario(int(user_id))
+        if not usuario:
+            continue
+        
         # 1. Actividad — BUG-1 FIX: usar last_seen (actividad real) con total_seconds
         #    Fallback a last_alert_timestamp para usuarios sin last_seen aún
-        last_seen_str = u.get('last_seen') or u.get('last_alert_timestamp')
+        last_seen_str = usuario.get('last_seen') or usuario.get('last_alert_timestamp')
         if last_seen_str:
             try:
                 last_dt = datetime.strptime(last_seen_str, '%Y-%m-%d %H:%M:%S')
@@ -506,7 +515,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception: pass
             
         # 2. Nuevos usuarios (basado en registered_at)
-        reg_str = u.get('registered_at')
+        reg_str = usuario.get('registered_at')
         if reg_str:
             try:
                 reg_dt = datetime.strptime(reg_str, '%Y-%m-%d %H:%M:%S')
@@ -517,13 +526,13 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if reg_dt >= cutoff_30d:
                     new_30d += 1
             except Exception: pass
-            
+        
         # 3. Idioma
-        if u.get('language') == 'en': lang_en += 1
+        if usuario.get('language') == 'en': lang_en += 1
         else: lang_es += 1
         
         # 4. VIP Check
-        subs = u.get('subscriptions', {})
+        subs = usuario.get('subscriptions', {})
         # Check tiempo
         for k in ['watchlist_bundle', 'ta_vip']:
             s = subs.get(k, {})
@@ -541,7 +550,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if subs.get('alerts_extra', {}).get('qty', 0) > 0: vip_stats['alerts_extra_users'] += 1
         
         # 5. Uso Diario (Carga del Bot)
-        daily = u.get('daily_usage', {})
+        daily = usuario.get('daily_usage', {})
         if daily.get('date') == now.strftime('%Y-%m-%d'):
             for cmd, count in daily.items():
                 if cmd != 'date' and isinstance(count, int):

@@ -6,18 +6,31 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram import Bot, Update
 from telegram.ext import ContextTypes, Application
-from utils.ads_manager import get_random_ad_text
-from core.config import( PID, VERSION, STATE, INTERVALO_ALERTA, INTERVALO_CONTROL,
-                        LOG_LINES, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, USUARIOS_PATH, 
-                            ADMIN_CHAT_IDS, PYTHON_VERSION, HBD_HISTORY_PATH)
-from core.api_client import obtener_precios_alerta, generar_alerta, obtener_precios_control
-from utils.file_manager import (
-    cargar_usuarios, leer_precio_anterior_alerta, guardar_precios_alerta, add_log_line,
-    load_price_alerts, update_alert_status, 
-    cargar_custom_alert_history, guardar_custom_alert_history, get_hbd_alert_recipients,
-    load_last_prices_status, save_last_prices_status, update_last_alert_timestamp
-)
 
+from core.api_client import obtener_precios_alerta, generar_alerta, obtener_precios_control
+from core.redis_client import get_with_cache, set_with_cache
+from utils.file_manager import (
+    add_log_line,
+    cargar_custom_alert_history,
+    guardar_custom_alert_history,
+    load_price_alerts,
+    update_alert_status,
+    leer_precio_anterior_alerta,
+    guardar_precios_alerta,
+    get_hbd_alert_recipients
+)
+from utils.user_data import (
+    obtener_datos_usuario,
+    update_last_alert_timestamp
+)
+from utils.ads_manager import get_random_ad_text
+from core.i18n import _ # <-- Importar _
+from core.config import( PID, VERSION, STATE, INTERVALO_ALERTA, INTERVALO_CONTROL,
+                         LOG_LINES, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, USUARIOS_PATH, 
+                             ADMIN_CHAT_IDS, PYTHON_VERSION, HBD_HISTORY_PATH)
+from core.config import( PID, VERSION, STATE, INTERVALO_ALERTA, INTERVALO_CONTROL,
+                         LOG_LINES, CUSTOM_ALERT_HISTORY_PATH, PRICE_ALERTS_PATH, USUARIOS_PATH, 
+                             ADMIN_CHAT_IDS, PYTHON_VERSION, HBD_HISTORY_PATH)
 from core.i18n import _ # <-- Importar _
 
 # Variable global para guardar la función de envío de mensajes y la app
@@ -31,7 +44,6 @@ def set_enviar_mensaje_telegram_async(func, app: Application):
     _app_ref = app
 
 # Variables globales para los loops
-PRECIOS_CONTROL_ANTERIORES = load_last_prices_status()
 CUSTOM_ALERT_HISTORY = {}
 
 def obtener_indicador(precio_actual, precio_anterior):
@@ -73,8 +85,8 @@ def programar_alerta_usuario(user_id: int, intervalo_h: float):
         job.schedule_removal()
     
     # --- LÓGICA DE PERSISTENCIA DE TIEMPO ---
-    usuarios = cargar_usuarios() #
-    user_data = usuarios.get(chat_id_str, {})
+    # Obtener datos del usuario directamente desde Redis (sin cargar todos)
+    user_data = obtener_datos_usuario(chat_id)
     last_timestamp_str = user_data.get('last_alert_timestamp')
     
     intervalo_segundos = intervalo_h * 3600
@@ -299,20 +311,20 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     chat_id_str = str(chat_id) 
     enviar_mensaje_ref = context.job.data.get('enviar_mensaje_ref')
     
-    usuarios = cargar_usuarios()
-    datos_usuario = usuarios.get(chat_id_str)
-
+    # Obtener datos del usuario directamente desde Redis (sin cargar todos)
+    datos_usuario = obtener_datos_usuario(chat_id)
+    
     if not datos_usuario:
         add_log_line(f"⚠️ JobQueue: Usuario {chat_id_str} no encontrado. Removiendo job.")
         context.job.schedule_removal() 
         return
-
+    
     monedas = datos_usuario.get("monedas", [])
     intervalo_h = datos_usuario.get("intervalo_alerta_h", 1.0) 
     
     if not monedas:
         return
-
+    
     precios_actuales_usuario = obtener_precios_control(monedas) 
 
     if not precios_actuales_usuario:
@@ -322,7 +334,9 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
     mensaje_template = _("📊 *Alerta de tus monedas ({intervalo_h}h):*\n—————————————————\n\n", chat_id)
     mensaje = mensaje_template.format(intervalo_h=intervalo_h)
     
-    precios_anteriores_usuario = PRECIOS_CONTROL_ANTERIORES.get(chat_id_str, {})
+    # Obtener precios anteriores del usuario desde Redis
+    precios_anteriores_key = f"precios_control:{chat_id_str}"
+    precios_anteriores_usuario = get_with_cache(precios_anteriores_key, ttl=0) or {}
     precios_para_guardar = {} 
     
     for m in monedas:
@@ -333,7 +347,7 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
             indicador = obtener_indicador(p_actual, p_anterior) 
             mensaje += f"*{m}/USD*: ${p_actual:.4f}{indicador}\n"
             precios_para_guardar[m] = p_actual
-    
+     
     current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     mensaje_footer_template = _(
         "\n—————————————————\n📅 Fecha: {fecha}\n"
@@ -352,13 +366,11 @@ async def alerta_trabajo_callback(context: ContextTypes.DEFAULT_TYPE):
         fallidos = await enviar_mensaje_ref(mensaje, [chat_id_str], parse_mode=ParseMode.MARKDOWN) #
 
     if chat_id_str not in fallidos:
-        # 1. Actualizamos la memoria RAM para uso inmediato (precios anteriores)
-        PRECIOS_CONTROL_ANTERIORES[chat_id_str] = precios_para_guardar
-        save_last_prices_status(PRECIOS_CONTROL_ANTERIORES)
-        
-        # 2. NUEVO: Guardar el timestamp de éxito para persistencia del temporizador
-        update_last_alert_timestamp(chat_id) # <--- AQUÍ GUARDAMOS LA HORA
-        
+        # 1. Actualizar precios anteriores en Redis para este usuario
+        if precios_para_guardar:
+            set_with_cache(precios_anteriores_key, precios_para_guardar, expire=None) # Sin expiración
+        # 2. Guardar el timestamp de éxito para persistencia del temporizador
+        update_last_alert_timestamp(chat_id) 
         add_log_line(f"✅ Alerta enviada a {chat_id_str}. Precios y timestamp guardados.")
     else:
         add_log_line(f"❌ ERROR: Referencia de envío no disponible o fallo para {chat_id_str}.")

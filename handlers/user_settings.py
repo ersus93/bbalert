@@ -133,8 +133,8 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     if not user_input:
         # Mostrar configuración actual
-        usuarios = cargar_usuarios()
-        intervalo_actual = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 1.0)
+        datos_usuario = obtener_datos_usuario(chat_id)
+        intervalo_actual = datos_usuario.get('intervalo_alerta_h', 1.0)
         
         mensaje_base = _(
             "⚙️ *Configuración de Temporalidad*\n"
@@ -142,7 +142,7 @@ async def cmd_temp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "Tu plan actual permite un mínimo de: *{min_val} horas*.\n"
             "Para cambiarlo, envía: `/temp <horas>` (ej: `/temp 8`).",
             user_id
-        )
+        ).format(intervalo_actual=intervalo_actual, min_val=min_val)
         mensaje = mensaje_base.format(intervalo_actual=intervalo_actual, min_val=min_val)
         await update.message.reply_text(mensaje, parse_mode=ParseMode.MARKDOWN)
         return
@@ -328,8 +328,7 @@ async def hbd_alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE)
     # --- VISTA GENERAL (Usuarios y Admins sin argumentos) ---
 
     # 1. Obtener estado de suscripción del usuario
-    usuarios = cargar_usuarios()
-    user_data = usuarios.get(str(user_id), {})
+    user_data = obtener_datos_usuario(user_id)
     # Usar la clave consistente 'hbd_alerts_enabled'
     is_subscribed = user_data.get('hbd_alerts_enabled', False)
 

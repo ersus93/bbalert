@@ -33,7 +33,7 @@ from core.loops import (
 )
 from core.weather_loop_v2 import weather_alerts_loop, weather_daily_summary_loop
 from core.global_disasters_loop import global_disasters_loop
-from core.i18n import _ 
+from core.redis_fallback import get_all_user_ids 
 from handlers.general import start, myid, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command, free_command
 from handlers.year_handlers import year_command, year_sub_callback
@@ -131,12 +131,12 @@ async def post_init(app: Application):
     logger.info("✅ Bucles de fondo (HBD y Alertas de Cruce) iniciados.")
 
     # 2. Programar las alertas periódicas para cada usuario registrado
-    usuarios = cargar_usuarios()
-    if usuarios:
-        add_log_line(f"👥 Encontrados {len(usuarios)} usuarios. Programando sus alertas periódicas...")
-        for user_id, data in usuarios.items():
-            intervalo_h = data.get('intervalo_alerta_h', 2.5)
-            programar_alerta_usuario(int(user_id), intervalo_h)
+    user_ids = get_all_user_ids()
+    if user_ids:
+        add_log_line(f"👥 Encontrados {len(user_ids)} usuarios. Programando sus alertas periódicas...")
+        for user_id in user_ids:
+            # programar_alerta_usuario ahora carga los datos del usuario internamente
+            programar_alerta_usuario(user_id)
     else:
         logger.info("👥 No hay usuarios registrados. Esperando a que se unan.")
     
@@ -254,12 +254,13 @@ def main():
                 fallidos[chat_id] = error_str
                 logger.error(f"❌ Fallo al enviar a {chat_id}: {error_str}")
 
-                if "Chat not found" in error_str or "bot was blocked" in error_str:
+                if "Chat not found" in error_str or "bot was bloqueado" in error_str:
                     if usuarios_actualizados is None:
                         usuarios_actualizados = cargar_usuarios()
-                    # chat_id is int, but dictionary keys are strings
-                    if str(chat_id) in usuarios_actualizados:
-                        del usuarios_actualizados[str(chat_id)]
+                    # Buscar el chat_id en el diccionario (puede ser int o string como clave)
+                    key = str(chat_id)
+                    if key in usuarios_actualizados:
+                        del usuarios_actualizados[key]
                         logger.info(f"🗑️ Usuario {chat_id} ha bloqueado el bot. Eliminado de la lista.")
 
         if usuarios_actualizados is not None:

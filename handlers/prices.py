@@ -352,8 +352,8 @@ async def _handle_settings_button(update: Update, context: ContextTypes.DEFAULT_
     chat_id = query.message.chat.id if query.message else query.from_user.id
 
     # Obtener datos del usuario
-    usuarios = cargar_usuarios()
-    intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
+    usuario = obtener_datos_usuario(chat_id)
+    intervalo = usuario.get('intervalo_alerta_h', 2.5)
     monedas = obtener_monedas_usuario(chat_id)
     min_val, _msg = check_feature_access(chat_id, 'temp_min_val')
 
@@ -968,8 +968,8 @@ async def _handle_config_temp_menu(update: Update, context: ContextTypes.DEFAULT
     chat_id = query.message.chat.id if query.message else query.from_user.id
 
     # Obtener intervalo actual y límites
-    usuarios = cargar_usuarios()
-    intervalo = usuarios.get(str(chat_id), {}).get('intervalo_alerta_h', 2.5)
+    datos_usuario = obtener_datos_usuario(chat_id)
+    intervalo = datos_usuario.get('intervalo_alerta_h', 2.5)
     min_val, _msg = check_feature_access(chat_id, 'temp_min_val')
 
     mensaje = _(
