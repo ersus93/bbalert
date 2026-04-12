@@ -10,7 +10,7 @@ from utils.logger import logger
 from core.config import ADMIN_CHAT_IDS
 
 # Importar desde user_data
-from utils.user_data import obtener_datos_usuario_seguro, cargar_usuarios, guardar_usuarios
+from utils.user_data import obtener_datos_usuario_seguro, save_user, get_all_user_ids
 
 
 def check_feature_access(chat_id: int, feature_type: str, current_count: int = None) -> Tuple[bool, str]:
@@ -139,20 +139,20 @@ def registrar_uso_comando(chat_id: int, comando: str) -> None:
     """
     Registra el uso de un comando para el límite diario.
     """
-    usuarios = cargar_usuarios()
+    # Obtener datos del usuario directamente desde Redis
+    usuario = obtener_datos_usuario_seguro(chat_id)
     chat_id_str = str(chat_id)
     
-    if chat_id_str not in usuarios:
+    if not usuario:
         return
     
-    if 'daily_usage' not in usuarios[chat_id_str]:
-        usuarios[chat_id_str]['daily_usage'] = {
+    if 'daily_usage' not in usuario:
+        usuario['daily_usage'] = {
             'date': datetime.now().strftime('%Y-%m-%d'),
             'ver': 0, 'ta': 0,
             'temp_changes': 0, 'reminders': 0,
             'weather': 0, 'btc': 0,
         }
-
     # Map comando to daily_usage key
     command_map = {
         'ver': 'ver',
@@ -166,8 +166,8 @@ def registrar_uso_comando(chat_id: int, comando: str) -> None:
     
     key = command_map.get(comando)
     if key:
-        usuarios[chat_id_str]['daily_usage'][key] = usuarios[chat_id_str]['daily_usage'].get(key, 0) + 1
-        guardar_usuarios(usuarios)
+        usuario['daily_usage'][key] = usuario['daily_usage'].get(key, 0) + 1
+        save_user(chat_id, usuario)
 
 
 def add_subscription_days(chat_id: int, sub_type: str, days: int = 30, quantity: int = 0) -> bool:
@@ -183,14 +183,13 @@ def add_subscription_days(chat_id: int, sub_type: str, days: int = 30, quantity:
     Returns:
         True si éxito, False si error
     """
-    usuarios = cargar_usuarios()
-    chat_id_str = str(chat_id)
-    
-    if chat_id_str not in usuarios:
+    # Obtener datos del usuario directamente desde Redis
+    usuario = obtener_datos_usuario_seguro(chat_id)
+    if not usuario:
         return False
     
-    if 'subscriptions' not in usuarios[chat_id_str]:
-        usuarios[chat_id_str]['subscriptions'] = {
+    if 'subscriptions' not in usuario:
+        usuario['subscriptions'] = {
             'alerts_extra': {'qty': 0, 'expires': None},
             'coins_extra': {'qty': 0, 'expires': None},
             'watchlist_bundle': {'active': False, 'expires': None},
@@ -201,7 +200,7 @@ def add_subscription_days(chat_id: int, sub_type: str, days: int = 30, quantity:
     now = datetime.now()
     exp_date = (now + timedelta(days=days)).strftime('%Y-%m-%d %H:%M:%S')
     
-    subs = usuarios[chat_id_str]['subscriptions']
+    subs = usuario['subscriptions']
     
     if sub_type in subs:
         # Si es subscription (boolean active)
@@ -212,34 +211,32 @@ def add_subscription_days(chat_id: int, sub_type: str, days: int = 30, quantity:
         elif isinstance(subs[sub_type], dict) and 'qty' in subs[sub_type]:
             subs[sub_type]['qty'] = subs[sub_type].get('qty', 0) + (quantity or days)
     
-    guardar_usuarios(usuarios)
+    save_user(chat_id, usuario)
     logger.info(f"Subscription added: user={chat_id}, type={sub_type}, days={days}")
     return True
 
 
 def toggle_hbd_alert_status(user_id: int) -> bool:
     """Activa/desactiva alertas HBD para el usuario."""
-    usuarios = cargar_usuarios()
-    user_id_str = str(user_id)
-
-    if user_id_str not in usuarios:
+    usuario = obtener_datos_usuario_seguro(user_id)
+    if not usuario:
         return False
 
-    # Default es False (no recibir alertas hasta que el usuario active explícitamente)
-    current = usuarios[user_id_str].get('hbd_alerts_enabled', False)
-    usuarios[user_id_str]['hbd_alerts_enabled'] = not current
-    guardar_usuarios(usuarios)
-    return not current
+    # Toggle the value
+    usuario['hbd_alerts_enabled'] = not usuario.get('hbd_alerts_enabled', False)
+    save_user(user_id, usuario)
+    logger.info(f"HBD alerts toggled for user {user_id}: {'ON' if usuario['hbd_alerts_enabled'] else 'OFF'}")
+    return usuario['hbd_alerts_enabled']
 
 
 def get_hbd_alert_recipients() -> list:
     """Obtiene lista de usuarios con alertas HBD activas."""
-    usuarios = cargar_usuarios()
+    user_ids = get_all_user_ids()
     recipients = []
 
-    for uid, data in usuarios.items():
-        # Solo usuarios que han activado EXPLÍCITAMENTE las alertas HBD
-        if data.get('hbd_alerts_enabled', False):
-            recipients.append(int(uid))
+    for user_id in user_ids:
+        usuario = obtener_datos_usuario_seguro(int(user_id))
+        if usuario and usuario.get('hbd_alerts_enabled', False):
+            recipients.append(int(user_id))
 
     return recipients

@@ -459,7 +459,7 @@ def get_summary() -> Dict[str, Any]:
 # DASHBOARD METRICS FUNCTIONS
 # ==============================================================================
 
-from utils.file_manager import cargar_usuarios
+from utils.user_data import get_all_user_ids, obtener_datos_usuario
 
 
 def get_retention_metrics() -> Dict[str, any]:
@@ -469,7 +469,7 @@ def get_retention_metrics() -> Dict[str, any]:
     Returns:
         Dict with retention_7d, churn_rate, stickiness, dau, wau, mau
     """
-    usuarios = cargar_usuarios()
+    user_ids = get_all_user_ids()
     now = datetime.now()
     
     # Activity windows
@@ -482,8 +482,12 @@ def get_retention_metrics() -> Dict[str, any]:
     mau = 0  # Monthly Active Users (30d)
     active_7d_and_30d = 0  # Users active in both 7d and 30d windows
     
-    for uid, u in usuarios.items():
-        last_seen_str = u.get('last_seen') or u.get('last_alert_timestamp')
+    for user_id in user_ids:
+        usuario = obtener_datos_usuario(int(user_id))
+        if not usuario:
+            continue
+            
+        last_seen_str = usuario.get('last_seen') or usuario.get('last_alert_timestamp')
         if not last_seen_str:
             continue
             
@@ -506,30 +510,36 @@ def get_retention_metrics() -> Dict[str, any]:
             # MAU (30d but not 7d)
             elif seconds < 86400 * 30:
                 mau += 1
-                
-        except (ValueError, TypeError):
+                # Not counted in active_7d_and_30d
+            # Else: inactive (>30d)
+        except Exception:
             continue
     
-    # Calculate metrics
-    retention_7d = 0.0
-    churn_rate = 0.0
-    stickiness = 0.0
+    total_users = len(user_ids)
+    if total_users == 0:
+        return {
+            'retention_7d': 0.0,
+            'churn_rate': 0.0,
+            'stickiness': 0.0,
+            'dau': 0,
+            'wau': 0,
+            'mau': 0,
+            'total_users': 0
+        }
     
-    if mau > 0:
-        # Retention: users active 7d AND 30d / users active 30d
-        retention_7d = (active_7d_and_30d / mau) * 100
-        # Churn: 1 - retention
-        churn_rate = 100 - retention_7d
-        # Stickiness: DAU / MAU ratio
-        stickiness = (dau / mau) * 100
+    # Calculate metrics
+    retention_7d = (active_7d_and_30d / total_users) * 100 if total_users else 0
+    churn_rate = ((total_users - dau) / total_users) * 100 if total_users else 0
+    stickiness = (dau / total_users) * 100 if total_users else 0
     
     return {
-        'retention_7d': round(retention_7d, 1),
-        'churn_rate': round(churn_rate, 1),
-        'stickiness': round(stickiness, 1),
+        'retention_7d': round(retention_7d, 2),
+        'churn_rate': round(churn_rate, 2),
+        'stickiness': round(stickiness, 2),
         'dau': dau,
         'wau': wau,
-        'mau': mau
+        'mau': mau,
+        'total_users': total_users
     }
 
 
@@ -540,14 +550,18 @@ def get_commands_per_user() -> Dict[str, any]:
     Returns:
         Dict with total_commands, active_users_today, and avg_per_user
     """
-    usuarios = cargar_usuarios()
+    user_ids = get_all_user_ids()
     today = datetime.now().strftime('%Y-%m-%d')
     
     total_commands = 0
     active_users_today = 0
     
-    for uid, u in usuarios.items():
-        daily = u.get('daily_usage', {})
+    for user_id in user_ids:
+        usuario = obtener_datos_usuario(int(user_id))
+        if not usuario:
+            continue
+        
+        daily = usuario.get('daily_usage', {})
         if daily.get('date') == today:
             user_commands = sum(
                 count for cmd, count in daily.items() 
@@ -576,7 +590,7 @@ def get_daily_events() -> Dict[str, int]:
     Returns:
         Dict with joins_today, commands_today, alerts_today
     """
-    usuarios = cargar_usuarios()
+    user_ids = get_all_user_ids()
     now = datetime.now()
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     today = datetime.now().strftime('%Y-%m-%d')
@@ -585,9 +599,13 @@ def get_daily_events() -> Dict[str, int]:
     commands_today = 0
     alerts_triggered = 0
     
-    for uid, u in usuarios.items():
+    for user_id in user_ids:
+        usuario = obtener_datos_usuario(int(user_id))
+        if not usuario:
+            continue
+        
         # Count new joins today
-        reg_str = u.get('registered_at')
+        reg_str = usuario.get('registered_at')
         if reg_str:
             try:
                 reg_dt = datetime.strptime(reg_str, '%Y-%m-%d %H:%M:%S')
@@ -597,7 +615,7 @@ def get_daily_events() -> Dict[str, int]:
                 pass
         
         # Count today's commands
-        daily = u.get('daily_usage', {})
+        daily = usuario.get('daily_usage', {})
         if daily.get('date') == today:
             commands_today += sum(
                 count for cmd, count in daily.items() 
@@ -618,25 +636,31 @@ def get_users_registration_stats() -> Dict[str, any]:
     Returns:
         Dict with counts and percentages of users with/without registration dates
     """
-    usuarios = cargar_usuarios()
+    user_ids = get_all_user_ids()
     now = datetime.now()
     
-    total = len(usuarios)
+    total = 0
     with_registered_at = 0
     without_registered_at = 0
     with_last_seen = 0
     could_estimate = 0
     
-    for uid, u in usuarios.items():
-        if u.get('registered_at'):
+    for user_id in user_ids:
+        total += 1
+        usuario = obtener_datos_usuario(int(user_id))
+        if not usuario:
+            without_registered_at += 1
+            continue
+        
+        if usuario.get('registered_at'):
             with_registered_at += 1
         else:
             without_registered_at += 1
             # If no registered_at but has last_seen, we could estimate
-            if u.get('last_seen'):
+            if usuario.get('last_seen'):
                 could_estimate += 1
         
-        if u.get('last_seen'):
+        if usuario.get('last_seen'):
             with_last_seen += 1
     
     return {

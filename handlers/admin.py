@@ -24,8 +24,7 @@ from utils.valerts_manager import get_active_symbols, get_valerts_subscribers
 from utils.btc_manager import load_btc_subs
 from collections import Counter
 from utils.file_manager import load_hbd_history, migrate_user_timestamps
-from utils.user_data import cargar_usuarios
-from core.redis_fallback import get_all_user_ids
+from utils.user_data import obtener_datos_usuario
 from core.redis_fallback import get_all_user_ids
 from utils.alert_manager import load_price_alerts, get_user_alerts
 from utils.subscription_manager import add_subscription_days, registrar_uso_comando
@@ -375,8 +374,8 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     registrar_uso_comando(chat_id, "users")
     
 # 1. CARGA DE DATOS (Centralizada)
-    # Cambiado: usar cargar_usuarios() para obtener IDs, no datos completos
-    user_ids = cargar_usuarios()
+    # Use Redis to get all user IDs
+    user_ids = get_all_user_ids()
     all_alerts = load_price_alerts()
     btc_subs = load_btc_subs()
     
@@ -448,7 +447,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # 3. VISTA DE ADMINISTRADOR (DASHBOARD PRO)
     msg_loading = await update.message.reply_text(_("⏳ *Analizando Big Data...*", chat_id), parse_mode=ParseMode.MARKDOWN)
     
-    # --- MIGRACIÓN DE TIMESTAMPS (retroactiva) ---
+# --- MIGRACIÓN DE TIMESTAMPS (retroactiva) ---
     # Asegura que todos los usuarios tengan registered_at estimado si no existe
     migration_result = migrate_user_timestamps()
     
@@ -492,6 +491,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cutoff_30d = now - timedelta(days=30)
     expiry_window = now + timedelta(days=7)
     
+    # Use Redis to get all user IDs and iterate
     for user_id in user_ids:
         # Obtener datos completos del usuario
         usuario = obtener_datos_usuario(int(user_id))
@@ -576,7 +576,12 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     btc_subscribers = sum(1 for s in btc_subs.values() if s.get('active'))
     
     # 2. HBD
-    hbd_subscribers = sum(1 for u in usuarios.values() if u.get('hbd_alerts_enabled', False))
+    # Use Redis to get all users and count those with hbd_alerts_enabled
+    hbd_subscribers = 0
+    for user_id in user_ids:
+        usuario = obtener_datos_usuario(int(user_id))
+        if usuario and usuario.get('hbd_alerts_enabled', False):
+            hbd_subscribers += 1
     
     # 3. CLIMA (Weather)
     weather_subscribers = len(weather_subs)
@@ -893,7 +898,7 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         version=safe_version,
         pid=safe_pid,
         python_version=safe_python_version,
-        num_usuarios=len(cargar_usuarios()),
+        num_usuarios=len(get_all_user_ids()),
         estado=safe_estado,
         ultima_actualizacion=safe_ultima_actualizacion,
         num_lineas=len(log_data_n_lines),
@@ -1100,12 +1105,10 @@ async def free_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         sub_types = list(filter_map.values())
     
-    usuarios = cargar_usuarios()
-    
     if apply_to_all:
-        target_users = list(usuarios.keys())
+        target_users = list(user_ids)  # Use Redis user IDs
     else:
-        if str(target_user_id) not in usuarios:
+        if str(target_user_id) not in user_ids:  # Check against Redis user IDs
             await update.message.reply_text(
                 f"⚠️ Usuario `{target_user_id}` no encontrado.",
                 parse_mode=ParseMode.MARKDOWN

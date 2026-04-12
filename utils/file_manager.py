@@ -14,8 +14,6 @@ from core.config import (
 
 # === Importaciones de módulos extraídos (backwards compatibility) ===
 from utils.user_data import (
-    cargar_usuarios,
-    guardar_usuarios,
     obtener_datos_usuario,
     obtener_datos_usuario_seguro,
     registrar_usuario,
@@ -73,6 +71,7 @@ from core.redis_fallback import (
     get_events_log,
     save_events_log,
     save_user,  # Nueva función para guardar un solo usuario
+    get_all_user_ids,  # Para obtener IDs de usuarios
 )
 
 _USUARIOS_CACHE = None
@@ -92,13 +91,13 @@ def migrate_user_timestamps():
         return {'migrated': 0, 'already_had': 0, 'failed': 0}
     
     # Obtener lista de IDs de usuarios
-    user_ids = cargar_usuarios()
+    user_ids = get_all_user_ids()
     migrated = 0
     already_had = 0
     failed = 0
     now = datetime.now()
     
-    for user_id in user_ids.keys():
+    for user_id in user_ids:
         # Obtener datos completos del usuario
         usuario = obtener_datos_usuario(int(user_id))
         if not usuario:

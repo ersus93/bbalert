@@ -18,6 +18,7 @@ REDIS_DB = 0
 # Variables globales
 _REDIS_CLIENT = None
 _USE_FALLBACK = False  # True si Redis no está disponible o se fuerza modo fallback
+CACHE_TTL = 10  # 10 segundos (muy agresivo para limitar el uso de memoria)
 
 def _load_redis_config():
     """Carga configuración de Redis desde variables de entorno."""
@@ -797,5 +798,20 @@ def get_all_user_ids() -> List[int]:
             return []
     return []
 
+def delete_user_from_redis(user_id: int) -> bool:
+    """Elimina un usuario de Redis."""
+    client = get_redis_client()
+    if client:
+        try:
+            # Eliminar el hash del usuario
+            client.hdel(f"usuario:{user_id}", *list(client.hkeys(f"usuario:{user_id}")))
+            # Eliminar el ID del conjunto de usuarios
+            client.srem('usuarios:ids', str(user_id))
+            return True
+        except Exception as e:
+            logger.error(f"Error al eliminar usuario {user_id} de Redis: {e}")
+            return False
+    return False
+
 # Alias para compatibilidad
-get_all_user_ids = get_all_user_ids
+delete_user = delete_user_from_redis

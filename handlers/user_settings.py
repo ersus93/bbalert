@@ -14,7 +14,7 @@ from utils.file_manager import(
     modify_hbd_threshold, load_hbd_thresholds
 )
 from utils.user_data import(
-    cargar_usuarios, guardar_usuarios, registrar_usuario,
+    guardar_usuarios, registrar_usuario,
     actualizar_monedas, obtener_monedas_usuario, actualizar_intervalo_alerta,
     set_user_language, get_user_language
 )
