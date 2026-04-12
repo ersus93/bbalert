@@ -192,110 +192,110 @@ def main():
     app = builder.build()
     
 # 1. FUNCIÓN DE ENVÍO DE MENSAJES
-     async def enviar_mensajes(mensaje, chat_ids, parse_mode=ParseMode.MARKDOWN, reply_markup=None, photo=None):
-         """
-         Envía mensaje a lista de chat_ids. Si falla el Markdown, reintenta en texto plano.
-         """
-         fallidos = {}
-         usuarios_actualizados = None
+async def enviar_mensajes(mensaje, chat_ids, parse_mode=ParseMode.MARKDOWN, reply_markup=None, photo=None):
+    """
+    Envía mensaje a lista de chat_ids. Si falla el Markdown, reintenta en texto plano.
+    """
+    fallidos = {}
+    usuarios_actualizados = None
 
-         for chat_id in chat_ids:
-             try:
-                 # Intentamos enviar con el formato original (Markdown)
-                 if photo:
-                     caption = mensaje.strip() if mensaje and mensaje.strip() else None
-                     await app.bot.send_photo(
-                         chat_id=int(chat_id),
-                         photo=photo,
-                         caption=caption,
-                         parse_mode=parse_mode if caption else None,
-                         reply_markup=reply_markup
-                     )
-                 elif mensaje:
-                     await app.bot.send_message(
-                         chat_id=int(chat_id),
-                         text=mensaje,
-                         parse_mode=parse_mode,
-                         reply_markup=reply_markup
-                     )
-                 await asyncio.sleep(0.05) # Pequeña pausa para evitar flood limits
+    for chat_id in chat_ids:
+        try:
+            # Intentamos enviar con el formato original (Markdown)
+            if photo:
+                caption = mensaje.strip() if mensaje and mensaje.strip() else None
+                await app.bot.send_photo(
+                    chat_id=int(chat_id),
+                    photo=photo,
+                    caption=caption,
+                    parse_mode=parse_mode if caption else None,
+                    reply_markup=reply_markup
+                )
+            elif mensaje:
+                await app.bot.send_message(
+                    chat_id=int(chat_id),
+                    text=mensaje,
+                    parse_mode=parse_mode,
+                    reply_markup=reply_markup
+                )
+            await asyncio.sleep(0.05) # Pequeña pausa para evitar flood limits
 
-             except BadRequest as e:
-                 error_str = str(e)
-                 # Si falla el formato Markdown (entidades rotas), reintentamos en texto plano
-                 if "parse entities" in error_str or "can't find end" in error_str:
-                     try:
-                         logger.warning(f"⚠️ Formato Markdown fallido para {chat_id}. Reenviando como texto plano.")
-                         if photo:
-                             await app.bot.send_photo(
-                                 chat_id=int(chat_id),
-                                 photo=photo,
-                                 caption=mensaje, # Sin parse_mode
-                                 reply_markup=reply_markup
-                             )
-                         else:
-                             await app.bot.send_message(
-                                 chat_id=int(chat_id),
-                                 text=mensaje, 
-                                 parse_mode=None, # <--- Sin formato
-                                 reply_markup=reply_markup
-                             )
-                     except Exception as e2:
-                         # Si falla incluso en texto plano, entonces sí es un error real
-                         fallidos[chat_id] = str(e2)
-                         logger.error(f"❌ Fallo definitivo al enviar a {chat_id}: {e2}")
-                 else:
-                     # Otros errores BadRequest (ej: chat not found)
-                     fallidos[chat_id] = error_str
-                     logger.error(f"❌ Error BadRequest en {chat_id}: {error_str}")
+        except BadRequest as e:
+            error_str = str(e)
+            # Si falla el formato Markdown (entidades rotas), reintentamos en texto plano
+            if "parse entities" in error_str or "can't find end" in error_str:
+                try:
+                    logger.warning(f"⚠️ Formato Markdown fallido para {chat_id}. Reenviando como texto plano.")
+                    if photo:
+                        await app.bot.send_photo(
+                            chat_id=int(chat_id),
+                            photo=photo,
+                            caption=mensaje, # Sin parse_mode
+                            reply_markup=reply_markup
+                        )
+                    else:
+                        await app.bot.send_message(
+                            chat_id=int(chat_id),
+                            text=mensaje, 
+                            parse_mode=None, # <--- Sin formato
+                            reply_markup=reply_markup
+                        )
+                except Exception as e2:
+                    # Si falla incluso en texto plano, entonces sí es un error real
+                    fallidos[chat_id] = str(e2)
+                    logger.error(f"❌ Fallo definitivo al enviar a {chat_id}: {e2}")
+            else:
+                # Otros errores BadRequest (ej: chat not found)
+                fallidos[chat_id] = error_str
+                logger.error(f"❌ Error BadRequest en {chat_id}: {error_str}")
 
-             except Exception as e:
-                 # Errores generales (Bloqueos, red, etc)
-                 error_str = str(e)
-                 fallidos[chat_id] = error_str
-                 logger.error(f"❌ Fallo al enviar a {chat_id}: {error_str}")
+        except Exception as e:
+            # Errores generales (Bloqueos, red, etc)
+            error_str = str(e)
+            fallidos[chat_id] = error_str
+            logger.error(f"❌ Fallo al enviar a {chat_id}: {error_str}")
 
-                 if "Chat not found" in error_str or "bot was bloqueado" in error_str:
-                     # Eliminar usuario directamente de Redis
-                     if not delete_user(int(chat_id)):
-                         logger.error(f"Error al eliminar usuario {chat_id} de Redis")
+            if "Chat not found" in error_str or "bot was bloqueado" in error_str:
+                # Eliminar usuario directamente de Redis
+                if not delete_user(int(chat_id)):
+                    logger.error(f"Error al eliminar usuario {chat_id} de Redis")
 
-         return fallidos
+    return fallidos
 
-    # 2. INYECCIÓN DE DEPENDENCIAS
-    set_admin_util(enviar_mensajes)
-    set_logs_util(get_logs_data)
-    set_reprogramar_alerta_util(programar_alerta_usuario)
-    set_enviar_mensaje_telegram_async(enviar_mensajes, app)
-    set_btc_sender(enviar_mensajes)
-    set_valerts_sender(enviar_mensajes)
-    # set_sp_sender(enviar_mensajes)    # ← SmartSignals
-    
-        # 3. REGISTRO DE HANDLERS
-    
-    # ============================================
-    # IMPORTANTE: Handlers de conversación PRIMERO
-    # ============================================
-    
-    # 1️⃣ ConversationHandler de CLIMA (DEBE IR PRIMERO)
-    app.add_handler(weather_conversation_handler)
-    
-    # ConversationHandler de Precios (Añadir monedas)
-    app.add_handler(prices_add_conversation_handler)
-    
-    # MessageHandler para texto libre (añadir monedas sin comando) - DESACTIVADO
-    # Para activar: descomentar la línea siguiente
-    # from telegram.ext import MessageHandler, filters
-    # app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, prices_text_handler))
-    
-    # 2️⃣ ConversationHandler de Mensajes Admin
-    app.add_handler(ms_conversation_handler)
+# 2. INYECCIÓN DE DEPENDENCIAS
+set_admin_util(enviar_mensajes)
+set_logs_util(get_logs_data)
+set_reprogramar_alerta_util(programar_alerta_usuario)
+set_enviar_mensaje_telegram_async(enviar_mensajes, app)
+set_btc_sender(enviar_mensajes)
+set_valerts_sender(enviar_mensajes)
+# set_sp_sender(enviar_mensajes)    # ← SmartSignals
 
-    app.add_handler(reminders_conv_handler)
+# 3. REGISTRO DE HANDLERS
 
-    # ============================================
-    # Comandos generales
-    # ============================================
+# ============================================
+# IMPORTANTE: Handlers de conversación PRIMERO
+# ============================================
+
+# 1️⃣ ConversationHandler de CLIMA (DEBE IR PRIMERO)
+app.add_handler(weather_conversation_handler)
+
+# ConversationHandler de Precios (Añadir monedas)
+app.add_handler(prices_add_conversation_handler)
+
+# MessageHandler para texto libre (añadir monedas sin comando) - DESACTIVADO
+# Para activar: descomentar la línea siguiente
+# from telegram.ext import MessageHandler, filters
+# app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, prices_text_handler))
+
+# 2️⃣ ConversationHandler de Mensajes Admin
+app.add_handler(ms_conversation_handler)
+
+app.add_handler(reminders_conv_handler)
+
+# ============================================
+# Comandos generales
+# ============================================
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("myid", myid))
     app.add_handler(CommandHandler("help", help_command))
