@@ -373,7 +373,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Track command usage
     registrar_uso_comando(chat_id, "users")
     
-# 1. CARGA DE DATOS (Centralizada)
+    # 1. CARGA DE DATOS (Centralizada)
     # Use Redis to get all user IDs
     user_ids = get_all_user_ids()
     all_alerts = load_price_alerts()
@@ -383,66 +383,66 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     weather_subs = load_weather_subscriptions()
     valerts_symbols = get_active_symbols()
     
-# 2. VISTA DE USUARIO NORMAL (Perfil Propio)
-        if chat_id not in ADMIN_CHAT_IDS:
-            user_data = obtener_datos_usuario(chat_id)
-            if not user_data:
-                await update.message.reply_text(_("❌ No estás registrado.", chat_id))
-                return
+    # 2. VISTA DE USUARIO NORMAL (Perfil Propio)
+    if chat_id not in ADMIN_CHAT_IDS:
+        user_data = obtener_datos_usuario(chat_id)
+        if not user_data:
+            await update.message.reply_text(_("❌ No estás registrado.", chat_id))
+            return
 
-        # Calcular datos del usuario
-        monedas = user_data.get('monedas', [])
-        alerts_count = len([a for a in all_alerts.get(chat_id_str, []) if a['status'] == 'ACTIVE'])
+    # Calcular datos del usuario
+    monedas = user_data.get('monedas', [])
+    alerts_count = len([a for a in all_alerts.get(chat_id_str, []) if a['status'] == 'ACTIVE'])
         
-        # Estados de servicios
-        btc_status = "✅ Activado" if btc_subs.get(chat_id_str, {}).get('active') else "❌ Desactivado"
-        hbd_status = "✅ Activado" if user_data.get('hbd_alerts_enabled', False) else "❌ Desactivado"
-        weather_status = "✅ Activado" if str(chat_id) in weather_subs else "❌ Desactivado"
-        
-        # Suscripciones activas
-        subs = user_data.get('subscriptions', {})
-        active_subs = []
-        now = datetime.now()
-        
-        map_names = {
-            'watchlist_bundle': '📦 Pack Control Total',
-            'ta_vip': '📈 TA Pro',
-            'coins_extra': '🪙 Slot Moneda',
-            'alerts_extra': '🔔 Slot Alerta'
-        }
+    # Estados de servicios
+    btc_status = "✅ Activado" if btc_subs.get(chat_id_str, {}).get('active') else "❌ Desactivado"
+    hbd_status = "✅ Activado" if user_data.get('hbd_alerts_enabled', False) else "❌ Desactivado"
+    weather_status = "✅ Activado" if str(chat_id) in weather_subs else "❌ Desactivado"
 
-        for key, val in subs.items():
-            # Tipo A: Por tiempo (active + expires)
-            if isinstance(val, dict) and val.get('active'):
-                exp = val.get('expires')
-                if exp:
-                    try:
-                        if datetime.strptime(exp, '%Y-%m-%d %H:%M:%S') > now:
-                            active_subs.append(f"• {map_names.get(key, key)} (Vence: {exp.split()[0]})")
-                    except Exception: pass
-            # Tipo B: Por cantidad (qty > 0)
-            elif isinstance(val, dict) and val.get('qty', 0) > 0:
-                active_subs.append(f"• {map_names.get(key, key)} (+{val['qty']})")
+    # Suscripciones activas
+    subs = user_data.get('subscriptions', {})
+    active_subs = []
+    now = datetime.now()
 
-        subs_txt = "\n".join(active_subs) if active_subs else "_Sin suscripciones activas_"
+    map_names = {
+        'watchlist_bundle': '📦 Pack Control Total',
+        'ta_vip': '📈 TA Pro',
+        'coins_extra': '🪙 Slot Moneda',
+        'alerts_extra': '🔔 Slot Alerta'
+    }
 
-        msg = (
-            f"👤 *TU PERFIL BITBREAD*\n"
-            f"—————————————————\n"
-            f"🆔 ID: `{chat_id}`\n"
-            f"🗣 Idioma: `{user_data.get('language', 'es')}`\n\n"
-            f"📊 *Configuración:*\n"
-            f"• Monedas Lista: `{', '.join(monedas)}`\n"
-            f"• Alertas Cruce: `{alerts_count}` activas\n\n"
-            f"📡 *Servicios Activos:*\n"
-            f"• Monitor BTC: {btc_status}\n"
-            f"• Monitor HBD: {hbd_status}\n"
-            f"• Monitor Clima: {weather_status}\n\n"
-            f"💎 *Suscripciones:*\n"
-            f"{subs_txt}"
-        )
-        await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
-        return
+    for key, val in subs.items():
+        # Tipo A: Por tiempo (active + expires)
+        if isinstance(val, dict) and val.get('active'):
+            exp = val.get('expires')
+            if exp:
+                try:
+                    if datetime.strptime(exp, '%Y-%m-%d %H:%M:%S') > now:
+                        active_subs.append(f"• {map_names.get(key, key)} (Vence: {exp.split()[0]})")
+                except Exception: pass
+        # Tipo B: Por cantidad (qty > 0)
+        elif isinstance(val, dict) and val.get('qty', 0) > 0:
+            active_subs.append(f"• {map_names.get(key, key)} (+{val['qty']})")
+
+    subs_txt = "\n".join(active_subs) if active_subs else "_Sin suscripciones activas_"
+
+    msg = (
+        f"👤 *TU PERFIL BITBREAD*\n"
+        f"—————————————————\n"
+        f"🆔 ID: `{chat_id}`\n"
+        f"🗣 Idioma: `{user_data.get('language', 'es')}`\n\n"
+        f"📊 *Configuración:*\n"
+        f"• Monedas Lista: `{', '.join(monedas)}`\n"
+        f"• Alertas Cruce: `{alerts_count}` activas\n\n"
+        f"📡 *Servicios Activos:*\n"
+        f"• Monitor BTC: {btc_status}\n"
+        f"• Monitor HBD: {hbd_status}\n"
+        f"• Monitor Clima: {weather_status}\n\n"
+        f"💎 *Suscripciones:*\n"
+        f"{subs_txt}"
+    )
+    await update.message.reply_text(msg, parse_mode=ParseMode.MARKDOWN)
+    return
 
     # 3. VISTA DE ADMINISTRADOR (DASHBOARD PRO)
     msg_loading = await update.message.reply_text(_("⏳ *Analizando Big Data...*", chat_id), parse_mode=ParseMode.MARKDOWN)
