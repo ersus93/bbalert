@@ -648,7 +648,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for i, (cmd, cnt) in enumerate(top_cmds, 1):
         emoji = cmd_emojis.get(cmd, '⚙️')
         top_cmds_lines.append(f"  {i}. {emoji} /{cmd}: `{cnt}`")
-    top_cmds_str = "\n".join(top_cmds_lines) if top_cmds_lines else "  _Sin datos aún_"
+    top_cmds_str = "\n".join(top_cmds_lines) if top_cmds_lines else "   Sin datos aún "
 
     # --- CONSTRUCCIÓN DEL DASHBOARD v2 ---
     pct_24h = int(active_24h / total_users * 100) if total_users else 0
@@ -710,12 +710,12 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📅 {now_str_esc}\n"
         f"———————————————————\n\n"
 
-        f"*🖥️ ESTADO DEL SISTEMA*\n"
-        f"├ *Uptime:* `{uptime_str_esc}`\n"
-        f"├ *RAM:* `{mem_usage_esc} MB`\n"
-        f"├ *VMS:* `{mem_asignada_esc} MB`\n"
-        f"├ *CPU:* `{cpu_percent_esc}%`\n"
-        f"└ *DATA:* `{size_file_esc} MB`\n\n"
+        f"🖥️ *ESTADO DEL SISTEMA*\n"
+        f"├ Uptime: `{uptime_str_esc}`\n"
+        f"├ RAM: `{mem_usage_esc} MB`\n"
+        f"├ VMS: `{mem_asignada_esc} MB`\n"
+        f"├ CPU: `{cpu_percent_esc}%`\n"
+        f"└ DATA: `{size_file_esc} MB`\n\n"
 
         f"⚙️ *CARGA DEL SISTEMA (Hoy)*\n"
         f"├ Comandos Procesados: `{total_usage_today_esc}`\n"
@@ -724,7 +724,7 @@ async def users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"└ Top Comandos:\n{top_cmds_str_esc}\n\n"
 
         f"👥 *USUARIOS*\n"
-        f"├ Totales: `{total_users_esc}` | 🇪🇸 {lang_es_esc} | 🇺🇸 {lang_en_esc}\n"
+        f"├ Totales: `{total_users_esc}` | 🇪🇸 `{lang_es_esc}` | 🇺🇸 `{lang_en_esc}`\n"
         f"├ Activos 24h: `{active_24h_esc}` ({pct_24h_esc}%)\n"
         f"├ Activos 7d:  `{active_7d_esc}` ({pct_7d_esc}%)\n"
         f"├ Activos 30d: `{active_30d_esc}` ({pct_30d_esc}%)\n"
