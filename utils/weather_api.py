@@ -18,6 +18,8 @@ class WeatherAPICache:
     - Límite de 200 entradas en memoria
     - Auto-limpieza de entradas expiradas
     - Invalidación al cruzar medianoche
+    - Estadísticas de uso (hit/miss ratio)
+    - Compartido entre todos los loops de clima
     """
 
     DEFAULT_TTLS = {
@@ -32,6 +34,12 @@ class WeatherAPICache:
     def __init__(self):
         self.cache: Dict[str, Dict] = {}
         self._last_midnight: Optional[datetime] = None
+        # Estadísticas para debug
+        self._stats = {
+            "hits": 0,
+            "misses": 0,
+            "total_requests": 0
+        }
 
     def _ttl(self, endpoint: str) -> int:
         """Obtiene el TTL específico para el endpoint."""
@@ -68,15 +76,19 @@ class WeatherAPICache:
         """Obtiene datos del caché si no expiraron."""
         self._invalidate_on_midnight()
         key = self._key(lat, lon, endpoint)
+        self._stats["total_requests"] += 1
 
         if key in self.cache:
             entry = self.cache[key]
             age = time.time() - entry["timestamp"]
             if age < self._ttl(endpoint):
-                add_log_line(f"💾 Caché HIT: {endpoint} ({lat:.4f}, {lon:.4f})")
+                self._stats["hits"] += 1
+                add_log_line(f"💾 Caché HIT: {endpoint} ({lat:.4f}, {lon:.4f}) | Edad: {int(age)}s | TTL: {self._ttl(endpoint)}s")
                 return entry["data"]
             del self.cache[key]
-
+        
+        self._stats["misses"] += 1
+        add_log_line(f"🔌 Caché MISS: {endpoint} ({lat:.4f}, {lon:.4f})")
         return None
 
     def set(self, lat: float, lon: float, endpoint: str, data: Dict):
@@ -104,6 +116,21 @@ class WeatherAPICache:
             oldest = sorted(self.cache, key=lambda k: self.cache[k]["timestamp"])
             for k in oldest[: self.MAX_ENTRIES // 4]:
                 del self.cache[k]
+
+    def get_stats(self) -> Dict:
+        """Obtiene estadísticas del caché para monitoreo."""
+        hit_ratio = (self._stats["hits"] / self._stats["total_requests"]) * 100 if self._stats["total_requests"] > 0 else 0
+        return {
+            **self._stats,
+            "hit_ratio": round(hit_ratio, 2),
+            "entries": len(self.cache),
+            "max_entries": self.MAX_ENTRIES
+        }
+    
+    def log_stats(self):
+        """Registra estadísticas del caché en los logs."""
+        stats = self.get_stats()
+        add_log_line(f"📊 Caché stats: HIT: {stats['hits']} | MISS: {stats['misses']} | Ratio: {stats['hit_ratio']}% | Entradas: {stats['entries']}/{stats['max_entries']}")
 
 
 class WeatherAPI:
@@ -333,3 +360,14 @@ def geocode_location(query_text):
 
 def reverse_geocode(lat, lon):
     return weather_api.reverse_geocode(lat, lon)
+
+def get_cache_stats():
+    return weather_api.cache.get_stats()
+
+def log_cache_stats():
+    weather_api.cache.log_stats()
+
+def invalidate_cache():
+    """Limpia completamente el caché (para debugging)."""
+    weather_api.cache.cache.clear()
+    add_log_line("🧹 Cache: Todas las entradas eliminadas manualmente")

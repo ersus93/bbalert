@@ -1,6 +1,7 @@
 # core/loops.py
 
 import asyncio
+import traceback
 from datetime import datetime, timedelta, timezone
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
@@ -237,8 +238,14 @@ async def check_custom_price_alerts(bot: Bot):
 
         await asyncio.sleep(INTERVALO_CONTROL)
 
-async def alerta_loop(bot: Bot):
+async def alerta_loop(bot: Bot, _depth: int = 0):
     """Bucle de alerta HBD (cada N segundos)."""
+    
+    # Guardia contra recursión infinita
+    if _depth > 100:
+        add_log_line(f"⚠️ alerta_loop: Límite de profundidad alcanzado. Reiniciando bucle limpio.")
+        await asyncio.sleep(5)
+        _depth = 0
     
     # 1. DIAGNÓSTICO: Imprimir el intervalo al iniciar para ver si es 0
     add_log_line(f"⏱️ Iniciando bucle HBD. Intervalo configurado: {INTERVALO_ALERTA} segundos.")
@@ -289,8 +296,17 @@ async def alerta_loop(bot: Bot):
             else:
                 add_log_line("❌ Falló la obtención o validación del precio de HBD (o API agotada).")
 
+        except RecursionError as re:
+            tb_str = traceback.format_exc()
+            add_log_line(f"🚨 RECURSION ERROR EN alerta_loop: {re}")
+            add_log_line(f"STACK TRACE:\n{tb_str}")
         except Exception as e:
+            tb_str = traceback.format_exc()
             add_log_line(f"Error crítico en alerta_loop: {e}")
+            add_log_line(f"TRACEBACK:\n{tb_str}")
+
+        # Limpiar stack de llamadas entre iteraciones para prevenir acumulación recursiva
+        await asyncio.sleep(0)
 
         # 2. SEGURIDAD: Asegurar que el intervalo sea al menos 60 segundos
         tiempo_espera = INTERVALO_ALERTA

@@ -103,12 +103,16 @@ def get_btc_candle_data(interval="1d"):
 async def btc_monitor_loop(bot: Bot):
     """
     Bucle principal Multi-Timeframe (4h, 1d, 1w).
-    Versión DEFINITIVA: Lógica Smart + Mensajes Enriquecidos (Legacy Style).
+    Versión OPTIMIZADA: Reducción de carga del sistema.
     """
-    add_log_line("🦁 Iniciando Monitor BTC PRO (Smart Logic + Rich Alerts)...")
+    add_log_line("🦁 Iniciando Monitor BTC PRO (Optimizado)...")
     
     # Definimos las temporalidades a monitorear
     TIMEFRAMES = ["1h", "2h", "4h", "8h", "12h", "1d", "1w"]
+    
+    # Cache para DataFrames y resultados de análisis
+    df_cache = {}
+    analysis_cache = {}
     
     while True:
         try:
@@ -120,26 +124,20 @@ async def btc_monitor_loop(bot: Bot):
                 # 1. Validación de Suscriptores
                 subs = get_btc_subscribers(interval)
                 if not subs:
+                    if interval in df_cache:
+                        del df_cache[interval]
+                    if interval in analysis_cache:
+                        del analysis_cache[interval]
                     continue 
 
-                # 2. Obtención de Datos
-                df = get_btc_klines(interval=interval, limit=1000)
-                if df is None or len(df) < 200:
+                # 2. Obtención de Datos: Solo 2 velas para comprobar cierre
+                df_check = get_btc_klines(interval=interval, limit=2)
+                if df_check is None or len(df_check) < 2:
                     continue
 
-                # Datos básicos
-                last_closed_candle = df.iloc[-2]
+                last_closed_candle = df_check.iloc[-2]
                 current_candle_time = int(last_closed_candle['open_time'])
-                current_price = float(df.iloc[-1]['close'])
-
-                # 3. Análisis Técnico
-                analyzer = BTCAdvancedAnalyzer(df)
-                levels_fib = analyzer.get_support_resistance_dynamic(interval=interval)
-                momentum_signal, mom_emoji, (buy, sell), reasons = analyzer.get_momentum_signal()
-                
-                if 'atr' in levels_fib: levels_fib['atr'] = float(levels_fib['atr'])
-
-                divergence = analyzer.detect_rsi_divergence(lookback=5)
+                current_price = float(df_check.iloc[-1]['close'])
 
                 # Cargar estado del intervalo
                 current_state = global_state[interval]
@@ -148,6 +146,36 @@ async def btc_monitor_loop(bot: Bot):
                 
                 # Detectar si es una vela nueva
                 is_new_candle = current_candle_time > last_saved_time
+
+                # Solo cargar datos completos y ejecutar análisis cuando haya vela nueva
+                if is_new_candle or interval not in df_cache:
+                    df = get_btc_klines(interval=interval, limit=1000)
+                    if df is None or len(df) < 200:
+                        continue
+                    
+                    df_cache[interval] = df
+                    
+                    # Ejecutar análisis solo una vez por vela nueva
+                    analyzer = BTCAdvancedAnalyzer(df)
+                    levels_fib = analyzer.get_support_resistance_dynamic(interval=interval)
+                    momentum_signal, mom_emoji, (buy, sell), reasons = analyzer.get_momentum_signal()
+                    divergence = analyzer.detect_rsi_divergence(lookback=5)
+                    
+                    if 'atr' in levels_fib: 
+                        levels_fib['atr'] = float(levels_fib['atr'])
+                    
+                    analysis_cache[interval] = {
+                        'levels': levels_fib,
+                        'momentum': (momentum_signal, mom_emoji, buy, sell, reasons),
+                        'divergence': divergence
+                    }
+                else:
+                    # Usar cache
+                    df = df_cache[interval]
+                    cache_data = analysis_cache[interval]
+                    levels_fib = cache_data['levels']
+                    momentum_signal, mom_emoji, buy, sell, reasons = cache_data['momentum']
+                    divergence = cache_data['divergence']
 
                 # ==============================================================================
                 # FASE 1: GESTIÓN DE NUEVA VELA (Contexto de Sesión)
@@ -407,7 +435,8 @@ async def btc_monitor_loop(bot: Bot):
                     state_changed = True
                     add_log_line(f"🚨 Alerta BTC Enviada: {trigger_level} ({interval})")
 
-                await asyncio.sleep(0.5)
+                # Pequeña pausa entre intervalos para no bloquear el event loop
+                await asyncio.sleep(0.1)
 
             if state_changed:
                 save_btc_state(global_state)
@@ -417,4 +446,6 @@ async def btc_monitor_loop(bot: Bot):
             import traceback
             traceback.print_exc()
         
-        await asyncio.sleep(60)
+        # Espera principal del bucle: 10 segundos entre ciclos
+        # Balance perfecto: no consumir CPU, pero responder rápido a cruces de niveles
+        await asyncio.sleep(10)

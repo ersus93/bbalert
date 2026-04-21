@@ -13,7 +13,7 @@ from utils.weather_manager import (
     mark_alert_sent_advanced,
     get_recent_global_events
 )
-from utils.weather_api import get_current_weather, get_forecast, get_uv_index, get_air_quality
+from utils.weather_api import get_current_weather, get_forecast, get_uv_index, get_air_quality, log_cache_stats
 from core.ai_logic import get_groq_weather_advice
 from utils.ads_manager import get_random_ad_text
 from core.i18n import _
@@ -152,27 +152,52 @@ async def weather_alerts_loop(bot: Bot):
                 await asyncio.sleep(ALERTS_LOOP_INTERVAL)
                 continue
 
+            # OPTIMIZACIÓN: Agrupar usuarios por coordenadas
+            coord_user_map = {}
             for user_id_str, sub in subs.items():
                 if not sub.get('alerts_enabled', True):
                     continue
-
-                user_id = int(user_id_str)
-                alert_types = sub.get('alert_types', {})
-                city = sub['city']
                 lat = sub.get('lat')
                 lon = sub.get('lon')
+                if lat and lon:
+                    # Redondear a 4 decimales para agrupar ubicaciones cercanas (~11m precisión)
+                    coord_key = (round(lat, 4), round(lon, 4))
+                    if coord_key not in coord_user_map:
+                        coord_user_map[coord_key] = []
+                    coord_user_map[coord_key].append(user_id_str)
 
-                if not lat or not lon:
-                    continue
+            add_log_line(f"⚙️ Alerts loop: {len(coord_user_map)} coordenadas únicas / {len(subs)} usuarios totales")
 
-                # Obtener datos climáticos
+            for (lat, lon), user_ids in coord_user_map.items():
+                # Cargar datos UNA VEZ por coordenada
                 try:
                     current = get_current_weather(lat, lon)
                     forecast = get_forecast(lat, lon)
                     uv_val = get_uv_index(lat, lon)
                 except Exception as e:
-                    add_log_line(f"⚠️ Error API clima para {user_id}: {e}")
+                    add_log_line(f"⚠️ Error API clima para ({lat:.4f}, {lon:.4f}): {e}")
                     continue
+
+                if not current or not forecast:
+                    continue
+
+                # Procesar todos los usuarios de esta ubicación
+                for user_id_str in user_ids:
+                    sub = subs[user_id_str]
+                    user_id = int(user_id_str)
+                    alert_types = sub.get('alert_types', {})
+                    city = sub['city']
+
+                    # Cálculos de tiempo local
+                    tz_offset = current.get("timezone", 0)
+                    utc_now = datetime.now(timezone.utc)
+                    local_now = utc_now + timedelta(seconds=tz_offset)
+
+                    sunrise = datetime.fromtimestamp(current['sys']['sunrise'], timezone.utc) + timedelta(seconds=tz_offset)
+                    sunset = datetime.fromtimestamp(current['sys']['sunset'], timezone.utc) + timedelta(seconds=tz_offset)
+                    is_daytime = sunrise < local_now < sunset
+
+                    forecast_list = forecast.get('list', [])
 
                 if not current or not forecast:
                     continue
@@ -373,6 +398,8 @@ async def weather_alerts_loop(bot: Bot):
                                     event_desc=f"UV {uv_num:.1f} {level_label}"
                                 )
 
+            # Log stats al finalizar ciclo
+            log_cache_stats()
             await asyncio.sleep(ALERTS_LOOP_INTERVAL)
 
         except Exception as e:
@@ -398,41 +425,56 @@ async def weather_daily_summary_loop(bot: Bot):
                 await asyncio.sleep(DAILY_SUMMARY_LOOP_INTERVAL)
                 continue
 
+            # OPTIMIZACIÓN: Agrupar usuarios por coordenadas
+            coord_user_map = {}
             for user_id_str, sub in subs.items():
                 if not sub.get('alerts_enabled', True):
                     continue
-
-                user_id = int(user_id_str)
-                alert_types = sub.get('alert_types', {})
-
-                if not alert_types.get('daily_summary', True):
+                if not sub.get('alert_types', {}).get('daily_summary', True):
                     continue
-
-                city = sub['city']
                 lat = sub.get('lat')
                 lon = sub.get('lon')
+                if lat and lon:
+                    coord_key = (round(lat, 4), round(lon, 4))
+                    if coord_key not in coord_user_map:
+                        coord_user_map[coord_key] = []
+                    coord_user_map[coord_key].append(user_id_str)
 
-                if not lat or not lon:
-                    continue
+            add_log_line(f"⚙️ Summary loop: {len(coord_user_map)} coordenadas únicas / {len(subs)} usuarios totales")
 
-                # Verificar ventana horaria
-                alert_time_conf = sub.get('alert_time', '07:00')
-                try:
-                    target_hour = int(alert_time_conf.split(':')[0])
-                    target_minute = int(alert_time_conf.split(':')[1])
-                except (ValueError, IndexError):
-                    target_hour = 7
-                    target_minute = 0
-
-                # Obtener datos para calcular hora local
+            for (lat, lon), user_ids in coord_user_map.items():
+                # Cargar datos UNA VEZ por coordenada
                 try:
                     current = get_current_weather(lat, lon)
                     forecast = get_forecast(lat, lon)
                     uv_val = get_uv_index(lat, lon)
                     aqi_val = get_air_quality(lat, lon)
                 except Exception as e:
-                    add_log_line(f"⚠️ Error API clima para resumen {user_id}: {e}")
+                    add_log_line(f"⚠️ Error API clima para ({lat:.4f}, {lon:.4f}): {e}")
                     continue
+
+                if not current or not forecast:
+                    continue
+
+                # Procesar todos los usuarios de esta ubicación
+                for user_id_str in user_ids:
+                    sub = subs[user_id_str]
+                    user_id = int(user_id_str)
+                    alert_types = sub.get('alert_types', {})
+                    city = sub['city']
+
+                    # Verificar ventana horaria
+                    alert_time_conf = sub.get('alert_time', '07:00')
+                    try:
+                        target_hour = int(alert_time_conf.split(':')[0])
+                        target_minute = int(alert_time_conf.split(':')[1])
+                    except (ValueError, IndexError):
+                        target_hour = 7
+                        target_minute = 0
+
+                    tz_offset = current.get("timezone", 0)
+                    utc_now = datetime.now(timezone.utc)
+                    local_now = utc_now + timedelta(seconds=tz_offset)
 
                 if not current or not forecast:
                     continue
@@ -579,6 +621,11 @@ async def weather_daily_summary_loop(bot: Bot):
                     )
                     add_log_line(f"✅ Resumen diario enviado a {user_id}")
 
+                # Pequeña pausa entre usuarios para no bloquear el event loop
+                await asyncio.sleep(0.005)
+
+            # Log stats al finalizar ciclo
+            log_cache_stats()
             await asyncio.sleep(DAILY_SUMMARY_LOOP_INTERVAL)
 
         except Exception as e:

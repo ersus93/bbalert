@@ -16,6 +16,7 @@ REDIS_SSL = False
 _REDIS_CLIENT = None
 _REDIS_CONNECTED = False
 CACHE_TTL = 300  # 5 minutos por defecto
+CACHE_MAX_SIZE = 1000  # Limite máximo de entradas en caché local
 _LOCAL_CACHE: Dict[str, Any] = {}
 _CACHE_TIMESTAMPS: Dict[str, float] = {}
 
@@ -111,7 +112,8 @@ def get_with_cache(key: str, ttl: int = CACHE_TTL) -> Optional[Any]:
         else:
             # Caché expirada, la eliminamos
             del _LOCAL_CACHE[key]
-            del _CACHE_TIMESTAMPS[key]
+            if key in _CACHE_TIMESTAMPS:
+                del _CACHE_TIMESTAMPS[key]
     
     # No en caché o expirada, obtener de Redis
     client = get_redis_client()
@@ -147,6 +149,20 @@ def set_with_cache(key: str, value: Any, expire: Optional[int] = None) -> bool:
                 # Actualizar caché local
                 _LOCAL_CACHE[key] = value
                 _CACHE_TIMESTAMPS[key] = time.time()
+                
+                # Limitar tamaño de caché - eliminar entradas más antiguas si excede límite
+                if len(_LOCAL_CACHE) > CACHE_MAX_SIZE:
+                    # Ordenar por timestamp (más viejo primero)
+                    sorted_keys = sorted(_CACHE_TIMESTAMPS.keys(), key=lambda k: _CACHE_TIMESTAMPS[k])
+                    # Eliminar 20% de las entradas más antiguas
+                    remove_count = int(CACHE_MAX_SIZE * 0.2)
+                    for old_key in sorted_keys[:remove_count]:
+                        if old_key in _LOCAL_CACHE:
+                            del _LOCAL_CACHE[old_key]
+                        if old_key in _CACHE_TIMESTAMPS:
+                            del _CACHE_TIMESTAMPS[old_key]
+                    logger.debug(f"🗑️ Caché local limpiada: eliminadas {remove_count} entradas antiguas")
+                
                 return True
             else:
                 logger.warning(f"⚠️ No se pudo guardar '{key}' en Redis (respuesta: {success})")
