@@ -18,16 +18,18 @@ Environment="PYTHONUNBUFFERED=1"
 Environment="PATH=/home/USUARIO/bbalert-prod/venv/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
 # Reinicio automático
-Restart=always
-RestartSec=10
+Restart=on-failure
+RestartSec=5s
 
 # Configuración de logs
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=bbalert-prod
 
-# Límites de recursos
-LimitNOFILE=65536
+# Límites de recursos (Según docs/limpieza.md)
+MemoryMax=150M
+MemorySwapMax=50M
+LimitNOFILE=1024
 TimeoutStartSec=30
 TimeoutStopSec=30
 

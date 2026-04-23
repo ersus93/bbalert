@@ -2,6 +2,7 @@
 
 import redis
 import time
+import logging
 from typing import Optional, Any, Dict
 from core.config import DATA_DIR, USUARIOS_PATH
 
@@ -19,6 +20,8 @@ CACHE_TTL = 300  # 5 minutos por defecto
 CACHE_MAX_SIZE = 1000  # Limite máximo de entradas en caché local
 _LOCAL_CACHE: Dict[str, Any] = {}
 _CACHE_TIMESTAMPS: Dict[str, float] = {}
+
+logger = logging.getLogger(__name__)
 
 def _load_redis_config():
     """Carga la configuración de Redis desde variables de entorno."""
@@ -99,8 +102,6 @@ def get_with_cache(key: str, ttl: int = CACHE_TTL) -> Optional[Any]:
     Obtiene un valor de Redis con caché local.
     Devuelve None si no existe o expiró.
     """
-    from core.config import logger
-    
     current_time = time.time()
     
     # Verificar caché local primero

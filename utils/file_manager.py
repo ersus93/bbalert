@@ -183,7 +183,8 @@ def load_hbd_history():
     return get_hbd_history()
 
 def save_hbd_history(history):
-    return save_hbd_history(history)
+    from core.redis_fallback import save_hbd_history as redis_save_hbd_history
+    return redis_save_hbd_history(history)
 
 def leer_precio_anterior_alerta():
     history = load_hbd_history()

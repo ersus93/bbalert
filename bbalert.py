@@ -36,6 +36,7 @@ from core.weather_loop_v2 import weather_alerts_loop, weather_daily_summary_loop
 from core.global_disasters_loop import global_disasters_loop
 from core.redis_fallback import get_all_user_ids
 from core.i18n import _
+from core.cleaner import BotCleaner
 from handlers.general import start, myid, help_command
 from handlers.admin import users, logs_command, set_admin_util, set_logs_util, ms_conversation_handler, ad_command, free_command
 from handlers.year_handlers import year_command, year_sub_callback
@@ -155,6 +156,21 @@ async def post_init(app: Application):
     cleanup_thread = threading.Thread(target=cleanup_loop, daemon=True)
     cleanup_thread.start()
     logger.info("✅ Hilo de cleanup de rate limits iniciado.")
+    
+    # Inicializar y ejecutar limpieza automática del bot
+    cleaner = BotCleaner(base_dir=__file__)
+    cleaner.full_cleanup()  # limpieza al inicio
+    logger.info("✅ Limpieza automática del bot inicializada")
+    
+    # Programar limpieza periódica con APScheduler
+    from apscheduler.schedulers.background import BackgroundScheduler
+    scheduler = BackgroundScheduler()
+    # Limpieza de memoria cada hora
+    scheduler.add_job(cleaner.free_memory, 'interval', hours=1, id='memory_cleanup')
+    # Limpieza completa cada 6 horas
+    scheduler.add_job(cleaner.full_cleanup, 'interval', hours=6, id='full_cleanup')
+    scheduler.start()
+    logger.info("✅ Programador de limpieza periódica iniciado (memoria cada hora, completa cada 6h)")
 
     try:
         startup_message_template = _(
