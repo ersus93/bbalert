@@ -848,51 +848,51 @@ async def prices_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
     text = update.message.text.strip()
-    
-     # Detectar si es un formato válido de monedas
-     # Debe tener al menos un símbolo válido (2+ letras o números)
-     # Separadores válidos: coma, espacio, o ambos
-     
-     # Reemplazar comas por espacios y dividir
-     partes = text.replace(',', ' ').split()
-     
-     # Filtrar solo símbolos válidos (al menos 2 caracteres, solo letras y números)
-     monedas_validas = [m.upper() for m in partes if len(m) >= 2 and m.isalnum()]
-     
-     if not monedas_validas:
-         # No es formato válido de monedas, ignorar
-         return
-     
-     # Obtener lista actual y añadir las nuevas
-     actuales = obtener_monedas_usuario(chat_id)
-     añadidas = []
-     
-     for m in monedas_validas:
-         if m not in actuales:
-             actuales.append(m)
-             añadidas.append(m)
-     
-     if añadidas:
-         actualizar_monedas(chat_id, actuales)
-         
-         mensaje = _(
-             "✅ *Monedas añadidas:* {lista}\n\n"
-             "📋 *Tu lista:* {total}",
-             user_id
-         ).format(
-             lista=', '.join(añadidas),
-             total=', '.join(actuales)
-         )
-     else:
-         mensaje = _(
-             "ℹ️ Estas monedas ya están en tu lista:\n{lista}\n\n"
-             "📋 *Tu lista:* {total}",
-             user_id
-         ).format(
-             lista=', '.join(monedas_validas),
-             total=', '.join(actuales)
-         )
-    
+
+    # Detectar si es un formato válido de monedas
+    # Debe tener al menos un símbolo válido (2+ letras o números)
+    # Separadores válidos: coma, espacio, o ambos
+
+    # Reemplazar comas por espacios y dividir
+    partes = text.replace(',', ' ').split()
+
+    # Filtrar solo símbolos válidos (al menos 2 caracteres, solo letras y números)
+    monedas_validas = [m.upper() for m in partes if len(m) >= 2 and m.isalnum()]
+
+    if not monedas_validas:
+        # No es formato válido de monedas, ignorar
+        return
+
+    # Obtener lista actual y añadir las nuevas
+    actuales = obtener_monedas_usuario(chat_id)
+    añadidas = []
+
+    for m in monedas_validas:
+        if m not in actuales:
+            actuales.append(m)
+            añadidas.append(m)
+
+    if añadidas:
+        actualizar_monedas(chat_id, actuales)
+
+        mensaje = _(
+            "✅ *Monedas añadidas:* {lista}\n\n"
+            "📋 *Tu lista:* {total}",
+            user_id
+        ).format(
+            lista=', '.join(añadidas),
+            total=', '.join(actuales)
+        )
+    else:
+        mensaje = _(
+            "ℹ️ Estas monedas ya están en tu lista:\n{lista}\n\n"
+            "📋 *Tu lista:* {total}",
+            user_id
+        ).format(
+            lista=', '.join(monedas_validas),
+            total=', '.join(actuales)
+        )
+
     # Añadir botones para volver o añadir más
     keyboard = [
         [
@@ -902,7 +902,7 @@ async def prices_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             InlineKeyboardButton(_("➕ Añadir más", user_id), callback_data="prices_add")
         ]
     ]
-    
+
     await update.message.reply_text(
         mensaje,
         reply_markup=InlineKeyboardMarkup(keyboard),
