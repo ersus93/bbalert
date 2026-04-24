@@ -7,7 +7,7 @@ Reemplaza a: /ver, /monedas, /mismonedas
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes, CallbackQueryHandler, ConversationHandler, MessageHandler, filters, CommandHandler
-from utils.user_data import obtener_monedas_usuario, actualizar_monedas, actualizar_intervalo_alerta
+from utils.user_data import obtener_monedas_usuario, obtener_datos_usuario, actualizar_monedas, actualizar_intervalo_alerta
 from core.api_client import obtener_precios_control
 from utils.subscription_manager import check_feature_access, registrar_uso_comando
 from utils.ads_manager import get_random_ad_text
@@ -872,8 +872,8 @@ async def prices_text_handler(update: Update, context: ContextTypes.DEFAULT_TYPE
             actuales.append(m)
             añadidas.append(m)
     
-    if añadidas:
-        actualizar_monas(chat_id, actuales)
+     if añadidas:
+         actualizar_monedas(chat_id, actuales)
         
         mensaje = _(
             "✅ *Monedas añadidas:* {lista}\n\n"
