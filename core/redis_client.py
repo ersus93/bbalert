@@ -1,5 +1,6 @@
 """core/redis_client.py - Módulo de conexión a Redis con pool y caché local."""
 
+import os
 import redis
 import time
 import logging

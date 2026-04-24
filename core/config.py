@@ -54,6 +54,10 @@ except Exception as e:
     print(f"⚠️ No se pudo leer version.txt: {e}")
     VERSION = "0.0.0"
     
+# --- Configuración de Logs ---
+import logging
+logger = logging.getLogger(__name__)
+
 # --- Configuración de Timeouts (segundos) ---
 # Timeouts globales para llamadas a APIs externas
 TIMEOUTS = {
