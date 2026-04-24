@@ -11,8 +11,8 @@ from telegram.ext import ContextTypes
 # === SUGERENCIAS POR COMANDO ===
 
 SUGGESTIONS = {
-    # After /precios
-    "precios": [
+    # After /prices
+    "prices": [
         ("🚨 Crear alerta", "/alertas add {symbol} 50000"),
         ("📊 Análisis técnico", "/ta {symbol}"),
         ("⚙️ Ajustes", "/ajustes"),
@@ -20,57 +20,49 @@ SUGGESTIONS = {
     
     # After /alertas
     "alertas": [
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("📈 Trading", "/trading ta BTC"),
         ("❓ Ayuda", "/help"),
     ],
     
     # After /trading
     "trading": [
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("🚨 Crear alerta", "/alertas add BTC 50000"),
         ("❓ Ayuda", "/help"),
     ],
     
     # After /ajustes
     "ajustes": [
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("🚨 Crear alerta", "/alertas"),
         ("❓ Ayuda", "/help"),
     ],
     
     # After /sp (SmartSignals)
     "sp": [
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("📈 Análisis técnico", "/ta BTC"),
         ("🛒 Tienda", "/shop"),
     ],
     
     # After /ta (technical analysis)
     "ta": [
-        ("📊 Gráfico", "/trading graf {symbol}"),
-        ("🚨 Crear alerta", "/alertas add {symbol} 50000"),
-        ("📈 Mercados", "/trading mk"),
-    ],
-    
-    # After /w (weather)
-    "weather": [
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("🚨 Alertas", "/alertas"),
         ("❓ Ayuda", "/help"),
     ],
     
     # After /shop
     "shop": [
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("📈 Trading", "/trading"),
         ("❓ Ayuda", "/help"),
     ],
     
     # After /help
     "help": [
-        ("📊 Empezar", "/start"),
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("🚨 Crear alerta", "/alertas"),
     ],
 }
@@ -79,19 +71,19 @@ SUGGESTIONS = {
 
 ERROR_SUGGESTIONS = {
     "no_coin": [
-        ("📊 Ver lista", "/precios lista"),
-        ("➕ Añadir", "/precios add BTC"),
+        ("📊 Ver lista", "/prices lista"),
+        ("➕ Añadir", "/prices add BTC"),
     ],
     "no_alerts": [
         ("➕ Crear alerta", "/alertas add BTC 50000"),
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
     ],
     "invalid_price": [
-        ("📊 Ver precios", "/precios"),
+        ("📊 Ver precios", "/prices"),
         ("❓ Ayuda", "/help"),
     ],
     "api_error": [
-        ("⏳ Reintentar", "/precios"),
+        ("⏳ Reintentar", "/prices"),
         ("❓ Ayuda", "/help"),
     ],
 }
@@ -184,7 +176,7 @@ def add_suggestions_to_message(
     if include_tip:
         tips = [
             "💡 *Tip:* Usa /help para ver todos los comandos.",
-            "💡 *Tip:* Con /precios add BTC,ETH monitorizas varias monedas.",
+            "💡 *Tip:* Con /prices add BTC,ETH monitorizas varias monedas.",
             "💡 *Tip:* Las alertas te notifican cuando el precio llega a tu objetivo.",
         ]
         import random

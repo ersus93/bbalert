@@ -71,9 +71,9 @@ async def start_button_callback(update: Update, context: ContextTypes.DEFAULT_TY
     if data == "start_prices":
         await query.edit_message_text(
             "📊 *Ver Precios*\n\n"
-            "Usa: `/precios` para ver tu lista\n"
-            "O: `/precios BTC` para ver una moneda específica\n\n"
-            "_Tip: Añade monedas con /precios add BTC,ETH_",
+            "Usa: `/prices` para ver tu lista\n"
+            "O: `/prices BTC` para ver una moneda específica\n\n"
+            "_Tip: Añade monedas con /prices add BTC,ETH_",
             parse_mode=ParseMode.MARKDOWN
         )
     elif data == "start_alerts":
@@ -115,7 +115,7 @@ async def ver(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(
             _(
                 "💡 *Comando actualizado*\n\n"
-                "Ahora usa `/precios` para ver tus precios.\n\n"
+                "Ahora usa `/prices` para ver tus precios.\n\n"
                 "_Este mensaje solo se muestra una vez._",
                 user_id
             ),

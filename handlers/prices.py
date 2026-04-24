@@ -983,6 +983,10 @@ async def _handle_config_temp_menu(update: Update, context: ContextTypes.DEFAULT
 
     keyboard = [
         [
+            InlineKeyboardButton(_("⏱️ 12 horas", user_id), callback_data="prices_temp_12"),
+            InlineKeyboardButton(_("⏱️ 24 horas", user_id), callback_data="prices_temp_24"),
+        ],
+        [
             InlineKeyboardButton(_("⏱️ 1 hora", user_id), callback_data="prices_temp_1"),
             InlineKeyboardButton(_("⏱️ 2 horas", user_id), callback_data="prices_temp_2"),
         ],

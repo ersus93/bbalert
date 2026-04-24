@@ -42,9 +42,9 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             _(
                 "📝 *Tu lista está vacía*\n\n"
                 "Añade monedas con:\n"
-                "`/precios add BTC,ETH,HIVE`\n\n"
-                "O consulta una moneda específica:\n"
-                "`/precios BTC`",
+                "`/prices add BTC,ETH,HIVE`\n\n"
+
+                "`/prices BTC`",
                 user_id
             ),
             parse_mode=ParseMode.MARKDOWN
@@ -148,7 +148,7 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     if not monedas:
         texto = _(
             "📝 *Tu lista está vacía*\n\n"
-            "Usa `/precios add BTC,ETH` para añadir",
+            "Usa `/prices add BTC,ETH` para añadir",
             user_id
         )
         if es_callback:
@@ -161,7 +161,7 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     mensaje += "────────────────────\n\n"
     mensaje += " • ".join(moneda)
     mensaje += "\n\n—————————————————\n"
-    mensaje += "_Edita con: /precios add/rem_"
+    mensaje += "_Edita con: /prices add/rem_"
     
     if es_callback:
         await query.edit_message_text(mensaje, parse_mode=ParseMode.MARKDOWN)
@@ -178,7 +178,7 @@ async def add_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coins: 
         await update.message.reply_text(
             _(
                 "⚠️ *Uso incorrecto*\n\n"
-                "Usa: `/precios add BTC,ETH,HIVE`",
+                "Usa: `/prices add BTC,ETH,HIVE`",
                 user_id
             ),
             parse_mode=ParseMode.MARKDOWN
@@ -223,7 +223,7 @@ async def remove_prices(update: Update, context: ContextTypes.DEFAULT_TYPE, coin
         await update.message.reply_text(
             _(
                 "⚠️ *Uso incorrecto*\n\n"
-                "Usa: `/precios remove BTC`",
+                "Usa: `/prices remove BTC`",
                 user_id
             ),
             parse_mode=ParseMode.MARKDOWN
@@ -268,7 +268,7 @@ async def precios_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if data == "precios_add":
         await query.edit_message_text(
             "➕ *Añadir Monedas*\n\n"
-            "Usa: `/precios add BTC,ETH,HIVE`",
+            "Usa: `/prices add BTC,ETH,HIVE`",
             parse_mode=ParseMode.MARKDOWN
         )
     elif data == "precios_lista":
