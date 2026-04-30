@@ -7,6 +7,12 @@ from utils.user_data import obtener_monedas_usuario, actualizar_monedas
 from core.api_client import obtener_precios_control
 from utils.ads_manager import get_random_ad_text
 from core.i18n import _
+from utils.price_history import (
+    get_previous_prices, 
+    save_current_prices, 
+    calculate_price_change,
+    get_change_emoji
+)
 
 
 async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -59,7 +65,7 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     
     # Obtener precios
     try:
-        precios = obtener_precios_control(monedAS)
+        precios = obtener_precios_control(monedas)
     except Exception as e:
         await msg.edit_text(
             f"⚠️ *Error al consultar precios*\n\n"
@@ -78,16 +84,31 @@ async def show_prices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
         return
     
+    # Obtener precios anteriores y calcular cambios
+    previous_prices = get_previous_prices(chat_id)
+    price_changes = calculate_price_change(precios, previous_prices)
+    
+    # Guardar precios actuales como historial
+    save_current_prices(chat_id, precios)
+    
     # Construir mensaje con indicadores visuales
     from datetime import datetime
     mensaje = "📊 Precios Actuales:\n"
     mensaje += "────────────────────\n\n"
     
     for moneda in monedas:
-        p = precios.get(moneda)
-        if p:
-            emoji = "📈"
-            mensaje += f"{emoji} {moneda}: ${p:,.4f}\n"
+        data = price_changes.get(moneda)
+        if data and data['current']:
+            emoji = get_change_emoji(data['change'])
+            precio = data['current']
+            cambio = data['change']
+            
+            if cambio is not None:
+                cambio_str = f" ({cambio:+.2f}%)"
+            else:
+                cambio_str = " (🔍 primera vez)"
+            
+            mensaje += f"{emoji} {moneda}: ${precio:,.4f}{cambio_str}\n"
         else:
             mensaje += f"⚠️ {moneda}: N/A\n"
     
@@ -159,7 +180,7 @@ async def show_price_list(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     
     mensaje = "📋 *Tu Lista de Monedas:*\n"
     mensaje += "────────────────────\n\n"
-    mensaje += " • ".join(moneda)
+    mensaje += " • ".join(monedas)
     mensaje += "\n\n—————————————————\n"
     mensaje += "_Edita con: /prices add/rem_"
     

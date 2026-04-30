@@ -104,9 +104,10 @@ def programar_alerta_usuario(user_id: int, intervalo_h: float):
                 add_log_line(f"⏱️ Restaurando ciclo para {chat_id}: Próxima alerta en {remaining_seconds/60:.1f} min.")
             else:
                 # Si el tiempo ya pasó (el bot estuvo apagado mucho tiempo),
-                # ejecutamos casi de inmediato para "ponernos al día".
-                first_run_delay = 5 
-                add_log_line(f"⏱️ Alerta atrasada para {chat_id}. Se enviará en 5s.")
+                # esperamos hasta el siguiente intervalo en lugar de enviar inmediatamente
+                # para respetar el intervalo configurado por el usuario
+                first_run_delay = intervalo_segundos + remaining_seconds  # remaining_seconds es negativo
+                add_log_line(f"⏱️ Alerta atrasada para {chat_id}. Se enviará en {first_run_delay/60:.1f} min (respetando intervalo de {intervalo_h}h).")
         except Exception as e:
             add_log_line(f"⚠️ Error calculando tiempo restante para {chat_id}: {e}. Usando default.")
             first_run_delay = 10
